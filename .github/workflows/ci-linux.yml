@@ -1,0 +1,18 @@
+  - name: Install system dependencies
+    run: |
+      sudo apt-get update
+      sudo apt-get install -y build-essential cmake qtbase5-dev qttools5-dev-tools libqt5svg5-dev libqt5x11extras5-dev
+
+  - name: Configure (CMake)
+    run: |
+      cmake -S . -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+
+  - name: Build
+    run: cmake --build build --config ${{ matrix.build_type }} -- -j
+
+  - name: Run tests
+    env:
+      QT_QPA_PLATFORM: offscreen
+    run: |
+      sudo apt-get install -y xvfb
+      xvfb-run -a ctest --test-dir build --output-on-failure
