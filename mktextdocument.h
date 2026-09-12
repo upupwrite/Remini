@@ -109,6 +109,10 @@ public:
     QString getFileName() const;
     QTextDocument* getRawDocument();
 
+    // Reveal every hidden markdown symbol in the document.
+    // Used when the user presses Ctrl+A so they can see / copy the raw text.
+    void revealAllMkSymbols();
+
 public slots:
     void cursorPosChangedHandle(SelectRange * const range, const bool readOnly = false);
     void removeAllMkDataHandle(int blockNo);
@@ -238,6 +242,7 @@ signals:
 enum EditType{
     undoRedo = 0,
     singleEdit,
+    multiDelete,   // ADD: multi-block deletion in one shot
     checkbox,
     enterPressed,
     multiEdit,

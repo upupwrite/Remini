@@ -1439,29 +1439,30 @@ QString MkTextDocument::numberListGetNextNumber(const QString &text)
 
 EditCommand::EditCommand(UndoData &data)
 {
-    this->view = data.view;
-    this->viewEditTypeStore = data.viewEditTypeStore;
-    this->doc = dynamic_cast<MkTextDocument *>(data.doc);
-    this->scrollValue = data.scrollValue;
-    isConstructorRedo = true;
-    this->undoSelectRange = data.oldSelectRange;
+    this->view               = data.view;
+    this->viewEditTypeStore  = data.viewEditTypeStore;
+    this->doc                = dynamic_cast<MkTextDocument *>(data.doc);
+    this->scrollValue        = data.scrollValue;
+    isConstructorRedo        = true;
+    this->undoSelectRange    = data.oldSelectRange;
     this->viewSelectRangeStore = data.viewSelectRangeStore;
-    this->blockNo = data.blockNo;
-    this->posInBlock = data.posInBlock;
-    this->editType = data.editType;
+    this->blockNo            = data.blockNo;
+    this->posInBlock         = data.posInBlock;
+    this->editType           = data.editType;
     this->undoSelectRange.scrollValue = data.scrollValue;
 
     switch (editType) {
     case undoRedo:
         return;
+
     case singleEdit:
         this->undoText = data.oldBlock;
         this->redoText = data.doc->findBlockByNumber(data.blockNo).text();
         this->undoSelectRange.isCheckBox = false;
         break;
-    case checkbox:
-        this->undoSelectRange.isCheckBox = true;
-        // fallthrough
+
+    case multiDelete:       // ADD: fall through together with the other
+    case checkbox:          //      multi-block edit types
     case enterPressed:
     case multiEdit:
         this->undoText = data.oldText;
@@ -1476,16 +1477,20 @@ void EditCommand::undo()
     switch (editType) {
     case undoRedo:
         return;
+
     case singleEdit:
         doc->setUndoRedoText(undoSelectRange.currentBlockNo, this->undoText);
         break;
+
+    case multiDelete:       // ADD
     case checkbox:
     case enterPressed:
     case multiEdit:
         doc->setUndoRedoText(undoText);
         break;
     }
-    *viewEditTypeStore = editType;
+
+    *viewEditTypeStore   = editType;
     *viewSelectRangeStore = undoSelectRange;
 }
 
@@ -1493,26 +1498,48 @@ void EditCommand::redo()
 {
     if (isConstructorRedo) {
         isConstructorRedo = false;
-    } else {
-        switch (editType) {
-        case undoRedo:
-            return;
-        case singleEdit:
-            doc->setUndoRedoText(this->blockNo, this->redoText);
-            break;
-        case checkbox:
-        case enterPressed:
-        case multiEdit:
-            doc->setUndoRedoText(redoText);
-            break;
-        }
-
-        *this->viewEditTypeStore = editType;
-
-        viewSelectRangeStore->hasSelection = false;
-        viewSelectRangeStore->currentBlockNo = this->blockNo;
-        viewSelectRangeStore->currentposInBlock = this->posInBlock;
-        viewSelectRangeStore->isCheckBox = this->undoSelectRange.isCheckBox;
-        viewSelectRangeStore->scrollValue = this->undoSelectRange.scrollValue;
+        return;
     }
+
+    switch (editType) {
+    case undoRedo:
+        return;
+
+    case singleEdit:
+        doc->setUndoRedoText(this->blockNo, this->redoText);
+        break;
+
+    case multiDelete:       // ADD
+    case checkbox:
+    case enterPressed:
+    case multiEdit:
+        doc->setUndoRedoText(redoText);
+        break;
+    }
+
+    *this->viewEditTypeStore = editType;
+
+    viewSelectRangeStore->hasSelection      = false;
+    viewSelectRangeStore->currentBlockNo    = this->blockNo;
+    viewSelectRangeStore->currentposInBlock = this->posInBlock;
+    viewSelectRangeStore->isCheckBox        = this->undoSelectRange.isCheckBox;
+    viewSelectRangeStore->scrollValue       = this->undoSelectRange.scrollValue;
+}
+
+// ---------------------------------------------------------------------------
+// Force every block to be shown so all markdown symbols become visible.
+// Mirrors what setMarkdownHandle(false) does, but without changing the
+// persistent markdown-enabled state.
+// ---------------------------------------------------------------------------
+void MkTextDocument::revealAllMkSymbols()
+{
+    if (disableMarkdownState)
+        return;   // already showing raw text, nothing to do
+
+    for (int num = 0; num < this->blockCount(); ++num) {
+        this->selectRange.hideBlocks.erase(num);
+        this->selectRange.showBlocks.insert(num);
+    }
+
+    showMKSymbolsFromCurrentSelectedBlocks(&this->selectRange);
 }

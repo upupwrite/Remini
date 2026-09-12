@@ -65,7 +65,6 @@ private:
         markdown = settings.value("markdown",true).toBool();
         viewText->setMkState(markdown);
         viewTitle->setText("Startup Tips");
-        viewText->setReadOnly(true);
     }
 
 
