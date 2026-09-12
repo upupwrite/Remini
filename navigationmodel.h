@@ -6,7 +6,6 @@
 #include <QSortFilterProxyModel>
 #include <QUrl>
 #include <QObject>
-#include <Windows.h>
 #include <QClipboard>
 #include <QApplication>
 

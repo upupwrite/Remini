@@ -1,6 +1,6 @@
 #ifndef VIEWS_HANDLER_H
 #define VIEWS_HANDLER_H
-#include <MkTextDocument.h>
+#include <mktextdocument.h>
 #include <QSharedPointer>
 #include <QTreeWidgetItem>
 #include <QMessageBox>
@@ -10,7 +10,7 @@
 #include <mkedit.h>
 #include <navigationview.h>
 #include <navigationmodel.h>
-#include <startupText.h>
+#include <startuptext.h>
 #include "textsearchworker.h"
 #include "ui_mainwindow.h"
 #include "recentfilesdialog.h"

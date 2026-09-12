@@ -4,7 +4,7 @@
 #include <QObject>
 #include <QWidget>
 #include <QPainter>
-#include <Highlighter.h>
+#include <highlighter.h>
 #include <QRegularExpressionMatch>
 #include <QTextDocument>
 #include <QMenu>
