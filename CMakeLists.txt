@@ -93,9 +93,9 @@ if(UNIX AND NOT APPLE)
     target_link_libraries(Remini PRIVATE X11::X11)
 endif()
 
-#add_subdirectory(CatchTests)
+add_subdirectory(CatchTests)
 
-#add_test(NAME CatchTests COMMAND CatchTests)
+add_test(NAME CatchTests COMMAND CatchTests)
 
 set_target_properties(Remini PROPERTIES
     MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
