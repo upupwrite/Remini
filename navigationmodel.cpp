@@ -11,18 +11,11 @@
 #include <QSortFilterProxyModel>
 #include <QUrl>
 
-// -----------------------------------------------------------------------------
-// Constructor
-// -----------------------------------------------------------------------------
 NavigationProxyModel::NavigationProxyModel(QObject *parent)
     : QSortFilterProxyModel(parent)
 {
 }
 
-// -----------------------------------------------------------------------------
-// Map a filesystem path to a proxy model index using the source model.
-// Returns an invalid QModelIndex if the source model is not a QFileSystemModel.
-// -----------------------------------------------------------------------------
 QModelIndex NavigationProxyModel::setRootIndexFromPath(QString path)
 {
     QFileSystemModel *model = dynamic_cast<QFileSystemModel *>(this->sourceModel());
@@ -33,9 +26,6 @@ QModelIndex NavigationProxyModel::setRootIndexFromPath(QString path)
     return QModelIndex();
 }
 
-// -----------------------------------------------------------------------------
-// Return the QFileInfo of the given proxy index, mapped back to the source.
-// -----------------------------------------------------------------------------
 QFileInfo NavigationProxyModel::getFileInfoMappedToSource(const QModelIndex &index)
 {
     QFileSystemModel *model = qobject_cast<QFileSystemModel *>(this->sourceModel());
@@ -46,9 +36,6 @@ QFileInfo NavigationProxyModel::getFileInfoMappedToSource(const QModelIndex &ind
     return model->fileInfo(sourceIndex);
 }
 
-// -----------------------------------------------------------------------------
-// Return the QFileInfo directly from the source model for the given proxy index.
-// -----------------------------------------------------------------------------
 QFileInfo NavigationProxyModel::getFileInfo(const QModelIndex &index)
 {
     QFileSystemModel *model = qobject_cast<QFileSystemModel *>(this->sourceModel());
@@ -58,10 +45,6 @@ QFileInfo NavigationProxyModel::getFileInfo(const QModelIndex &index)
     return model->fileInfo(index);
 }
 
-// -----------------------------------------------------------------------------
-// Create a new empty file in the directory represented by the given index.
-// The generated file name is returned through the "name" output parameter.
-// -----------------------------------------------------------------------------
 void NavigationProxyModel::createFileHandler(QModelIndex &index, QString &name)
 {
     QFileSystemModel *model = qobject_cast<QFileSystemModel *>(this->sourceModel());
@@ -74,16 +57,12 @@ void NavigationProxyModel::createFileHandler(QModelIndex &index, QString &name)
     QString fileType = QStringLiteral(".txt");
     QString filePath;
 
-    if (sourceIndex.isValid()) {
-        // Use the directory of the selected item as the base path.
+    if (sourceIndex.isValid())
         filePath = QDir(model->filePath(sourceIndex)).absolutePath();
-    } else {
-        // Fall back to the model root path.
+    else
         filePath = QDir(model->rootPath()).absolutePath();
-    }
 
     QFile file;
-    // Ensure the generated file name is unique inside the target directory.
     uniqueFileName(file, fileName, fileType, filePath + QDir::separator());
 
     file.open(QIODevice::ReadWrite);
@@ -92,10 +71,6 @@ void NavigationProxyModel::createFileHandler(QModelIndex &index, QString &name)
     name = fileName + fileType;
 }
 
-// -----------------------------------------------------------------------------
-// Create a new folder in the directory represented by the given index.
-// The generated folder name is returned through the "name" output parameter.
-// -----------------------------------------------------------------------------
 void NavigationProxyModel::createFolderHandler(QModelIndex &index, QString &name)
 {
     QFileSystemModel *model = qobject_cast<QFileSystemModel *>(this->sourceModel());
@@ -115,18 +90,12 @@ void NavigationProxyModel::createFolderHandler(QModelIndex &index, QString &name
     }
 
     QDir dir(folderPath);
-    // Ensure the folder name is unique inside the target directory.
     uniqueFolderName(dir, folderName, folderPath + QDir::separator());
 
     dir.mkdir(folderName);
     name = folderName;
 }
 
-// -----------------------------------------------------------------------------
-// Move the file or folder at the given index to the system trash.
-// QFile::moveToTrash() is cross-platform: it uses the Windows Recycle Bin,
-// the XDG trash on Linux, and the macOS Trash.
-// -----------------------------------------------------------------------------
 void NavigationProxyModel::deleteFileFolderHandler(QModelIndex &index)
 {
     QFileSystemModel *model = qobject_cast<QFileSystemModel *>(this->sourceModel());
@@ -139,16 +108,10 @@ void NavigationProxyModel::deleteFileFolderHandler(QModelIndex &index)
     if (!fileInfo.exists())
         return;
 
-    // Cross-platform trash operation.
-    // On Windows this uses the Recycle Bin, on Linux the XDG trash,
-    // and on macOS the Finder Trash.
+    // Cross-platform trash: Windows Recycle Bin / XDG trash / macOS Trash.
     QFile::moveToTrash(fileInfo.absoluteFilePath());
 }
 
-// -----------------------------------------------------------------------------
-// Open the native file manager at the location of the given index.
-// Uses QDesktopServices so it works on Windows, Linux and macOS.
-// -----------------------------------------------------------------------------
 void NavigationProxyModel::openLocationHandler(QModelIndex &index)
 {
     QFileSystemModel *model = qobject_cast<QFileSystemModel *>(this->sourceModel());
@@ -163,18 +126,14 @@ void NavigationProxyModel::openLocationHandler(QModelIndex &index)
         folderPath = model->rootPath();
     } else {
         QFileInfo fileInfo = model->fileInfo(sourceIndex);
-        if (!fileInfo.isDir()) {
+        if (!fileInfo.isDir())
             fileInfo.setFile(fileInfo.absoluteFilePath());
-        }
         folderPath = fileInfo.absolutePath();
     }
 
     QDesktopServices::openUrl(QUrl::fromLocalFile(folderPath));
 }
 
-// -----------------------------------------------------------------------------
-// Copy the absolute path of the given index into the system clipboard.
-// -----------------------------------------------------------------------------
 void NavigationProxyModel::copyFileFolderHandler(QModelIndex &index)
 {
     QFileSystemModel *model = qobject_cast<QFileSystemModel *>(this->sourceModel());
@@ -184,21 +143,15 @@ void NavigationProxyModel::copyFileFolderHandler(QModelIndex &index)
     QModelIndex sourceIndex = this->mapToSource(index);
 
     QString path;
-
-    if (!sourceIndex.isValid()) {
+    if (!sourceIndex.isValid())
         path = model->rootPath();
-    } else {
-        QFileInfo fileInfo = model->fileInfo(sourceIndex);
-        path = fileInfo.absoluteFilePath();
-    }
+    else
+        path = model->fileInfo(sourceIndex).absoluteFilePath();
 
     QClipboard *clipboard = QApplication::clipboard();
     clipboard->setText(path);
 }
 
-// -----------------------------------------------------------------------------
-// Recursively collect all sub-directory absolute paths under the given index.
-// -----------------------------------------------------------------------------
 void NavigationProxyModel::createAllFoldersList(QModelIndex index, QStringList &listPath)
 {
     QFileSystemModel *model = qobject_cast<QFileSystemModel *>(this->sourceModel());
@@ -211,27 +164,22 @@ void NavigationProxyModel::createAllFoldersList(QModelIndex index, QStringList &
 
     if (info.isDir()) {
         QDir dir(path);
-        if (dir.isEmpty()) {
+        if (dir.isEmpty())
             return;
-        } else {
-            dir.setFilter(QDir::Dirs | QDir::Files | QDir::NoDotAndDotDot);
 
-            if (model->hasChildren(rootIndex)) {
-                QDirIterator di(path, QDir::Dirs, QDirIterator::Subdirectories);
-                while (di.hasNext()) {
-                    di.next();
-                    if (di.fileInfo().isDir()) {
-                        listPath.append(di.fileInfo().absoluteFilePath());
-                    }
-                }
+        dir.setFilter(QDir::Dirs | QDir::Files | QDir::NoDotAndDotDot);
+
+        if (model->hasChildren(rootIndex)) {
+            QDirIterator di(path, QDir::Dirs, QDirIterator::Subdirectories);
+            while (di.hasNext()) {
+                di.next();
+                if (di.fileInfo().isDir())
+                    listPath.append(di.fileInfo().absoluteFilePath());
             }
         }
     }
 }
 
-// -----------------------------------------------------------------------------
-// Recursively collect all file absolute paths under the given index.
-// -----------------------------------------------------------------------------
 void NavigationProxyModel::createAllFilesList(QModelIndex index, QStringList &listPath)
 {
     QFileSystemModel *model = qobject_cast<QFileSystemModel *>(this->sourceModel());
@@ -246,27 +194,22 @@ void NavigationProxyModel::createAllFilesList(QModelIndex index, QStringList &li
 
     if (info.isDir()) {
         QDir dir(path);
-        if (dir.isEmpty()) {
+        if (dir.isEmpty())
             return;
-        } else {
-            dir.setFilter(QDir::Dirs | QDir::Files | QDir::NoDotAndDotDot);
 
-            if (model->hasChildren(rootIndex)) {
-                QDirIterator di(path, QDir::Files, QDirIterator::Subdirectories);
-                while (di.hasNext()) {
-                    di.next();
-                    if (di.fileInfo().isFile()) {
-                        listPath.append(di.fileInfo().absoluteFilePath());
-                    }
-                }
+        dir.setFilter(QDir::Dirs | QDir::Files | QDir::NoDotAndDotDot);
+
+        if (model->hasChildren(rootIndex)) {
+            QDirIterator di(path, QDir::Files, QDirIterator::Subdirectories);
+            while (di.hasNext()) {
+                di.next();
+                if (di.fileInfo().isFile())
+                    listPath.append(di.fileInfo().absoluteFilePath());
             }
         }
     }
 }
 
-// -----------------------------------------------------------------------------
-// Recursively find a unique file name by appending "_new" until no conflict.
-// -----------------------------------------------------------------------------
 void NavigationProxyModel::uniqueFileName(QFile &file, QString &name, QString &type, const QString &path)
 {
     file.setFileName(path + name + type);
@@ -276,9 +219,6 @@ void NavigationProxyModel::uniqueFileName(QFile &file, QString &name, QString &t
     }
 }
 
-// -----------------------------------------------------------------------------
-// Recursively find a unique folder name by appending "_new" until no conflict.
-// -----------------------------------------------------------------------------
 void NavigationProxyModel::uniqueFolderName(QDir &dir, QString &name, const QString &path)
 {
     dir.setPath(path + name);
@@ -288,11 +228,6 @@ void NavigationProxyModel::uniqueFolderName(QDir &dir, QString &name, const QStr
     }
 }
 
-// -----------------------------------------------------------------------------
-// Filter callback: decide whether a row should be shown by the proxy model.
-// Rows outside the model root path are always accepted so the tree structure
-// above the root remains intact.
-// -----------------------------------------------------------------------------
 bool NavigationProxyModel::filterAcceptsRow(int source_row, const QModelIndex &source_parent) const
 {
     QFileSystemModel *model = qobject_cast<QFileSystemModel *>(this->sourceModel());
@@ -301,25 +236,18 @@ bool NavigationProxyModel::filterAcceptsRow(int source_row, const QModelIndex &s
 
     QModelIndex childIndex = model->index(source_row, 0, source_parent);
 
-    // Empty filter pattern: accept everything.
     if (filterRegularExpression().pattern().isEmpty())
         return true;
 
     QString rootPath = model->rootPath();
     QString infoPath = model->fileInfo(childIndex).absoluteFilePath();
 
-    // Always keep rows that are not under the root path, so that the parent
-    // directory chain remains visible.
     if (!isSubdirectory(infoPath, rootPath))
         return true;
 
     return filterChildIndex(model, source_row, childIndex);
 }
 
-// -----------------------------------------------------------------------------
-// Recursive filter used to match either file names or folder names.
-// A pattern starting with '/' means "search for folders only".
-// -----------------------------------------------------------------------------
 bool NavigationProxyModel::filterChildIndex(QFileSystemModel *model, int source_row, const QModelIndex &source_parent) const
 {
     Q_UNUSED(source_row);
@@ -329,14 +257,12 @@ bool NavigationProxyModel::filterChildIndex(QFileSystemModel *model, int source_
 
     const QString pattern = filterRegularExpression().pattern();
 
-    // Check whether the pattern is a folder-only search (starts with '/').
     if (!pattern.isEmpty() && pattern.at(0) == QLatin1Char('/')) {
         QString folderName = pattern.mid(1).toLower();
 
         if (info.isDir()) {
-            if (fileName.contains(folderName)) {
+            if (fileName.contains(folderName))
                 return true;
-            }
 
             QDir dir(info.absoluteFilePath());
             dir.setFilter(QDir::Dirs | QDir::Files | QDir::NoDotAndDotDot);
@@ -344,40 +270,32 @@ bool NavigationProxyModel::filterChildIndex(QFileSystemModel *model, int source_
 
             for (int row = 0; row < rowCount; row++) {
                 QModelIndex childIndex = model->index(row, 0, source_parent);
-                if (filterChildIndex(model, row, childIndex)) {
+                if (filterChildIndex(model, row, childIndex))
                     return true;
-                }
             }
         }
 
-        // Also match if any parent folder in the path contains the pattern.
-        if (info.absolutePath().toLower().contains(folderName)) {
+        if (info.absolutePath().toLower().contains(folderName))
             return true;
-        }
     } else {
-        // Regular file search.
         if (info.isFile()) {
-            if (fileName.contains(pattern)) {
+            if (fileName.contains(pattern))
                 return true;
-            } else {
-                return false;
-            }
+            return false;
         }
 
         if (info.isDir()) {
             QDir dir(info.absoluteFilePath());
-            if (dir.isEmpty()) {
+            if (dir.isEmpty())
                 return false;
-            } else {
-                dir.setFilter(QDir::Dirs | QDir::Files | QDir::NoDotAndDotDot);
-                int rowCount = dir.count();
 
-                for (int row = 0; row < rowCount; row++) {
-                    QModelIndex childIndex = model->index(row, 0, source_parent);
-                    if (filterChildIndex(model, row, childIndex)) {
-                        return true;
-                    }
-                }
+            dir.setFilter(QDir::Dirs | QDir::Files | QDir::NoDotAndDotDot);
+            int rowCount = dir.count();
+
+            for (int row = 0; row < rowCount; row++) {
+                QModelIndex childIndex = model->index(row, 0, source_parent);
+                if (filterChildIndex(model, row, childIndex))
+                    return true;
             }
         }
     }
@@ -387,15 +305,22 @@ bool NavigationProxyModel::filterChildIndex(QFileSystemModel *model, int source_
 
 // -----------------------------------------------------------------------------
 // Check whether subDirPath is located under parentDirPath.
-// Uses absolute paths so the comparison is platform independent.
+//
+// FIX: The naive `subDir.startsWith(parent)` check gives false positives.
+// e.g. "/home/alice2/file" starts with "/home/al" even though alice2 is not
+// inside /home/al. Append a trailing separator to the parent path so the
+// comparison only succeeds on an actual path-component boundary.
 // -----------------------------------------------------------------------------
 bool NavigationProxyModel::isSubdirectory(const QString &subDirPath, const QString &parentDirPath) const
 {
-    QDir subDir(subDirPath);
-    QDir parentDir(parentDirPath);
+    const QString sub    = QDir(subDirPath).absolutePath();
+    QString       parent = QDir(parentDirPath).absolutePath();
 
-    QString absoluteSubDirPath = subDir.absolutePath();
-    QString absoluteParentDirPath = parentDir.absolutePath();
+    if (sub == parent)
+        return true;
 
-    return absoluteSubDirPath.startsWith(absoluteParentDirPath);
+    if (!parent.endsWith(QLatin1Char('/')))
+        parent += QLatin1Char('/');
+
+    return sub.startsWith(parent);
 }

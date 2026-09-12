@@ -1,42 +1,101 @@
 #include "views_handler.h"
 
+#include <QApplication>
+#include <QClipboard>
+#include <QCoreApplication>
+#include <QDesktopServices>
+#include <QDir>
+#include <QFile>
+#include <QFileDialog>
+#include <QFileInfo>
+#include <QFileSystemModel>
+#include <QIcon>
+#include <QMessageBox>
+#include <QSettings>
+#include <QTextCursor>
+#include <QTextStream>
+#include <QUrl>
+#include <QWidget>
+
+// ---------------------------------------------------------------------------
+// Default monospace font per platform. "Cascadia Mono" ships with Windows
+// Terminal, "Calibri" is Windows-only too. On Linux / macOS we must use a
+// font that actually exists, otherwise Qt silently falls back to a random
+// system font and the UI renders inconsistently.
+// ---------------------------------------------------------------------------
+static QString defaultMonospaceFont()
+{
+#ifdef Q_OS_WIN
+    return QStringLiteral("Cascadia Mono");
+#elif defined(Q_OS_MACOS)
+    return QStringLiteral("Menlo");
+#else
+    return QStringLiteral("Monospace");
+#endif
+}
+
+static QString defaultUiFont()
+{
+#ifdef Q_OS_WIN
+    return QStringLiteral("Calibri");
+#elif defined(Q_OS_MACOS)
+    return QStringLiteral("Helvetica");
+#else
+    return QStringLiteral("Sans Serif");
+#endif
+}
+
+// ---------------------------------------------------------------------------
+// Vault path resolution.
+//
+// NOTE: This function reads from two different QSettings locations in an
+// inconsistent way. That is preserved here so behaviour matches the rest of
+// the project, but the "config.ini" path is relative to the current working
+// directory, which can be anything on Linux depending on how the app is
+// launched. If you rely on it, resolve it to an absolute path explicitly.
+// ---------------------------------------------------------------------------
 QString ViewsHandler::getVaultPath()
 {
-    QFile configFile("config.ini");
-    if(configFile.exists()){
-        QSettings settings("config.ini", QSettings::IniFormat);
-        return settings.value("vault").toString();
+    QFile configFile(QStringLiteral("config.ini"));
+    if (configFile.exists()) {
+        QSettings settings(QStringLiteral("config.ini"), QSettings::IniFormat);
+        return settings.value(QStringLiteral("vault")).toString();
     }
 
-    QCoreApplication::setApplicationName("Remini");
-    QSettings settings("Remini","Remini");
-    settings.setPath(settings.IniFormat, settings.SystemScope, "config.ini");
-    QString path = settings.value("vault").toString();
-    markdown = settings.value("markdown",true).toBool();
+    QCoreApplication::setApplicationName(QStringLiteral("Remini"));
+    QSettings settings(QStringLiteral("Remini"), QStringLiteral("Remini"));
+
+    QString path = settings.value(QStringLiteral("vault")).toString();
+    markdown = settings.value(QStringLiteral("markdown"), true).toBool();
 
     QFile configAnotherFile(path);
-    if(configAnotherFile.exists()){
+    if (configAnotherFile.exists())
         return path;
-    }
 
-    QString localVaultPath = QCoreApplication::applicationDirPath() + QDir::separator() + "Vault";
+    const QString localVaultPath =
+        QCoreApplication::applicationDirPath() + QDir::separator() + QStringLiteral("Vault");
+
     QDir dir;
-    if(!dir.exists(localVaultPath)){
+    if (!dir.exists(localVaultPath))
         dir.mkdir(localVaultPath);
-    }
-    settings.setValue("vault",localVaultPath);
+
+    settings.setValue(QStringLiteral("vault"), localVaultPath);
     return localVaultPath;
 }
 
-void ViewsHandler::setVaultPath(QString &path)
+// ---------------------------------------------------------------------------
+// Save the vault path. Use the same key spelling everywhere ("vault"), and
+// stay on the same QSettings scope as getVaultPath().
+// ---------------------------------------------------------------------------
+void ViewsHandler::setVaultPath(const QString &path)
 {
-    QFile configFile("config.ini");
-    if(configFile.exists()){
-        QSettings settings("config.ini", QSettings::IniFormat);
-        settings.setValue("vault",path);
-    }else{
-        QSettings settings("Remini","Remini");
-        settings.setValue("vault",path);
+    QFile configFile(QStringLiteral("config.ini"));
+    if (configFile.exists()) {
+        QSettings settings(QStringLiteral("config.ini"), QSettings::IniFormat);
+        settings.setValue(QStringLiteral("vault"), path);
+    } else {
+        QSettings settings(QStringLiteral("Remini"), QStringLiteral("Remini"));
+        settings.setValue(QStringLiteral("vault"), path);
     }
 }
 
@@ -52,48 +111,56 @@ void ViewsHandler::initViews(Ui::MainWindow &ui)
     viewTextSearchTree->setRowsEditable(false);
     viewTextSearchCount = ui.uiTextSearchCount;
 
-    viewTextSearchEdit->setPlaceholderText("Search Texts...");
+    viewTextSearchEdit->setPlaceholderText(QStringLiteral("Search Texts..."));
 
     QList<int> sizes;
     sizes << NAVIGATION_RATIO << EDITOR_RAIO;
     ui.splitter->setSizes(sizes);
-    ui.splitter->setCollapsible(1,false);
+    ui.splitter->setCollapsible(1, false);
 
-    viewSearch = ui.uiSearch;
-    viewTree = ui.uiTreeView;
-    viewText = ui.uiTextView;
-    viewTitle = ui.uiTitle;
-    viewLeftFrame = ui.uiLeftPane;
-    viewRightFrame = ui.uiRightPane;
-    viewSettingBtn = ui.uiSettingBtn;
+    viewSearch      = ui.uiSearch;
+    viewTree        = ui.uiTreeView;
+    viewText        = ui.uiTextView;
+    viewTitle       = ui.uiTitle;
+    viewLeftFrame   = ui.uiLeftPane;
+    viewRightFrame  = ui.uiRightPane;
+    viewSettingBtn  = ui.uiSettingBtn;
 
-    QIcon SettingsIcon(":/icons/settings.png");
+    QIcon SettingsIcon(QStringLiteral(":/icons/settings.png"));
     viewSettingBtn->setIcon(SettingsIcon);
 
-    viewSearch->setPlaceholderText("Search Files...");
+    viewSearch->setPlaceholderText(QStringLiteral("Search Files..."));
     initTreeView();
 
-    recentFileDocumentMap.insert("startup", QSharedPointer<MkTextDocument>(new MkTextDocument()));
-    currentDocument = recentFileDocumentMap.value("startup");
+    recentFileDocumentMap.insert(QStringLiteral("startup"),
+                                 QSharedPointer<MkTextDocument>(new MkTextDocument()));
+    currentDocument = recentFileDocumentMap.value(QStringLiteral("startup"));
     currentDocument->setPlainText(startupText);
     highlighter.setDocument(currentDocument.data());
     viewText->setDocument(currentDocument.data());
-    viewTitle->setMinimumSize(10,30);
+    viewTitle->setMinimumSize(10, 30);
+    initFontDefault();
+    // Explicitly force the editor into editable mode. Relying on the
+    // ToggleButton's initial state is fragile because the toggleState ->
+    // setEditState connection is only created later, in connectDocument().
+    viewText->setReadOnly(false);
+    viewText->setFocusPolicy(Qt::StrongFocus);
+
     initFontDefault();
 }
 
 bool ViewsHandler::initTreeView(QString path)
 {
-    //ignore if the path is already set
-    if(modelTree.rootPath()==path){
+    // Ignore if the path is already set.
+    if (modelTree.rootPath() == path)
         return false;
-    }
 
     modelTree.setReadOnly(false);
-    modelTree.setFilter(QDir::NoDotAndDotDot|QDir::AllEntries);
-    if(path.isEmpty()){
+    modelTree.setFilter(QDir::NoDotAndDotDot | QDir::AllEntries);
+
+    if (path.isEmpty())
         path = getVaultPath();
-    }
+
     modelTree.setRootPath(path);
     vaultPath = modelTree.rootPath();
 
@@ -101,35 +168,35 @@ bool ViewsHandler::initTreeView(QString path)
     viewTree->setModel(&proxyModel);
     viewTree->setRootIndex(proxyModel.setRootIndexFromPath(path));
 
-    for(int column = 1; column < proxyModel.columnCount(); column ++)
-    {
-        viewTree->setColumnHidden(column,true);
-    }
+    for (int column = 1; column < proxyModel.columnCount(); column++)
+        viewTree->setColumnHidden(column, true);
+
     return true;
 }
 
 void ViewsHandler::initFontDefault()
 {
-    QSettings settings("Remini","Remini");
+    QSettings settings(QStringLiteral("Remini"), QStringLiteral("Remini"));
     QFont font;
-    font.setFamily(settings.value("font","Calibri").toString());
-    font.setPointSize(settings.value("fontsize",14).toInt());
-    font.setStretch(settings.value("stretch",0).toInt());
-    font.setWeight((QFont::Weight)settings.value("weight",1).toInt());
+    font.setFamily(settings.value(QStringLiteral("font"), defaultUiFont()).toString());
+    font.setPointSize(settings.value(QStringLiteral("fontsize"), 14).toInt());
+    font.setStretch(settings.value(QStringLiteral("stretch"), 0).toInt());
+    font.setWeight(static_cast<QFont::Weight>(
+        settings.value(QStringLiteral("weight"), 1).toInt()));
 
     updateUiSettingsHandler(font);
 }
 
 void ViewsHandler::initConnection()
 {
-    QObject::connect(viewText,&MkEdit::syntaxColorUpdate,
-                     &highlighter,&Highlighter::syntaxColorUpdateHandler);
+    QObject::connect(viewText, &MkEdit::syntaxColorUpdate,
+                     &highlighter, &Highlighter::syntaxColorUpdateHandler);
 
-    QObject::connect(viewText,&MkEdit::syntaxColorUpdate,
-                     settingsDialog,&SettingsDialog::syntaxColorUpdateHandler);
+    QObject::connect(viewText, &MkEdit::syntaxColorUpdate,
+                     settingsDialog, &SettingsDialog::syntaxColorUpdateHandler);
 
-    QObject::connect(settingsDialog,&SettingsDialog::updateUiSettings,
-                     this,&ViewsHandler::updateUiSettingsHandler);
+    QObject::connect(settingsDialog, &SettingsDialog::updateUiSettings,
+                     this, &ViewsHandler::updateUiSettingsHandler);
 
     QObject::connect(viewTree, &NavigationView::pressed,
                      this, &ViewsHandler::fileDisplay);
@@ -140,56 +207,56 @@ void ViewsHandler::initConnection()
     QObject::connect(viewTree, &NavigationView::createFolder,
                      &proxyModel, &NavigationProxyModel::createFolderHandler);
 
-    QObject::connect(this,  &ViewsHandler::fileDelete,
+    QObject::connect(this, &ViewsHandler::fileDelete,
                      &proxyModel, &NavigationProxyModel::deleteFileFolderHandler);
 
-    QObject::connect(this,  &ViewsHandler::fileDeletePath,
+    QObject::connect(this, &ViewsHandler::fileDeletePath,
                      recentFilesView, &RecentFilesDialog::removeRecentDeletedFileHandle);
 
-    QObject::connect(viewTree,&NavigationView::deleteFileFolder,
+    QObject::connect(viewTree, &NavigationView::deleteFileFolder,
                      this, &ViewsHandler::fileDeleteDialogue);
 
     QObject::connect(viewTree, &NavigationView::openLocation,
-                     &proxyModel,&NavigationProxyModel::openLocationHandler);
+                     &proxyModel, &NavigationProxyModel::openLocationHandler);
 
     QObject::connect(viewTree, &NavigationView::copyFolderFilePath,
-                     &proxyModel,&NavigationProxyModel::copyFileFolderHandler);
+                     &proxyModel, &NavigationProxyModel::copyFileFolderHandler);
 
     QObject::connect(viewTree, &NavigationView::newFileCreated,
                      this, &ViewsHandler::fileDisplay);
 
-     QObject::connect(viewText,&MkEdit::fileSaveRaw,
-                     this,  &ViewsHandler::fileSaveRawHandle);
+    QObject::connect(viewText, &MkEdit::fileSaveRaw,
+                     this, &ViewsHandler::fileSaveRawHandle);
 
-    QObject::connect(viewText,&MkEdit::escapeFocus,
-                     this,&ViewsHandler::sendFocusToSearchHandler);
+    QObject::connect(viewText, &MkEdit::escapeFocus,
+                     this, &ViewsHandler::sendFocusToSearchHandler);
 
-    QObject::connect(viewSearch,&QLineEdit::textChanged,
-                     this,&ViewsHandler::searchFileHandle);
+    QObject::connect(viewSearch, &QLineEdit::textChanged,
+                     this, &ViewsHandler::searchFileHandle);
 
-    QObject::connect(&modelTree,&QFileSystemModel::directoryLoaded,
-                     this,&ViewsHandler::navigationAllPathLoaded);
+    QObject::connect(&modelTree, &QFileSystemModel::directoryLoaded,
+                     this, &ViewsHandler::navigationAllPathLoaded);
 
-    QObject::connect(viewTree,&NavigationView::expansionComplete,
-                     this,&ViewsHandler::navigationViewExpandedFilenameFilter);
+    QObject::connect(viewTree, &NavigationView::expansionComplete,
+                     this, &ViewsHandler::navigationViewExpandedFilenameFilter);
 
-    QObject::connect(&searchThread,&QThread::started,
-                     &textSearchWorker,&TextSearchWorker::doWork);
+    QObject::connect(&searchThread, &QThread::started,
+                     &textSearchWorker, &TextSearchWorker::doWork);
 
-    QObject::connect(&textSearchWorker,&TextSearchWorker::finished,
+    QObject::connect(&textSearchWorker, &TextSearchWorker::finished,
                      &searchThread, &QThread::quit);
 
-    QObject::connect(this,&ViewsHandler::updateRecentFile,
-                     recentFilesView,&RecentFilesDialog::updateRecentFileHandle);
+    QObject::connect(this, &ViewsHandler::updateRecentFile,
+                     recentFilesView, &RecentFilesDialog::updateRecentFileHandle);
 
-    QObject::connect(viewSettingBtn,&QToolButton::pressed,
-                     this,&ViewsHandler::showSettingsBtn);
+    QObject::connect(viewSettingBtn, &QToolButton::pressed,
+                     this, &ViewsHandler::showSettingsBtn);
 
     QObject::connect(viewTree, &NavigationView::fileRenamed,
-                     this,&ViewsHandler::fileRenamedHandler);
+                     this, &ViewsHandler::fileRenamedHandler);
 
     QObject::connect(viewTree, &NavigationView::setVaultPath,
-                     this,&ViewsHandler::setVaultPathHandler);
+                     this, &ViewsHandler::setVaultPathHandler);
 
     QObject::connect(viewText, &MkEdit::checkIfCursorInBlock,
                      this, &ViewsHandler::checkIfCursorInBlockHandler);
@@ -203,24 +270,22 @@ void ViewsHandler::initConnection()
     connectDocument();
 
     QObject::connect(viewTextSearchEdit, &QLineEdit::textChanged,
-            this,&ViewsHandler::textSearchChangedHandler);
+                     this, &ViewsHandler::textSearchChangedHandler);
 
     QObject::connect(viewTextSearchEdit, &QLineEdit::returnPressed,
-            this,&ViewsHandler::textSearchReturnPressedHandler);
+                     this, &ViewsHandler::textSearchReturnPressedHandler);
 
-    QObject::connect(&textSearchWorker,&TextSearchWorker::updateTextSearchView,
+    QObject::connect(&textSearchWorker, &TextSearchWorker::updateTextSearchView,
                      this, &ViewsHandler::updateTextSearchViewHandler);
 
-    QObject::connect(viewTextSearchTree,&NavigationView::pressed,
-            this,&ViewsHandler::textSearchResultPositionSelected);
+    QObject::connect(viewTextSearchTree, &NavigationView::pressed,
+                     this, &ViewsHandler::textSearchResultPositionSelected);
 
-    QObject::connect(viewTextSearchTree,&NavigationView::sendFocusToSearch,
-                     this,&ViewsHandler::sendFocusToSearchHandler);
+    QObject::connect(viewTextSearchTree, &NavigationView::sendFocusToSearch,
+                     this, &ViewsHandler::sendFocusToSearchHandler);
 
-    QObject::connect(viewTree,&NavigationView::sendFocusToSearch,
-                     this,&ViewsHandler::sendFocusToSearchHandler);
-
-
+    QObject::connect(viewTree, &NavigationView::sendFocusToSearch,
+                     this, &ViewsHandler::sendFocusToSearchHandler);
 }
 
 void ViewsHandler::connectDocument()
@@ -229,74 +294,73 @@ void ViewsHandler::connectDocument()
                      currentDocument.data(), &MkTextDocument::checkRightClockOnCodeBlockHandle);
 
     QObject::connect(viewText, &MkEdit::selectBlockCopy,
-                     currentDocument.data(),&MkTextDocument::selectBlockCopyHandle);
+                     currentDocument.data(), &MkTextDocument::selectBlockCopyHandle);
 
     QObject::connect(viewText, &MkEdit::duplicateLine,
-                     currentDocument.data(),&MkTextDocument::duplicateLineHandle);
+                     currentDocument.data(), &MkTextDocument::duplicateLineHandle);
 
     QObject::connect(viewText, &MkEdit::smartSelection,
-                     currentDocument.data(),&MkTextDocument::smartSelectionHandle);
+                     currentDocument.data(), &MkTextDocument::smartSelectionHandle);
 
-    QObject::connect(viewText,&MkEdit::cursorPosChanged,
-                     currentDocument.data(),&MkTextDocument::cursorPosChangedHandle);
+    QObject::connect(viewText, &MkEdit::cursorPosChanged,
+                     currentDocument.data(), &MkTextDocument::cursorPosChangedHandle);
 
-    QObject::connect(viewText,&MkEdit::enterKeyPressed,
-                     currentDocument.data(),&MkTextDocument::enterKeyPressedHandle);
+    QObject::connect(viewText, &MkEdit::enterKeyPressed,
+                     currentDocument.data(), &MkTextDocument::enterKeyPressedHandle);
 
-    QObject::connect(viewText,&MkEdit::quoteLeftKeyPressed,
-                     currentDocument.data(),&MkTextDocument::quoteLeftKeyPressedHandle);
+    QObject::connect(viewText, &MkEdit::quoteLeftKeyPressed,
+                     currentDocument.data(), &MkTextDocument::quoteLeftKeyPressedHandle);
 
-    QObject::connect(viewText,&MkEdit::removeAllMkData,
-                     currentDocument.data(),&MkTextDocument::removeAllMkDataHandle);
+    QObject::connect(viewText, &MkEdit::removeAllMkData,
+                     currentDocument.data(), &MkTextDocument::removeAllMkDataHandle);
 
-    QObject::connect(viewText,&MkEdit::applyAllMkData,
-                     currentDocument.data(),&MkTextDocument::applyAllMkDataHandle);
+    QObject::connect(viewText, &MkEdit::applyAllMkData,
+                     currentDocument.data(), &MkTextDocument::applyAllMkDataHandle);
 
-    QObject::connect(viewText,&MkEdit::applyMkSingleBlock,
-                     currentDocument.data(),&MkTextDocument::applyMkSingleBlockHandle);
+    QObject::connect(viewText, &MkEdit::applyMkSingleBlock,
+                     currentDocument.data(), &MkTextDocument::applyMkSingleBlockHandle);
 
-    QObject::connect(viewText,&MkEdit::saveSingleRawBlock,
-                     currentDocument.data(),&MkTextDocument::saveSingleRawBlockHandler);
+    QObject::connect(viewText, &MkEdit::saveSingleRawBlock,
+                     currentDocument.data(), &MkTextDocument::saveSingleRawBlockHandler);
 
-    QObject::connect(viewText,&MkEdit::saveEnterPressedRawBlock,
-                     currentDocument.data(),&MkTextDocument::saveEnterPressRawBlockHandler);
+    QObject::connect(viewText, &MkEdit::saveEnterPressedRawBlock,
+                     currentDocument.data(), &MkTextDocument::saveEnterPressRawBlockHandler);
 
-    QObject::connect(viewText,&MkEdit::saveRawDocument,
-                     currentDocument.data(),&MkTextDocument::saveRawDocumentHandler);
+    QObject::connect(viewText, &MkEdit::saveRawDocument,
+                     currentDocument.data(), &MkTextDocument::saveRawDocumentHandler);
 
-    QObject::connect(viewText,&MkEdit::setMarkdownStatus,
-                     currentDocument.data(),&MkTextDocument::setMarkdownHandle);
+    QObject::connect(viewText, &MkEdit::setMarkdownStatus,
+                     currentDocument.data(), &MkTextDocument::setMarkdownHandle);
 
-    QObject::connect(viewText,&MkEdit::pushCheckBox,
-                     currentDocument.data(),&MkTextDocument::pushCheckBoxHandle);
+    QObject::connect(viewText, &MkEdit::pushCheckBox,
+                     currentDocument.data(), &MkTextDocument::pushCheckBoxHandle);
 
-    QObject::connect(viewText,&MkEdit::pushLink,
-                     currentDocument.data(),&MkTextDocument::pushLinkHandle);
+    QObject::connect(viewText, &MkEdit::pushLink,
+                     currentDocument.data(), &MkTextDocument::pushLinkHandle);
 
-    QObject::connect(viewText,&MkEdit::autoInsertSymbol,
-                     currentDocument.data(),&MkTextDocument::autoInsertSymbolHandle);
+    QObject::connect(viewText, &MkEdit::autoInsertSymbol,
+                     currentDocument.data(), &MkTextDocument::autoInsertSymbolHandle);
 
-    QObject::connect(viewText,&MkEdit::cursorUpdate,
-                     currentDocument.data(),&MkTextDocument::cursorUpdateHandle);
+    QObject::connect(viewText, &MkEdit::cursorUpdate,
+                     currentDocument.data(), &MkTextDocument::cursorUpdateHandle);
 
-    QObject::connect(viewText,&MkEdit::undoStackPushSignal,
-                     currentDocument.data(),&MkTextDocument::undoStackPush);
+    QObject::connect(viewText, &MkEdit::undoStackPushSignal,
+                     currentDocument.data(), &MkTextDocument::undoStackPush);
 
-    QObject::connect(viewText,&MkEdit::undoStackUndoSignal,
-                     currentDocument.data(),&MkTextDocument::undoStackUndo);
+    QObject::connect(viewText, &MkEdit::undoStackUndoSignal,
+                     currentDocument.data(), &MkTextDocument::undoStackUndo);
 
-    QObject::connect(viewText,&MkEdit::undoStackRedoSignal,
-                     currentDocument.data(),&MkTextDocument::undoStackRedo);
+    QObject::connect(viewText, &MkEdit::undoStackRedoSignal,
+                     currentDocument.data(), &MkTextDocument::undoStackRedo);
 
-    QObject::connect(currentDocument.data(),&MkTextDocument::connectCurosPos,
-                     viewText,&MkEdit::connectSignals);
+    QObject::connect(currentDocument.data(), &MkTextDocument::connectCurosPos,
+                     viewText, &MkEdit::connectSignals);
 
-    QObject::connect(currentDocument.data(),&MkTextDocument::disconnectCursorPos,
-                     viewText,&MkEdit::disconnectSignals);
+    QObject::connect(currentDocument.data(), &MkTextDocument::disconnectCursorPos,
+                     viewText, &MkEdit::disconnectSignals);
 
-    QObject::connect(viewToggleBtnEdit,&ToggleButton::toggleState,
-                     viewText,&MkEdit::setEditState);
-
+    QObject::connect(viewToggleBtnEdit, &ToggleButton::toggleState,
+                     viewText, &MkEdit::setEditState);
 }
 
 void ViewsHandler::disconnectDocument()
@@ -305,77 +369,76 @@ void ViewsHandler::disconnectDocument()
                         currentDocument.data(), &MkTextDocument::checkRightClockOnCodeBlockHandle);
 
     QObject::disconnect(viewText, &MkEdit::selectBlockCopy,
-                        currentDocument.data(),&MkTextDocument::selectBlockCopyHandle);
+                        currentDocument.data(), &MkTextDocument::selectBlockCopyHandle);
 
     QObject::disconnect(viewText, &MkEdit::duplicateLine,
-                        currentDocument.data(),&MkTextDocument::duplicateLineHandle);
+                        currentDocument.data(), &MkTextDocument::duplicateLineHandle);
 
     QObject::disconnect(viewText, &MkEdit::smartSelection,
-                        currentDocument.data(),&MkTextDocument::smartSelectionHandle);
+                        currentDocument.data(), &MkTextDocument::smartSelectionHandle);
 
-    QObject::disconnect(viewText,&MkEdit::cursorPosChanged,
-                        currentDocument.data(),&MkTextDocument::cursorPosChangedHandle);
+    QObject::disconnect(viewText, &MkEdit::cursorPosChanged,
+                        currentDocument.data(), &MkTextDocument::cursorPosChangedHandle);
 
-    QObject::disconnect(viewText,&MkEdit::enterKeyPressed,
-                        currentDocument.data(),&MkTextDocument::enterKeyPressedHandle);
+    QObject::disconnect(viewText, &MkEdit::enterKeyPressed,
+                        currentDocument.data(), &MkTextDocument::enterKeyPressedHandle);
 
-    QObject::disconnect(viewText,&MkEdit::quoteLeftKeyPressed,
-                        currentDocument.data(),&MkTextDocument::quoteLeftKeyPressedHandle);
+    QObject::disconnect(viewText, &MkEdit::quoteLeftKeyPressed,
+                        currentDocument.data(), &MkTextDocument::quoteLeftKeyPressedHandle);
 
-    QObject::disconnect(viewText,&MkEdit::removeAllMkData,
-                        currentDocument.data(),&MkTextDocument::removeAllMkDataHandle);
+    QObject::disconnect(viewText, &MkEdit::removeAllMkData,
+                        currentDocument.data(), &MkTextDocument::removeAllMkDataHandle);
 
-    QObject::disconnect(viewText,&MkEdit::saveSingleRawBlock,
-                     currentDocument.data(),&MkTextDocument::saveSingleRawBlockHandler);
+    QObject::disconnect(viewText, &MkEdit::saveSingleRawBlock,
+                        currentDocument.data(), &MkTextDocument::saveSingleRawBlockHandler);
 
-    QObject::disconnect(viewText,&MkEdit::saveEnterPressedRawBlock,
-                     currentDocument.data(),&MkTextDocument::saveEnterPressRawBlockHandler);
+    QObject::disconnect(viewText, &MkEdit::saveEnterPressedRawBlock,
+                        currentDocument.data(), &MkTextDocument::saveEnterPressRawBlockHandler);
 
-    QObject::disconnect(viewText,&MkEdit::saveRawDocument,
-                     currentDocument.data(),&MkTextDocument::saveRawDocumentHandler);
+    QObject::disconnect(viewText, &MkEdit::saveRawDocument,
+                        currentDocument.data(), &MkTextDocument::saveRawDocumentHandler);
 
-    QObject::disconnect(viewText,&MkEdit::applyAllMkData,
-                        currentDocument.data(),&MkTextDocument::applyAllMkDataHandle);
+    QObject::disconnect(viewText, &MkEdit::applyAllMkData,
+                        currentDocument.data(), &MkTextDocument::applyAllMkDataHandle);
 
-    QObject::disconnect(viewText,&MkEdit::applyMkSingleBlock,
-                     currentDocument.data(),&MkTextDocument::applyMkSingleBlockHandle);
+    QObject::disconnect(viewText, &MkEdit::applyMkSingleBlock,
+                        currentDocument.data(), &MkTextDocument::applyMkSingleBlockHandle);
 
-    QObject::disconnect(viewText,&MkEdit::setMarkdownStatus,
-                        currentDocument.data(),&MkTextDocument::setMarkdownHandle);
+    QObject::disconnect(viewText, &MkEdit::setMarkdownStatus,
+                        currentDocument.data(), &MkTextDocument::setMarkdownHandle);
 
-    QObject::disconnect(viewText,&MkEdit::pushCheckBox,
-                        currentDocument.data(),&MkTextDocument::pushCheckBoxHandle);
+    QObject::disconnect(viewText, &MkEdit::pushCheckBox,
+                        currentDocument.data(), &MkTextDocument::pushCheckBoxHandle);
 
-    QObject::disconnect(viewText,&MkEdit::pushLink,
-                        currentDocument.data(),&MkTextDocument::pushLinkHandle);
+    QObject::disconnect(viewText, &MkEdit::pushLink,
+                        currentDocument.data(), &MkTextDocument::pushLinkHandle);
 
-    QObject::disconnect(viewText,&MkEdit::autoInsertSymbol,
-                        currentDocument.data(),&MkTextDocument::autoInsertSymbolHandle);
+    QObject::disconnect(viewText, &MkEdit::autoInsertSymbol,
+                        currentDocument.data(), &MkTextDocument::autoInsertSymbolHandle);
 
-    QObject::disconnect(viewText,&MkEdit::cursorUpdate,
-                     currentDocument.data(),&MkTextDocument::cursorUpdateHandle);
+    QObject::disconnect(viewText, &MkEdit::cursorUpdate,
+                        currentDocument.data(), &MkTextDocument::cursorUpdateHandle);
 
-    QObject::disconnect(viewText,&MkEdit::undoStackPushSignal,
-                     currentDocument.data(),&MkTextDocument::undoStackPush);
+    QObject::disconnect(viewText, &MkEdit::undoStackPushSignal,
+                        currentDocument.data(), &MkTextDocument::undoStackPush);
 
-    QObject::disconnect(viewText,&MkEdit::undoStackUndoSignal,
-                     currentDocument.data(),&MkTextDocument::undoStackUndo);
+    QObject::disconnect(viewText, &MkEdit::undoStackUndoSignal,
+                        currentDocument.data(), &MkTextDocument::undoStackUndo);
 
-    QObject::disconnect(viewText,&MkEdit::undoStackRedoSignal,
-                     currentDocument.data(),&MkTextDocument::undoStackRedo);
+    QObject::disconnect(viewText, &MkEdit::undoStackRedoSignal,
+                        currentDocument.data(), &MkTextDocument::undoStackRedo);
 
-    QObject::disconnect(currentDocument.data(),&MkTextDocument::connectCurosPos,
-                     viewText,&MkEdit::connectSignals);
+    QObject::disconnect(currentDocument.data(), &MkTextDocument::connectCurosPos,
+                        viewText, &MkEdit::connectSignals);
 
-    QObject::disconnect(currentDocument.data(),&MkTextDocument::disconnectCursorPos,
-                     viewText,&MkEdit::disconnectSignals);
+    QObject::disconnect(currentDocument.data(), &MkTextDocument::disconnectCursorPos,
+                        viewText, &MkEdit::disconnectSignals);
 }
 
-QString ViewsHandler::getFileContent(QFile& file)
+QString ViewsHandler::getFileContent(QFile &file)
 {
     QString content;
-    if (file.open(QIODevice::ReadOnly | QIODevice::Text))
-    {
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         QTextStream stream(&file);
         content = stream.readAll();
     }
@@ -387,33 +450,35 @@ ViewsHandler::DOCUMENT_STATUS ViewsHandler::setCurrentDocument(const QFileInfo &
 {
     if (!fileInfo.isFile())
         return NOT_DOCUMENT;
-    //set the cursor position of the current document
-    currentDocument.data()->setCursorPos(viewText->textCursor().blockNumber(),viewText->textCursor().positionInBlock()) ;
 
-    //disconnect signals from old current document
+    // Save the cursor position of the current document.
+    currentDocument.data()->setCursorPos(viewText->textCursor().blockNumber(),
+                                         viewText->textCursor().positionInBlock());
+
+    // Disconnect signals from the old current document.
     disconnectDocument();
 
-    QSettings settings("Remini","Remini");
-    QString fontFamily = settings.value("font", "Cascadia Mono").toString();
-    int fontSize = settings.value("fontsize", 11).toInt();
-    bool markdown = settings.value("markdown", true).toBool();
-    int stretch = settings.value("stretch", QFont::Unstretched).toInt();
-    int weight = settings.value("weight", QFont::Normal).toInt();
+    QSettings settings(QStringLiteral("Remini"), QStringLiteral("Remini"));
+    const QString fontFamily = settings.value(QStringLiteral("font"), defaultMonospaceFont()).toString();
+    const int fontSize = settings.value(QStringLiteral("fontsize"), 11).toInt();
+    const bool markdown = settings.value(QStringLiteral("markdown"), true).toBool();
+    const int stretch = settings.value(QStringLiteral("stretch"), QFont::Unstretched).toInt();
+    const int weight = settings.value(QStringLiteral("weight"), QFont::Normal).toInt();
 
-    QFont font(fontFamily,fontSize,weight,false);
+    QFont font(fontFamily, fontSize, weight, false);
     font.setStretch(stretch);
 
-
-    //set current document to textview
     const QString &filePath = fileInfo.absoluteFilePath();
     const QString &fileName = fileInfo.baseName();
+
     currentDocument = recentFileDocumentMap.value(filePath);
-    if(currentDocument==nullptr){
+    if (currentDocument == nullptr) {
         recentFileDocumentMap.insert(filePath, QSharedPointer<MkTextDocument>(new MkTextDocument()));
         currentDocument = recentFileDocumentMap.value(filePath);
         currentDocument->setFilePath(filePath);
         currentDocument->setFileName(fileName);
-        const QScopedPointer<QFile> file = QScopedPointer<QFile>(new QFile(filePath));
+
+        const QScopedPointer<QFile> file(new QFile(filePath));
         const QString fullContent = getFileContent(*file.get());
 
         currentDocument->setDefaultFont(font);
@@ -429,15 +494,14 @@ ViewsHandler::DOCUMENT_STATUS ViewsHandler::setCurrentDocument(const QFileInfo &
         connectDocument();
 
         QTextCursor cursor = viewText->textCursor();
-        cursor.movePosition(QTextCursor::End,QTextCursor::MoveAnchor);
+        cursor.movePosition(QTextCursor::End, QTextCursor::MoveAnchor);
         viewText->setTextCursor(cursor);
-        cursor.movePosition(QTextCursor::EndOfBlock,QTextCursor::MoveAnchor);
+        cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::MoveAnchor);
         viewText->setTextCursor(cursor);
         viewText->verticalScrollBar()->setSliderPosition(0);
         viewText->setFocus();
         return NEW_DOCUMENT;
-    }else{
-
+    } else {
         currentDocument.data()->setFilePath(fileInfo.absoluteFilePath());
         highlighter.setDocument(currentDocument.data());
         viewTitle->setText(currentDocument.data()->getFileName());
@@ -454,56 +518,53 @@ ViewsHandler::DOCUMENT_STATUS ViewsHandler::setCurrentDocument(const QFileInfo &
         cursor.setPosition(block.position());
         viewText->setTextCursor(cursor);
 
-        cursor.movePosition(QTextCursor::StartOfBlock,QTextCursor::MoveAnchor);
+        cursor.movePosition(QTextCursor::StartOfBlock, QTextCursor::MoveAnchor);
         viewText->setTextCursor(cursor);
 
         cursor = viewText->textCursor();
         const int characterNo = this->currentDocument.data()->getCharacterNo();
-        for(int rep = 0; rep < characterNo; ++rep){
-            cursor.movePosition(QTextCursor::NextCharacter,QTextCursor::MoveAnchor);
-        }
+        for (int rep = 0; rep < characterNo; ++rep)
+            cursor.movePosition(QTextCursor::NextCharacter, QTextCursor::MoveAnchor);
+
         viewText->setTextCursor(cursor);
         return OLD_DOCUMENT;
     }
 }
 
-void ViewsHandler::fileDisplay(const QModelIndex& index)
+void ViewsHandler::fileDisplay(const QModelIndex &index)
 {
     QModelIndex sourceIndex = proxyModel.mapToSource(index);
     DOCUMENT_STATUS status = setCurrentDocument(modelTree.fileInfo(sourceIndex));
 
-    if(NOT_DOCUMENT == status){
+    if (NOT_DOCUMENT == status)
         return;
-    }
 
     QString fullPath = this->currentDocument->getFilePath();
     currentFilePath = fullPath;
 
     QFileInfo fileInfo(currentFilePath);
-    if(!fileInfo.isDir()){
-        if (fullPath.startsWith(vaultPath)) {
-            fullPath.replace(vaultPath, "");
-        }
+    if (!fileInfo.isDir()) {
+        if (fullPath.startsWith(vaultPath))
+            fullPath.replace(vaultPath, QString());
         emit updateRecentFile(fullPath);
 
-        if(OLD_DOCUMENT == status){
+        if (OLD_DOCUMENT == status)
             viewText->ensureCursorVisible();
-        }
     }
 }
 
 void ViewsHandler::updateUiSettingsHandler(const QFont &font)
 {
-    QSettings settings("Remini","Remini");
-    QString vaultPath = settings.value("vaultPath").toString();
-    bool markdown = settings.value("markdown", true).toBool();
+    QSettings settings(QStringLiteral("Remini"), QStringLiteral("Remini"));
+    QString vaultPath = settings.value(QStringLiteral("vaultPath")).toString();
+    bool markdown = settings.value(QStringLiteral("markdown"), true).toBool();
 
     fontBase = font;
     viewText->setFont(fontBase);
     viewText->setMkState(markdown);
 
     QFont fontTitle = font;
-    fontTitle.setPointSize(fontBase.pointSize()*2);
+    fontTitle.setPointSize(fontBase.pointSize() * 2);
     fontTitle.setWeight(QFont::DemiBold);
     viewTitle->setFont(fontTitle);
 
@@ -519,7 +580,7 @@ void ViewsHandler::updateUiSettingsHandler(const QFont &font)
     viewTextSearchTree->setFont(fontView);
     settingsDialog->setFont(fontView);
 
-    if(initTreeView(vaultPath)){
+    if (initTreeView(vaultPath)) {
         recentFilesList->clear();
         recentFileCursorMap.clear();
     }
@@ -530,33 +591,34 @@ void ViewsHandler::fileSaveRawHandle()
     if(!viewText->hasFocus())
         return;
 
+    // Startup / new documents have no file path yet; nothing to save.
+    const QString filePath = currentDocument.data()->getFilePath();
+    if (filePath.isEmpty())
+        return;
+
     QString fullContent = viewText->rawPlainText();
 
-    QFile file(currentDocument.data()->getFilePath());
-
+    QFile file(filePath);
     if(file.open(QFile::WriteOnly))
     {
         QTextStream stream(&file);
         stream<<fullContent;
         file.close();
     }
-
 }
-
 void ViewsHandler::fileDeleteDialogue(QModelIndex &index)
 {
-    if(parent == nullptr){
+    if (parent == nullptr)
         return;
-    }
 
     QFileInfo info = proxyModel.getFileInfoMappedToSource(index);
-    if(info.isDir()){
+    if (info.isDir()) {
         QDir dir(info.absoluteFilePath());
-        dir.setFilter( QDir::Dirs | QDir::Files | QDir::NoDotAndDotDot );
-        if(dir.count()){
+        dir.setFilter(QDir::Dirs | QDir::Files | QDir::NoDotAndDotDot);
+        if (dir.count()) {
             QScopedPointer<QMessageBox> confirmBox(new QMessageBox(parent));
-            confirmBox->setWindowTitle("Unable to Delete");
-            confirmBox->setText("The folder is not empty           ");
+            confirmBox->setWindowTitle(QStringLiteral("Unable to Delete"));
+            confirmBox->setText(QStringLiteral("The folder is not empty           "));
             confirmBox->setFont(fontBase);
             confirmBox->setStandardButtons(QMessageBox::Ok);
             confirmBox->button(QMessageBox::Ok)->setFont(fontBase);
@@ -567,24 +629,24 @@ void ViewsHandler::fileDeleteDialogue(QModelIndex &index)
 
     QScopedPointer<QMessageBox> confirmBox(new QMessageBox(parent));
     confirmBox->setStyleSheet(parent->styleSheet());
-    confirmBox->setWindowTitle("Delete");
-    confirmBox->setText("Are you sure you want to delete");
+    confirmBox->setWindowTitle(QStringLiteral("Delete"));
+    confirmBox->setText(QStringLiteral("Are you sure you want to delete"));
     confirmBox->setFont(fontBase);
     confirmBox->setStandardButtons(QMessageBox::Yes | QMessageBox::No);
     confirmBox->setDefaultButton(QMessageBox::No);
     confirmBox->button(QMessageBox::Yes)->setFont(fontBase);
     confirmBox->button(QMessageBox::No)->setFont(fontBase);
-   if(QMessageBox::Yes == confirmBox->exec()){
+
+    if (QMessageBox::Yes == confirmBox->exec()) {
         emit fileDelete(index);
 
         QString currentFilePath = info.absoluteFilePath();
-        if (currentFilePath.startsWith(vaultPath)) {
-            currentFilePath.replace(vaultPath, "");
-        }
+        if (currentFilePath.startsWith(vaultPath))
+            currentFilePath.replace(vaultPath, QString());
         emit fileDeletePath(currentFilePath);
 
-        viewTitle->setText("Startup Tips");
-        currentDocument = recentFileDocumentMap.value("startup");
+        viewTitle->setText(QStringLiteral("Startup Tips"));
+        currentDocument = recentFileDocumentMap.value(QStringLiteral("startup"));
         currentDocument->setPlainText(startupText);
         highlighter.setDocument(currentDocument.data());
         viewText->setDocument(currentDocument.data());
@@ -596,27 +658,27 @@ void ViewsHandler::fileDeleteDialogue(QModelIndex &index)
 
 void ViewsHandler::searchFileHandle(const QString &filename)
 {
-    if(filename.isEmpty()){
+    if (filename.isEmpty()) {
         fileSearchMutex.lock();
-        proxyModel.setFilterRegularExpression("");
-        searchedFilename = "";
+        proxyModel.setFilterRegularExpression(QString());
+        searchedFilename = QString();
         fileSearchMutex.unlock();
         return;
     }
-    searchedFilename =filename.toLower();
+    searchedFilename = filename.toLower();
 
     QStringList listPath;
     proxyModel.createAllFoldersList(viewTree->rootIndex(), listPath);
-    for(QString &filePath:listPath){
-        viewTree->setExpanded(proxyModel.mapFromSource(modelTree.index(filePath)),true);
-    }
-    //This will call a timer as delay to let all folders expand
+    for (QString &filePath : listPath)
+        viewTree->setExpanded(proxyModel.mapFromSource(modelTree.index(filePath)), true);
+
+    // This starts a timer, so the folders are fully expanded before filtering.
     viewTree->expandEveryItems(viewTree->rootIndex());
 }
 
 void ViewsHandler::navigationAllPathLoaded(QString path)
 {
-//    qDebug()<<" all path loaded"<<path;
+    Q_UNUSED(path);
 }
 
 void ViewsHandler::navigationViewExpandedFilenameFilter()
@@ -626,17 +688,18 @@ void ViewsHandler::navigationViewExpandedFilenameFilter()
     fileSearchMutex.unlock();
 }
 
-void ViewsHandler::doSearchWork(QString &text)
+void ViewsHandler::doSearchWork(const QString &text)
 {
     textSearchWorker.setText(text);
     textSearchWorker.setRootPath(modelTree.rootPath());
     searchThread.start();
 }
 
-void ViewsHandler::displayTextSearchedFilePosition(QString &filePath,int searchTextLength,int blockNumber, int positionInBlock)
+void ViewsHandler::displayTextSearchedFilePosition(QString &filePath, int searchTextLength,
+                                                   int blockNumber, int positionInBlock)
 {
     fileInfo = QFileInfo(filePath);
-    if (!fileInfo.isFile()|| !fileInfo.exists())
+    if (!fileInfo.isFile() || !fileInfo.exists())
         return;
 
     setCurrentDocument(fileInfo);
@@ -651,11 +714,10 @@ void ViewsHandler::displayTextSearchedFilePosition(QString &filePath,int searchT
     viewText->setTextCursor(cursor);
 
     viewText->disconnectSignals();
-    cursor.setPosition(block.position()+positionInBlock-searchTextLength, QTextCursor::MoveAnchor);
-    cursor.setPosition(block.position()+positionInBlock,QTextCursor::KeepAnchor);
+    cursor.setPosition(block.position() + positionInBlock - searchTextLength, QTextCursor::MoveAnchor);
+    cursor.setPosition(block.position() + positionInBlock, QTextCursor::KeepAnchor);
     viewText->setTextCursor(cursor);
     viewText->connectSignals();
-
 }
 
 void ViewsHandler::showSettingsBtn()
@@ -663,59 +725,67 @@ void ViewsHandler::showSettingsBtn()
     settingsDialog->show();
 }
 
-void ViewsHandler::fileRenamedHandler(const QString& newName, const QString &oldName, const QModelIndex& index)
+void ViewsHandler::fileRenamedHandler(const QString &newName, const QString &oldName,
+                                      const QModelIndex &index)
 {
     QModelIndex sourceIndex = proxyModel.mapToSource(index);
     DOCUMENT_STATUS status = setCurrentDocument(modelTree.fileInfo(sourceIndex));
 
-    if(NOT_DOCUMENT == status){
+    if (NOT_DOCUMENT == status)
         return;
-    }
 
     QString path = this->currentDocument->getFilePath();
     QFileInfo fileInfo(currentFilePath);
-    if(!fileInfo.isDir()){
-        if (path.startsWith(vaultPath)) {
-            path.replace(vaultPath, "");
-        }
-        int lastIndex = path.lastIndexOf(newName);
-        if(-1 != lastIndex){
-            path.remove(lastIndex,newName.length());
+    if (!fileInfo.isDir()) {
+        if (path.startsWith(vaultPath))
+            path.replace(vaultPath, QString());
+
+        const int lastIndex = path.lastIndexOf(newName);
+        if (-1 != lastIndex) {
+            path.remove(lastIndex, newName.length());
             path.append(oldName);
             recentFilesView->removeRecentDeletedFileHandle(path);
         }
     }
-
 }
 
 QString ViewsHandler::setVaultPathHandler()
 {
-    QFileDialog dialog;
+    // Pass `this->parent` as the dialog parent so the dialog is properly
+    // associated with the main window. On Wayland a parentless dialog may
+    // end up on a different surface and not be centered / modal to the app.
+    QFileDialog dialog(parent);
     dialog.setFileMode(QFileDialog::Directory);
     dialog.setDirectory(vaultPath);
     dialog.setOption(QFileDialog::ShowDirsOnly, true);
 
     QString newPath;
     if (dialog.exec()) {
-        QStringList list = dialog.selectedFiles();
-        newPath = list.first();
+        const QStringList list = dialog.selectedFiles();
+        if (!list.isEmpty())
+            newPath = list.first();
     }
-    if(initTreeView(newPath)){
+
+    if (newPath.isEmpty())
+        return vaultPath;
+
+    if (initTreeView(newPath)) {
         recentFilesList->clear();
         recentFileCursorMap.clear();
     }
-    QSettings settings("Remini","Remini");
-    settings.setValue("VaultPath", newPath);
+
+    // Use the same key spelling as getVaultPath() / setVaultPath():
+    // "vault" (all lowercase). The previous code wrote "VaultPath" which
+    // was never read back anywhere.
+    setVaultPath(newPath);
 
     return newPath;
-    //recentFileDocumentMap.clear();
 }
 
 void ViewsHandler::checkIfCursorInBlockHandler(bool &isBlock, QTextCursor &cursor)
 {
-    BlockData* blockData = dynamic_cast<BlockData*>(cursor.block().userData());
-    if(blockData)
-    {
+    BlockData *blockData = dynamic_cast<BlockData *>(cursor.block().userData());
+    if (blockData) {
         isBlock = true;
         return;
     }
@@ -724,7 +794,7 @@ void ViewsHandler::checkIfCursorInBlockHandler(bool &isBlock, QTextCursor &curso
 
 void ViewsHandler::textSearchChangedHandler(const QString &text)
 {
-    if(!searchThread.isRunning()){
+    if (!searchThread.isRunning()) {
         textSearchWorker.setText(text);
         textSearchWorker.setRootPath(modelTree.rootPath());
         proxyModel.createAllFilesList(viewTree->rootIndex(), textSearchWorker.getListPaths());
@@ -739,9 +809,8 @@ void ViewsHandler::updateTextSearchViewHandler(QStandardItemModel *model, int ma
     viewTextSearchCount->setText(QString::number(matchCount));
 
     viewTextSearchTree->setModel(model);
-    if(model->rowCount()<=2)
+    if (model->rowCount() <= 2)
         viewTextSearchTree->expandAll();
-
 }
 
 void ViewsHandler::textSearchResultPositionSelected(const QModelIndex &index)
@@ -749,26 +818,25 @@ void ViewsHandler::textSearchResultPositionSelected(const QModelIndex &index)
     QModelIndex parentIndex = viewTextSearchTree->model()->parent(index);
     QString filePath = parentIndex.data(Qt::UserRole).toString();
     int searchTextLength = index.data(Qt::UserRole).toInt();
-    int blockNumber = index.data(Qt::UserRole+1).toInt();
-    int positionInBlock = index.data(Qt::UserRole+2).toInt();
+    int blockNumber = index.data(Qt::UserRole + 1).toInt();
+    int positionInBlock = index.data(Qt::UserRole + 2).toInt();
 
-    displayTextSearchedFilePosition(filePath, searchTextLength, blockNumber,  positionInBlock);
+    displayTextSearchedFilePosition(filePath, searchTextLength, blockNumber, positionInBlock);
 }
 
 void ViewsHandler::sendFocusToSearchHandler(QWidget *view)
 {
-    if(view == viewTextSearchTree){
+    if (view == viewTextSearchTree) {
         this->viewTextSearchEdit->selectAll();
         this->viewTextSearchEdit->setFocus();
-    }else if(view == viewTree){
+    } else if (view == viewTree) {
         this->viewSearch->selectAll();
         this->viewSearch->setFocus();
-    }else if(view == viewText){
-        if(!frameSearchTextTree->isHidden()){
+    } else if (view == viewText) {
+        if (!frameSearchTextTree->isHidden())
             viewTextSearchTree->setFocus();
-        }else if (!frameSearchFileTree->isHidden()){
+        else if (!frameSearchFileTree->isHidden())
             viewTree->setFocus();
-        }
     }
 }
 
@@ -789,26 +857,30 @@ void ViewsHandler::emptySearchHandler()
 
 void ViewsHandler::openRecentFilesDialogHandle(bool show)
 {
-    if(show){
-        if(recentFilesView->isHidden()){
-            QPoint pos =  this->parent->mapToGlobal( viewRightFrame->pos());
+    if (show) {
+        if (recentFilesView->isHidden()) {
+            // NOTE: On Wayland client-side window positioning is not allowed.
+            // move() will be ignored by the compositor, and the popup will be
+            // placed wherever the compositor decides. This is a protocol
+            // limitation, not a Qt bug. The geometry hint below is still
+            // honoured on X11 and Windows.
+            const QPoint pos = this->parent->mapToGlobal(viewRightFrame->pos());
             recentFilesView->setGeometry(viewRightFrame->geometry());
             recentFilesView->move(pos);
             recentFilesView->show();
         }
-    }
-    else{
-        if(!recentFilesView->isHidden()){
-            const QString& relativePath = recentFilesView->getCurrentRelativeFile();
+    } else {
+        if (!recentFilesView->isHidden()) {
+            const QString &relativePath = recentFilesView->getCurrentRelativeFile();
 
-            if(relativePath.isEmpty()){
+            if (relativePath.isEmpty()) {
                 recentFilesView->hide();
                 return;
             }
 
-            QString fullFilePath = vaultPath + relativePath;
+            const QString fullFilePath = vaultPath + relativePath;
             fileInfo = QFileInfo(fullFilePath);
-            if (!fileInfo.isFile()|| !fileInfo.exists())
+            if (!fileInfo.isFile() || !fileInfo.exists())
                 return;
 
             this->setCurrentDocument(fileInfo);
@@ -821,7 +893,6 @@ void ViewsHandler::openRecentFilesDialogHandle(bool show)
         }
         recentFilesView->hide();
     }
-
 }
 
 void ViewsHandler::startTextSearchInAllFilesHandle()
@@ -831,26 +902,25 @@ void ViewsHandler::startTextSearchInAllFilesHandle()
     highlighter.updateSearchText(viewTextSearchEdit->text());
     frameSearchTextTree->show();
 
-    viewTextSearchEdit->show() ;
-    viewTextSearchTree->show() ;
+    viewTextSearchEdit->show();
+    viewTextSearchTree->show();
     viewTextSearchEdit->setFocus();
 }
 
 void ViewsHandler::startFileSearchHandle()
 {
     frameSearchTextTree->hide();
-    highlighter.updateSearchText("");
+    highlighter.updateSearchText(QString());
     frameSearchFileTree->show();
     viewSearch->setFocus();
 }
 
 void ViewsHandler::sendFocusToNavigationViewHandler()
 {
-    if(!frameSearchFileTree->isHidden()){
+    if (!frameSearchFileTree->isHidden())
         viewTree->setFocus();
-    }else{
+    else
         viewTextSearchTree->setFocus();
-    }
 }
 
 void ViewsHandler::editLockHandle()

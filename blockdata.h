@@ -19,7 +19,7 @@ public:
     statusID getStatus() const;
     void setStatus(statusID newStatus);
     void setHidden(bool hidden);
-    bool isHidden();
+    bool isHidden() const;
 
     void setStartBlock(const int start);
     void setEndBlock(const int end);

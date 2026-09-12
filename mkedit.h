@@ -13,6 +13,7 @@
 #include <mktextdocument.h>
 #include <QScrollBar>
 #include <theme.h>
+#include <QInputMethodEvent>
 
 #define FILE_SAVE_TIMEOUT 300
 #define BLOCKRADIUS 4
@@ -79,6 +80,7 @@ protected:
     void mouseMoveEvent(QMouseEvent *e) override;
     void mouseDoubleClickEvent(QMouseEvent *e) override;
     void dragEnterEvent(QDragEnterEvent *e) override;
+    void inputMethodEvent(QInputMethodEvent *event) override;
  private:
     QColor codeBlockColor;
     int widthCodeBlock;

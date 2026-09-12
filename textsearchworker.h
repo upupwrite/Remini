@@ -31,7 +31,9 @@ private:
     QStandardItemModel model;
     QFileIconProvider iconProvider;
 
-    void findAllMatches(int &matchCount,QStandardItem *item, int &row, QTextDocument &document, int startPosition, QString &text);
+    void findAllMatches(int &matchCount, QStandardItem *parentItem, int &row,
+                        QTextDocument &document, int startPosition,
+                        const QString &searchText);
     QString extractNeighbourWords(QTextDocument &document, int position);
 
 signals:

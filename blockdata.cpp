@@ -1,15 +1,19 @@
 #include "blockdata.h"
 
 BlockData::BlockData()
+    : status(content)
+    , hidden(false)
+    , startBlock(0)
+    , endBlock(0)
 {
-    status = content;
-    hidden = false;
 }
 
 BlockData::BlockData(const statusID status)
+    : status(status)
+    , hidden(false)
+    , startBlock(0)
+    , endBlock(0)
 {
-    this->status = status;
-    hidden = false;
 }
 
 BlockData::statusID BlockData::getStatus() const
@@ -27,27 +31,27 @@ void BlockData::setHidden(bool hidden)
     this->hidden = hidden;
 }
 
-bool BlockData::isHidden()
+bool BlockData::isHidden() const
 {
     return hidden;
 }
 
 void BlockData::setStartBlock(const int start)
 {
-    this->startBlock = start;
+    startBlock = start;
 }
 
 void BlockData::setEndBlock(const int end)
 {
-    this->endBlock = end;
+    endBlock = end;
 }
 
 int BlockData::getStartBlock() const
 {
-    return this->startBlock;
+    return startBlock;
 }
 
 int BlockData::getEndBlock() const
 {
-    return this->endBlock;
+    return endBlock;
 }

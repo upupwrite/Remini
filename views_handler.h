@@ -1,5 +1,7 @@
 #ifndef VIEWS_HANDLER_H
 #define VIEWS_HANDLER_H
+#include <QListWidget>
+#include <QFileDialog>
 #include <mktextdocument.h>
 #include <QSharedPointer>
 #include <QTreeWidgetItem>
@@ -93,7 +95,7 @@ private:
     
     QFont fontBase;
     QString getVaultPath();
-    void setVaultPath(QString& path);
+    void setVaultPath(const QString& path);
 
     void initViews(Ui::MainWindow &ui);
     bool initTreeView(QString path = NULL);
@@ -132,7 +134,7 @@ private slots:
     void searchFileHandle(const QString &filename);
     void navigationAllPathLoaded(QString path);
     void navigationViewExpandedFilenameFilter();
-    void doSearchWork(QString &text);
+    void doSearchWork(const QString &text);
     void displayTextSearchedFilePosition(QString &filePath,int searchTextLength,int blockNumber, int positionInBlock);
     void showSettingsBtn();
     void fileRenamedHandler(const QString& newName, const QString& oldName, const QModelIndex& index);

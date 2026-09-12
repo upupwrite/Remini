@@ -15,11 +15,11 @@ public:
 
     statusID getStatus() const;
     void setStatus(statusID newStatus);
-    QString getSymbol();
+    const QString &getSymbol() const;
     bool getDraw() const;
     void setDraw(bool newDraw);
     void setHidden(bool hidden);
-    bool isHidden();
+    bool isHidden() const;
 
 private:
     statusID status;

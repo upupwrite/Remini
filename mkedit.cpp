@@ -1,20 +1,48 @@
 #include <QElapsedTimer>
+#include <QInputMethodEvent>
 #include <QSettings>
+#include <QDebug>
 #include "blockdata.h"
 #include "linedata.h"
 #include "mkedit.h"
 
+// ---------------------------------------------------------------------------
+// Debug helper: print the current editable state at a given checkpoint.
+// ---------------------------------------------------------------------------
+static void dumpEditState(const char *where, const QTextEdit *w)
+{
+    qDebug() << "[" << where << "]"
+             << "isReadOnly =" << w->isReadOnly()
+             << "isEnabled =" << w->isEnabled()
+             << "focusPolicy =" << w->focusPolicy()
+             << "hasFocus =" << w->hasFocus()
+             << "inputMethodEnabled =" << w->testAttribute(Qt::WA_InputMethodEnabled)
+             << "textInteractionFlags =" << w->textInteractionFlags();
+}
+
 MkEdit::MkEdit(QWidget *parent):QTextEdit(parent){
+
+    qDebug() << "[MkEdit::ctor] enter";
 
     fileSaveTimer.setInterval(FILE_SAVE_TIMEOUT);
     regexUrl.setPattern("(https?|ftp|file)://[\\w\\d._-]+(?:\\.[\\w\\d._-]+)+[\\w\\d._-]*(?:(?:/[\\w\\d._-]+)*/?)?(?:\\?[\\w\\d_=-]+(?:&[\\w\\d_=-]+)*)?(?:#[\\w\\d_-]+)?");
     regexCodeBlock.setPattern("```(?s)(.*?)```");
-    regexFolderFile.setPattern("[a-zA-Z]:[\\\\/](?:[^\\\\/]+[\\\\/])*([^\\\\/]+\\.*)");
+    regexFolderFile.setPattern("[a-zA-Z]:[\\\\/](?:[^\\\\/]+[\\\\/])*([^\\\\/]+\\\\.*)");
     savedCharacterNumber = -1;
     isShiftKeyPressed = false;
     isDisconnectedViaHighPriority = false;
     undoData.viewEditTypeStore = &undoRedoEditType;
     undoData.viewSelectRangeStore = &undoRedoSelectRange;
+
+    // Ensure keyboard / IME input works on all platforms, including Wayland.
+    this->setFocusPolicy(Qt::StrongFocus);
+    this->setAttribute(Qt::WA_InputMethodEnabled, true);
+    this->setTextInteractionFlags(Qt::TextEditorInteraction);
+
+    // The editor must start in editable mode. Relying on the ToggleButton's
+    // initial state is fragile; without this the widget may stay read-only
+    // and no input is accepted.
+    this->setReadOnly(false);
 
     this->setContextMenuPolicy(Qt::CustomContextMenu);
     undoAction.setText("Undo         Ctrl+Z");
@@ -48,6 +76,8 @@ MkEdit::MkEdit(QWidget *parent):QTextEdit(parent){
     connectSignals(true);
     this->setUndoRedoEnabled(false);
     preUndoSetup();
+
+    dumpEditState("MkEdit::ctor exit", this);
 }
 
 void MkEdit::paintEvent(QPaintEvent *e)
@@ -112,7 +142,9 @@ void MkEdit::resizeEvent(QResizeEvent *event)
 
 void MkEdit::wheelEvent(QWheelEvent *e)
 {
-    if (e->modifiers() == Qt::ControlModifier) {
+    // Bitwise check so NumLock / CapsLock (which add KeypadModifier on
+    // X11 and some Wayland compositors) do not break Ctrl+wheel zoom.
+    if (e->modifiers() & Qt::ControlModifier) {
         int zoomDelta = e->angleDelta().y();
         if (zoomDelta > 0) {
             if((this->currentFont().pointSizeF())<MAXIMUM_FONT_SIZE)
@@ -132,6 +164,11 @@ void MkEdit::wheelEvent(QWheelEvent *e)
 
 void MkEdit::keyPressEvent(QKeyEvent *event)
 {
+    qDebug() << "[MkEdit::keyPress] key =" << event->key()
+             << "text =" << event->text()
+             << "mods =" << event->modifiers()
+             << "readOnly =" << isReadOnly();
+
     Connector connector(
         std::bind(&MkEdit::disconnectSignals,this,std::placeholders::_1),
         std::bind(&MkEdit::connectSignals,this,std::placeholders::_1)
@@ -139,23 +176,23 @@ void MkEdit::keyPressEvent(QKeyEvent *event)
 
     undoData.editType = singleEdit;
     switch(event->key()){
-    case Qt::Key_L : if (event->modifiers() == Qt::AltModifier) return;
+    case Qt::Key_L : if ((event->modifiers() & Qt::AltModifier)) return;
     case Qt::Key_Shift: isShiftKeyPressed = true;
     case Qt::Key_PageDown:
     case Qt::Key_PageUp:
     case Qt::Key_Up:
     case Qt::Key_Right:
     case Qt::Key_Left:
-    case Qt::Key_Down:      setPreArrowKeys(event->modifiers()==Qt::SHIFT,event->key() == Qt::Key_Up || event->key() == Qt::Key_Down);
+    case Qt::Key_Down:      setPreArrowKeys((event->modifiers() & Qt::SHIFT),event->key() == Qt::Key_Up || event->key() == Qt::Key_Down);
                             QTextEdit::keyPressEvent(event);
-                            setPostArrowKeys(event->modifiers() == Qt::SHIFT, event->key() == Qt::Key_Left,event->key() == Qt::Key_Up || event->key() == Qt::Key_Down);
+                            setPostArrowKeys((event->modifiers() & Qt::SHIFT), event->key() == Qt::Key_Left,event->key() == Qt::Key_Up || event->key() == Qt::Key_Down);
                             return;
     case Qt::Key_Control:
     case Qt::Key_Alt:       QTextEdit::keyPressEvent(event);return;
-    case Qt::Key_V:         if( event->modifiers() == Qt::CTRL) {pasteTextAction.trigger();return;}break;
-    case Qt::Key_C:         if( event->modifiers() == Qt::CTRL) {QTextEdit::keyPressEvent(event);return;}break;
-    case Qt::Key_S:         if( event->modifiers() == Qt::CTRL) {smartSelectionSetup(); return;}break;
-    case Qt::Key_Tab:       if( event->modifiers() == Qt::NoModifier){
+    case Qt::Key_V:         if( (event->modifiers() & Qt::CTRL)) {pasteTextAction.trigger();return;}break;
+    case Qt::Key_C:         if( (event->modifiers() & Qt::CTRL)) {QTextEdit::keyPressEvent(event);return;}break;
+    case Qt::Key_S:         if( (event->modifiers() & Qt::CTRL)) {smartSelectionSetup(); return;}break;
+    case Qt::Key_Tab:       if( (event->modifiers() == Qt::NoModifier)){
                                 clearMkEffects(undoData.editType);
                                 tabKeyPressed();
                                 fileSaveNow(); return;
@@ -163,9 +200,9 @@ void MkEdit::keyPressEvent(QKeyEvent *event)
     case Qt::Key_Delete:    if(textCursor().positionInBlock()== (textCursor().block().length()-1)){ undoData.editType = multiEdit;} break;
     case Qt::Key_Enter:
     case Qt::Key_Return:    undoData.editType = multiEdit; break;
-    case Qt::Key_D:         if( event->modifiers() == Qt::CTRL) {undoData.editType = multiEdit;}break;
-    case Qt::Key_Z:         if( event->modifiers() == Qt::CTRL) {undoData.editType = undoRedo;undoData.undoRedoSkip = true;}break;
-    case Qt::Key_Y:         if( event->modifiers() == Qt::CTRL) {undoData.editType = undoRedo;undoData.undoRedoSkip = true;}break;
+    case Qt::Key_D:         if( (event->modifiers() & Qt::CTRL)) {undoData.editType = multiEdit;}break;
+    case Qt::Key_Z:         if( (event->modifiers() & Qt::CTRL)) {undoData.editType = undoRedo;undoData.undoRedoSkip = true;}break;
+    case Qt::Key_Y:         if( (event->modifiers() & Qt::CTRL)) {undoData.editType = undoRedo;undoData.undoRedoSkip = true;}break;
     case Qt::Key_Backspace:{
                             QString blockText = this->textCursor().block().text();
                             if((textCursor().positionInBlock() == 0) || (blockText.left(3)=="```")){
@@ -198,8 +235,8 @@ void MkEdit::keyPressEvent(QKeyEvent *event)
                                 fileSaveNow();
                                 return;
                             }break;
-    case Qt::Key_D:         if( event->modifiers() == Qt::CTRL) {emit duplicateLine(this->textCursor().blockNumber());; fileSaveNow(); return;}break;
-    case Qt::Key_Z:         if( event->modifiers() == Qt::CTRL) {
+    case Qt::Key_D:         if( (event->modifiers() & Qt::CTRL)) {emit duplicateLine(this->textCursor().blockNumber());; fileSaveNow(); return;}break;
+    case Qt::Key_Z:         if( (event->modifiers() & Qt::CTRL)) {
                                 bool success = false;
                                 emit undoStackUndoSignal(success);
                                 if(success){
@@ -213,7 +250,7 @@ void MkEdit::keyPressEvent(QKeyEvent *event)
                                 }
                                 return;
                             }break;
-    case Qt::Key_Y:         if( event->modifiers() == Qt::CTRL) {
+    case Qt::Key_Y:         if( (event->modifiers() & Qt::CTRL)) {
                                 bool success = false;
                                 emit undoStackRedoSignal(success);
                                 if(success){
@@ -241,6 +278,53 @@ void MkEdit::keyReleaseEvent(QKeyEvent *event)
         default: break;
     }
     QTextEdit::keyReleaseEvent(event);
+}
+
+// ---------------------------------------------------------------------------
+// inputMethodEvent
+//
+// On Wayland, Qt 6 routes normal character input through the text-input
+// protocol instead of QKeyEvent. Without this override, input never reaches
+// updateRawDocument() / applyMkEffects(), so rawDocument stays behind the
+// rendered document and showMKSymbolsFromCurrentSelectedBlocks() overwrites
+// the freshly typed characters on the next cursorPositionChanged.
+// ---------------------------------------------------------------------------
+void MkEdit::inputMethodEvent(QInputMethodEvent *event)
+{
+    qDebug() << "[MkEdit::inputMethod] commit =" << event->commitString()
+             << "preedit =" << event->preeditString()
+             << "readOnly =" << isReadOnly();
+
+    const bool hasCommit = !event->commitString().isEmpty();
+
+    if (!hasCommit) {
+        QTextEdit::inputMethodEvent(event);
+        return;
+    }
+
+    Connector connector(
+        std::bind(&MkEdit::disconnectSignals, this, std::placeholders::_1),
+        std::bind(&MkEdit::connectSignals,    this, std::placeholders::_1)
+    );
+
+    undoData.editType = singleEdit;
+
+    if (textCursor().hasSelection() && undoData.editType != undoRedo) {
+        if (selectRange.selectionFirstStartBlock == selectRange.selectionEndBlock)
+            undoData.editType = singleEdit;
+        else
+            undoData.editType = multiEdit;
+    }
+
+    clearMkEffects(undoData.editType);
+
+    QTextEdit::inputMethodEvent(event);
+
+    selectRange.currentBlockNo    = textCursor().blockNumber();
+    selectRange.currentposInBlock = selectRange.arrowPosInBlock = textCursor().positionInBlock();
+
+    updateRawDocument();
+    applyMkEffects(textCursor().blockNumber());
 }
 
 void MkEdit::showSelectionAfterUndo(){
@@ -531,9 +615,8 @@ bool MkEdit::isTextCursorVisible()
 
 bool MkEdit::isMouseOnCheckBox(QMouseEvent *e)
 {
-    int yPos = e->pos().y();
-    int xPos = e->pos().x();
-    QPoint pointer(xPos,yPos);
+    // Qt 6: use position().toPoint() instead of the deprecated pos().
+    const QPoint pointer = e->position().toPoint();
 
     QTextDocument *doc = this->document();
     MkTextDocument *mkDoc = dynamic_cast<MkTextDocument*>(doc);
@@ -616,10 +699,16 @@ void MkEdit::disconnectSignals(bool override)
     }
 }
 
+// ---------------------------------------------------------------------------
+// setEditState: `edit == true` means "user wants to edit" -> NOT read-only.
+// ---------------------------------------------------------------------------
 void MkEdit::setEditState(bool edit)
 {
-    this->setReadOnly(edit);
+    qDebug() << "[MkEdit::setEditState] edit =" << edit
+             << "before readOnly =" << isReadOnly();
+    this->setReadOnly(!edit);
     this->update();
+    qDebug() << "[MkEdit::setEditState] after readOnly =" << isReadOnly();
 }
 
 void MkEdit::contextMenuHandler(QPoint pos)
@@ -806,8 +895,14 @@ void MkEdit::insertFromMimeData(const QMimeData *source)
 
 void MkEdit::mousePressEvent(QMouseEvent *e)
 {
+    qDebug() << "[MkEdit::mousePress] button =" << e->button()
+             << "readOnly =" << isReadOnly()
+             << "hasFocus =" << hasFocus()
+             << "isEnabled =" << isEnabled()
+             << "textInteractionFlags =" << textInteractionFlags();
+
     if(e->button() == Qt::RightButton && !this->textCursor().hasSelection()){
-        const QPoint pos (e->position().x(),e->position().y());
+        const QPoint pos = e->position().toPoint();
         this->setTextCursor(this->cursorForPosition(pos));
     }
 
@@ -825,19 +920,23 @@ void MkEdit::mousePressEvent(QMouseEvent *e)
     }
 }
 
+// ---------------------------------------------------------------------------
+// mouseMoveEvent: restore I-beam for normal text, pointing hand for
+// checkboxes and links.
+// ---------------------------------------------------------------------------
 void MkEdit::mouseMoveEvent(QMouseEvent *e)
 {
     QTextEdit::mouseMoveEvent(e);
 
-    int yPos = e->pos().y();
-    int xPos = e->pos().x();
-    QPoint pointer(xPos,yPos);
+    // Qt 6: position().toPoint() replaces the deprecated pos().
+    const QPoint pointer = e->position().toPoint();
 
     QTextDocument *doc = this->document();
     MkTextDocument *mkDoc = dynamic_cast<MkTextDocument*>(doc);
     QFontMetrics metrics(this->currentFont());
 
     if(nullptr == mkDoc){
+        this->viewport()->setCursor(Qt::CursorShape::IBeamCursor);
         return;
     }
 
@@ -885,7 +984,7 @@ void MkEdit::mouseMoveEvent(QMouseEvent *e)
         }
     }
 
-    this->viewport()->setCursor(Qt::CursorShape::ArrowCursor);
+    this->viewport()->setCursor(Qt::CursorShape::IBeamCursor);
 }
 
 void MkEdit::mouseDoubleClickEvent(QMouseEvent *e)
@@ -976,6 +1075,8 @@ void MkEdit::setDocument(QTextDocument *document)
     disconnectSignals(true);
     QTextEdit::setDocument(document);
     connectSignals(true);
+
+    dumpEditState("MkEdit::setDocument", this);
 }
 
 QString MkEdit::rawPlainText() const

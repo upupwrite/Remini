@@ -94,7 +94,7 @@ public:
     void setFormatted(bool state);
 
     void setMaskSize(const int size);
-    const QBitArray &getMask();
+    const QBitArray &getMask() const;
 
     QString getOriginalText() const;
     void setOriginalText(const QString &newOriginalText);

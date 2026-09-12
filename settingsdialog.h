@@ -31,7 +31,7 @@ public:
     explicit SettingsDialog(QWidget *parent = nullptr);
     void setFont(const QFont &font);
     ~SettingsDialog();
-    
+
 signals:
     void syntaxColorUpdate(HighlightColor &colors);
     void updateUiSettings(const QFont &font);

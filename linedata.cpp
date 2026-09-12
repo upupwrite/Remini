@@ -1,10 +1,10 @@
 #include "linedata.h"
 
 LineData::LineData()
+    : status(horizontalLine)
+    , draw(true)
+    , hidden(false)
 {
-    status = horizontalLine;
-    draw = true;
-    hidden = false;
 }
 
 LineData::statusID LineData::getStatus() const
@@ -14,12 +14,15 @@ LineData::statusID LineData::getStatus() const
 
 void LineData::setStatus(statusID newStatus)
 {
-    this->status = newStatus;
+    status = newStatus;
 }
 
-QString LineData::getSymbol()
+const QString &LineData::getSymbol() const
 {
-    return "---";
+    // Static so we return a reference and avoid re-constructing "---" on
+    // every call. The string is immutable, so this is safe.
+    static const QString symbol = QStringLiteral("---");
+    return symbol;
 }
 
 bool LineData::getDraw() const
@@ -37,7 +40,7 @@ void LineData::setHidden(bool hidden)
     this->hidden = hidden;
 }
 
-bool LineData::isHidden()
+bool LineData::isHidden() const
 {
     return hidden;
 }
