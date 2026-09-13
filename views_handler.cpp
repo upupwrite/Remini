@@ -1,5 +1,6 @@
 #include "views_handler.h"
 
+#include <QAbstractButton>
 #include <QApplication>
 #include <QClipboard>
 #include <QCoreApplication>
@@ -140,10 +141,8 @@ void ViewsHandler::initViews(Ui::MainWindow &ui)
     viewText->setDocument(currentDocument.data());
     viewTitle->setMinimumSize(10, 30);
     initFontDefault();
-    // Explicitly force the editor into editable mode. Relying on the
-    // ToggleButton's initial state is fragile because the toggleState ->
-    // setEditState connection is only created later, in connectDocument().
-    viewText->setReadOnly(false);
+
+    viewText->setEditState(viewToggleBtnEdit->getState());
     viewText->setFocusPolicy(Qt::StrongFocus);
 
     initFontDefault();
@@ -267,6 +266,9 @@ void ViewsHandler::initConnection()
     QObject::connect(viewTree, &NavigationView::emptySearch,
                      this, &ViewsHandler::emptySearchHandler);
 
+    QObject::connect(viewToggleBtnEdit, &QAbstractButton::toggled,
+                     viewText, &MkEdit::setEditState);
+
     connectDocument();
 
     QObject::connect(viewTextSearchEdit, &QLineEdit::textChanged,
@@ -359,8 +361,6 @@ void ViewsHandler::connectDocument()
     QObject::connect(currentDocument.data(), &MkTextDocument::disconnectCursorPos,
                      viewText, &MkEdit::disconnectSignals);
 
-    QObject::connect(viewToggleBtnEdit, &ToggleButton::toggleState,
-                     viewText, &MkEdit::setEditState);
 }
 
 void ViewsHandler::disconnectDocument()
@@ -606,6 +606,7 @@ void ViewsHandler::fileSaveRawHandle()
         file.close();
     }
 }
+
 void ViewsHandler::fileDeleteDialogue(QModelIndex &index)
 {
     if (parent == nullptr)

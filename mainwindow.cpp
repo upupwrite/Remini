@@ -8,6 +8,7 @@
 #include <QStyleFactory>
 #include <QTimer>
 #include <QString>
+#include <QSettings>
 
 // ---------------------------------------------------------------------------
 // Constructor
@@ -18,6 +19,14 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
     setup_views(this, *ui);
+    QSettings settings(QStringLiteral("Remini"), QStringLiteral("Remini"));
+    auto theme_name=settings.value(QStringLiteral("theme"));
+    for(const Theme& t: themeAchieve::themeVec()){
+        if (t.name==theme_name){
+            themeContents=t.name;
+            themeState=t.state;
+        }
+    }
 
     // "windowsvista" is Windows-only and returns nullptr on Linux/macOS.
     // Fall back to "fusion" so QApplication::setStyle() never gets nullptr.
@@ -29,8 +38,6 @@ MainWindow::MainWindow(QWidget *parent)
     }
     darkThemeStyle = QStyleFactory::create(QStringLiteral("fusion"));
 
-    themeContents = darkTheme;
-    themeState    = darkThemeState;
     QApplication::setStyle(QStyleFactory::create(QStringLiteral("fusion")));
     this->setStyleSheet(themeContents);
 

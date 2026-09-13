@@ -12,6 +12,7 @@
 #include "./ui_mainwindow.h"
 #include "views_handler.h"
 #include "windowapi.h"
+#include "theme.h"
 
 // ---------------------------------------------------------------------------
 // Double-Shift detection uses QKeyEvent::nativeScanCode(), which returns
@@ -58,17 +59,16 @@ private slots:
     void shiftTimerHandle();
 
 private:
-    enum ThemeState {
-        lightThemeState,
-        darkThemeState,
-    };
-
     QTimer *rightShiftTimer = nullptr;
     QTimer *leftShiftTimer  = nullptr;
     Ui::MainWindow *ui      = nullptr;
 
     QString    themeContents;
     ThemeState themeState = darkThemeState;
+
+
+    QString darkTheme=themes::dark().qss;
+    QString lightTheme=themes::light().qss;
 
     QSharedPointer<ViewsHandler> view_handler;
 

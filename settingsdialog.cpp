@@ -10,6 +10,7 @@
 #include <QStringList>
 #include <QTextStream>
 #include "mktextdocument.h"
+#include "theme.h"
 // ---------------------------------------------------------------------------
 // Default monospace font per platform.
 // "Cascadia Mono" ships with Windows Terminal, so it is only a safe default
@@ -43,8 +44,9 @@ SettingsDialog::SettingsDialog(QWidget *parent)
     ui->cmb_lineWrap->addItem("Disabled");
     ui->cmb_lineWrap->addItem("Enabled");
 
-    ui->cmb_theme->addItem("Light Theme");
-    ui->cmb_theme->addItem("Dark Theme");
+    for(const Theme& t: themeAchieve::themeVec()){
+        ui->cmb_theme->addItem(t.name);
+    }
 
     ui->cmb_stretch->addItem("AnyStretch");
     ui->cmb_stretch->addItem("UltraCondensed");
@@ -218,6 +220,7 @@ void SettingsDialog::saveSettingsHandler()
     settings.setValue("markdown", ui->cmb_mkState->currentIndex() != 0);
     settings.setValue("linewrap", ui->cmb_lineWrap->currentIndex() != 0);
     settings.setValue("vaultPath", ui->edit_vaultRootPath->text());
+    settings.setValue("theme",ui->cmb_theme->currentText());
 
     emit updateUiSettings(font);
 }
