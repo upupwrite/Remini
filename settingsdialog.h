@@ -3,6 +3,10 @@
 
 #include <QDialog>
 #include <QFileDialog>
+#include <QComboBox>
+#include <QFontComboBox>
+#include <QDialogButtonBox>
+#include <QToolButton>
 #include "mktextdocument.h"
 #include "highlighter.h"
 
@@ -44,6 +48,7 @@ private slots:
     void updateStretchHandler(const int index);
     void updateWeightHandler(const int index);
     void saveSettingsHandler();
+    void applySettingsHandler();
 
 public slots:
     void syntaxColorUpdateHandler(HighlightColor &colors);
@@ -62,6 +67,20 @@ private:
 
     const QString getVaultRootPath();
     QString vaultRootPath;
+
+    QTextEdit        *txt_preview        = nullptr;
+    QComboBox        *cmb_theme          = nullptr;
+    QComboBox        *cmb_stretch        = nullptr;
+    QComboBox        *cmb_weight         = nullptr;
+    QFontComboBox    *cmb_font           = nullptr;
+    QLineEdit        *ledit_font_size    = nullptr;
+    QToolButton      *btn_plus           = nullptr;
+    QToolButton      *btn_minus          = nullptr;
+    QComboBox        *cmb_mkState        = nullptr;
+    QComboBox        *cmb_lineWrap       = nullptr;
+    QLineEdit        *edit_vaultRootPath = nullptr;
+    QPushButton      *btn_vaultRootPath  = nullptr;
+    QDialogButtonBox *btn_dialog         = nullptr;
 };
 
 #endif // SETTINGSDIALOG_H
