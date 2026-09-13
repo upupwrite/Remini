@@ -9,13 +9,10 @@
 #include <QSettings>
 #include <QStringList>
 #include <QTextStream>
+#include <algorithm>
 #include "mktextdocument.h"
 #include "theme.h"
-// ---------------------------------------------------------------------------
-// Default monospace font per platform.
-// "Cascadia Mono" ships with Windows Terminal, so it is only a safe default
-// there. Linux and macOS get a font that is essentially guaranteed to exist.
-// ---------------------------------------------------------------------------
+
 static QString defaultMonospaceFont()
 {
 #ifdef Q_OS_WIN
@@ -34,42 +31,54 @@ SettingsDialog::SettingsDialog(QWidget *parent)
     ui->setupUi(this);
     this->setWindowModality(Qt::WindowModal);
 
+    normal   = ui->stackedWidget->widget(0);
+    edit     = ui->stackedWidget->widget(1);
+    file     = ui->stackedWidget->widget(2);
+    markdown = ui->stackedWidget->widget(3);
+
     previewDocument.setPlainText(previewText);
     previewHighligher.setDocument(&this->previewDocument);
-    ui->txt_preview->setDocument(&this->previewDocument);
 
-    ui->cmb_mkState->addItem("Disabled");
-    ui->cmb_mkState->addItem("Enabled");
+    auto txt_preview = normal->findChild<QTextEdit*>("txt_preview");
+    txt_preview->setDocument(&this->previewDocument);
 
-    ui->cmb_lineWrap->addItem("Disabled");
-    ui->cmb_lineWrap->addItem("Enabled");
+    auto cmb_mkState = markdown->findChild<QComboBox*>("cmb_mkState");
+    cmb_mkState->addItem("Disabled");
+    cmb_mkState->addItem("Enabled");
 
-    for(const Theme& t: themeAchieve::themeVec()){
+    auto cmb_lineWrap = edit->findChild<QComboBox*>("cmb_lineWrap");
+    cmb_lineWrap->addItem("Disabled");
+    cmb_lineWrap->addItem("Enabled");
+
+    for (const Theme &t : themeAchieve::themeVec()) {
         ui->cmb_theme->addItem(t.name);
     }
 
-    ui->cmb_stretch->addItem("AnyStretch");
-    ui->cmb_stretch->addItem("UltraCondensed");
-    ui->cmb_stretch->addItem("ExtraCondensed");
-    ui->cmb_stretch->addItem("Condensed");
-    ui->cmb_stretch->addItem("SemiCondensed");
-    ui->cmb_stretch->addItem("Unstretched");
-    ui->cmb_stretch->addItem("SemiExpanded");
-    ui->cmb_stretch->addItem("Expanded");
-    ui->cmb_stretch->addItem("ExtraExpanded");
-    ui->cmb_stretch->addItem("UltraExpanded");
+    auto cmb_stretch = normal->findChild<QComboBox*>("cmb_stretch");
+    cmb_stretch->addItem("AnyStretch");
+    cmb_stretch->addItem("UltraCondensed");
+    cmb_stretch->addItem("ExtraCondensed");
+    cmb_stretch->addItem("Condensed");
+    cmb_stretch->addItem("SemiCondensed");
+    cmb_stretch->addItem("Unstretched");
+    cmb_stretch->addItem("SemiExpanded");
+    cmb_stretch->addItem("Expanded");
+    cmb_stretch->addItem("ExtraExpanded");
+    cmb_stretch->addItem("UltraExpanded");
 
-    ui->cmb_weight->addItem("Thin");
-    ui->cmb_weight->addItem("ExtraLight");
-    ui->cmb_weight->addItem("Light");
-    ui->cmb_weight->addItem("Normal");
-    ui->cmb_weight->addItem("Medium");
-    ui->cmb_weight->addItem("DemiBold");
-    ui->cmb_weight->addItem("Bold");
-    ui->cmb_weight->addItem("ExtraBold");
-    ui->cmb_weight->addItem("Black");
+    auto cmb_weight = normal->findChild<QComboBox*>("cmb_weight");
+    cmb_weight->addItem("Thin");
+    cmb_weight->addItem("ExtraLight");
+    cmb_weight->addItem("Light");
+    cmb_weight->addItem("Normal");
+    cmb_weight->addItem("Medium");
+    cmb_weight->addItem("DemiBold");
+    cmb_weight->addItem("Bold");
+    cmb_weight->addItem("ExtraBold");
+    cmb_weight->addItem("Black");
 
-    ui->ledit_font_size->setValidator(new QIntValidator(6, 30, ui->ledit_font_size));
+    auto ledit_font_size = normal->findChild<QLineEdit*>("ledit_font_size");
+    ledit_font_size->setValidator(new QIntValidator(6, 30, ledit_font_size));
 
     QObject::connect(ui->btn_vaultRootPath, &QPushButton::pressed,
                      this, &SettingsDialog::executeFolderDialog);
@@ -80,7 +89,7 @@ SettingsDialog::SettingsDialog(QWidget *parent)
     QObject::connect(ui->cmb_font, &QFontComboBox::currentFontChanged,
                      this, &SettingsDialog::updateFontHandler);
 
-    QObject::connect(ui->ledit_font_size, &QLineEdit::textChanged,
+    QObject::connect(ledit_font_size, &QLineEdit::textChanged,
                      this, &SettingsDialog::updateFontSizeHandler);
 
     QObject::connect(ui->cmb_stretch, &QComboBox::currentIndexChanged,
@@ -91,17 +100,19 @@ SettingsDialog::SettingsDialog(QWidget *parent)
 
     QObject::connect(ui->btn_dialog, &QDialogButtonBox::accepted,
                      this, &SettingsDialog::saveSettingsHandler);
+    QObject::connect(ui->btn_dialog, &QDialogButtonBox::rejected,
+                     this, &SettingsDialog::close);
 
     QObject::connect(ui->btn_plus, &QPushButton::clicked,
                      this, [this]() {
-        int size = this->ui->ledit_font_size->text().toInt();
+        int size = ui->ledit_font_size->text().toInt();
         size = std::min(MAXIMUM_FONT_SIZE, size + 1);
         ui->ledit_font_size->setText(QString::number(size));
     });
 
     QObject::connect(ui->btn_minus, &QPushButton::clicked,
                      this, [this]() {
-        int size = this->ui->ledit_font_size->text().toInt();
+        int size = ui->ledit_font_size->text().toInt();
         size = std::max(MINIMUM_FONT_SIZE, size - 1);
         ui->ledit_font_size->setText(QString::number(size));
     });
@@ -140,8 +151,6 @@ void SettingsDialog::setFont(const QFont &font)
 
 void SettingsDialog::executeFolderDialog()
 {
-    // Pass `this` as parent so the dialog is properly associated with this
-    // window. On Wayland this matters for centering and stacking.
     QFileDialog dialog(this);
     dialog.setFileMode(QFileDialog::Directory);
     dialog.setDirectory(vaultRootPath);
@@ -215,12 +224,10 @@ void SettingsDialog::saveSettingsHandler()
     settings.setValue("fontsize", font.pointSize());
     settings.setValue("stretch", font.stretch());
     settings.setValue("weight", font.weight());
-    // Store markdown / linewrap as booleans to keep the type consistent with
-    // the values written by MkEdit::diableMarkdown_internal().
     settings.setValue("markdown", ui->cmb_mkState->currentIndex() != 0);
     settings.setValue("linewrap", ui->cmb_lineWrap->currentIndex() != 0);
     settings.setValue("vaultPath", ui->edit_vaultRootPath->text());
-    settings.setValue("theme",ui->cmb_theme->currentText());
+    settings.setValue("theme", ui->cmb_theme->currentText());
 
     emit updateUiSettings(font);
 }
@@ -247,9 +254,6 @@ void SettingsDialog::show()
     ui->cmb_lineWrap->setCurrentIndex(linewrap ? 1 : 0);
     ui->edit_vaultRootPath->setText(vaultRootPath);
 
-    // If the stored font is not present (e.g. "Cascadia Mono" on Linux),
-    // findText() returns -1. Fall back to the first available font so the
-    // combo box is never left empty.
     int fontIndex = ui->cmb_font->findText(fontFamily);
     if (fontIndex < 0) {
         fontIndex = ui->cmb_font->findText(defaultMonospaceFont());
@@ -302,8 +306,6 @@ void SettingsDialog::show()
 const QString SettingsDialog::getVaultRootPath()
 {
     const QString currentPath = QDir::currentPath();
-    // QDir::filePath() handles the separator, avoiding "path"+"file"
-    // concatenation bugs when CONFIG_FILE_NAME has no leading slash.
     const QString filePath = QDir(currentPath).filePath(CONFIG_FILE_NAME);
     QFile file(filePath);
 
