@@ -93,6 +93,8 @@ if(UNIX AND NOT APPLE)
     target_link_libraries(Remini PRIVATE X11::X11)
 endif()
 
+enable_testing()
+
 add_subdirectory(CatchTests)
 
 add_test(NAME CatchTests COMMAND CatchTests)
