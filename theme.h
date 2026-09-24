@@ -321,6 +321,18 @@ inline const std::array<Theme, 2>& themeVec()
     return arr;
 }
 
+// Return a pointer to the theme whose name matches, or nullptr if none.
+// The returned pointer is stable: the Theme objects live in a function-local
+// static std::array, so their address does not change over the program's life.
+inline const Theme* findByName(const QString &name)
+{
+    for (const Theme &t : themeVec()) {
+        if (t.name == name)
+            return &t;
+    }
+    return nullptr;
+}
+
 } // namespace themeAchieve
 
 #endif // THEME_H

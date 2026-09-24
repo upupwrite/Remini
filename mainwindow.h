@@ -54,6 +54,11 @@ public:
 public slots:
     void recentFilesHandler(bool show);
 
+    // Apply the theme whose `name` matches a Theme in themeAchieve::themeVec().
+    // Unknown names fall back to the dark theme. Safe to call at any time,
+    // including from a signal emitted while another dialog is open.
+    void applyThemeByName(const QString &name);
+
 private slots:
     void showHideApp();
     void shiftTimerHandle();

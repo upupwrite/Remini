@@ -7,6 +7,7 @@
 #include <QFontDatabase>
 #include <QIntValidator>
 #include <QSettings>
+#include <QSignalBlocker>
 #include <QStringList>
 #include <QTextStream>
 #include "mktextdocument.h"
@@ -220,9 +221,25 @@ void SettingsDialog::saveSettingsHandler()
     settings.setValue("markdown", ui->cmb_mkState->currentIndex() != 0);
     settings.setValue("linewrap", ui->cmb_lineWrap->currentIndex() != 0);
     settings.setValue("vaultPath", ui->edit_vaultRootPath->text());
-    settings.setValue("theme",ui->cmb_theme->currentText());
+
+    // ------------------------------------------------------------------
+    // Theme: read the previously saved value before overwriting it so we
+    // can decide whether to notify the rest of the app.
+    //
+    // We deliberately do NOT emit on every OK click: the signal triggers
+    // a QApplication::setStyle() + setStyleSheet() cycle, which rebuilds
+    // every widget's style, and there is no reason to pay that cost when
+    // the user only changed the font size.
+    // ------------------------------------------------------------------
+    const QString previousTheme =
+        settings.value(QStringLiteral("theme"), themes::dark().name).toString();
+    const QString newTheme = ui->cmb_theme->currentText();
+    settings.setValue("theme", newTheme);
 
     emit updateUiSettings(font);
+
+    if (newTheme != previousTheme)
+        emit themeChanged(newTheme);
 }
 
 void SettingsDialog::syntaxColorUpdateHandler(HighlightColor &colors)
@@ -246,6 +263,24 @@ void SettingsDialog::show()
     ui->cmb_mkState->setCurrentIndex(markdown ? 1 : 0);
     ui->cmb_lineWrap->setCurrentIndex(linewrap ? 1 : 0);
     ui->edit_vaultRootPath->setText(vaultRootPath);
+
+    // ------------------------------------------------------------------
+    // Restore the saved theme selection.
+    //
+    // Without this the combo box would always show its first entry (Light)
+    // no matter what the user last picked, so opening the dialog and
+    // pressing OK would silently overwrite the theme back to Light.
+    //
+    // QSignalBlocker guards against any connection on currentTextChanged
+    // firing during this initial programmatic change.
+    // ------------------------------------------------------------------
+    const QString savedTheme =
+        settings.value(QStringLiteral("theme"), themes::dark().name).toString();
+    const int themeIndex = ui->cmb_theme->findText(savedTheme);
+    if (themeIndex >= 0) {
+        QSignalBlocker blocker(ui->cmb_theme);
+        ui->cmb_theme->setCurrentIndex(themeIndex);
+    }
 
     // If the stored font is not present (e.g. "Cascadia Mono" on Linux),
     // findText() returns -1. Fall back to the first available font so the

@@ -91,7 +91,7 @@ private:
     NavigationView *viewTextSearchTree;
     QLabel *viewTextSearchCount;
     ToggleButton *viewToggleBtnEdit ;
-    
+
     QFont fontBase;
     QString getVaultPath();
     void setVaultPath(const QString& path);
@@ -124,6 +124,12 @@ signals:
     void fileDelete(QModelIndex& index);
     void fileDeletePath(const QString& path);
     void updateRecentFile(const QString &relativePath);
+
+    // Relays SettingsDialog::themeChanged to whoever owns the top-level
+    // window (currently MainWindow). ViewsHandler itself does not know
+    // about MainWindow and does not touch the application style, so the
+    // signal stays a pure pass-through.
+    void themeChanged(const QString &themeName);
 
 private slots:
     void fileDisplay(const QModelIndex& index);

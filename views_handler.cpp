@@ -19,10 +19,7 @@
 #include <QWidget>
 
 // ---------------------------------------------------------------------------
-// Default monospace font per platform. "Cascadia Mono" ships with Windows
-// Terminal, "Calibri" is Windows-only too. On Linux / macOS we must use a
-// font that actually exists, otherwise Qt silently falls back to a random
-// system font and the UI renders inconsistently.
+// Default monospace font per platform.
 // ---------------------------------------------------------------------------
 static QString defaultMonospaceFont()
 {
@@ -46,15 +43,6 @@ static QString defaultUiFont()
 #endif
 }
 
-// ---------------------------------------------------------------------------
-// Vault path resolution.
-//
-// NOTE: This function reads from two different QSettings locations in an
-// inconsistent way. That is preserved here so behaviour matches the rest of
-// the project, but the "config.ini" path is relative to the current working
-// directory, which can be anything on Linux depending on how the app is
-// launched. If you rely on it, resolve it to an absolute path explicitly.
-// ---------------------------------------------------------------------------
 QString ViewsHandler::getVaultPath()
 {
     QFile configFile(QStringLiteral("config.ini"));
@@ -84,10 +72,6 @@ QString ViewsHandler::getVaultPath()
     return localVaultPath;
 }
 
-// ---------------------------------------------------------------------------
-// Save the vault path. Use the same key spelling everywhere ("vault"), and
-// stay on the same QSettings scope as getVaultPath().
-// ---------------------------------------------------------------------------
 void ViewsHandler::setVaultPath(const QString &path)
 {
     QFile configFile(QStringLiteral("config.ini"));
@@ -196,6 +180,18 @@ void ViewsHandler::initConnection()
 
     QObject::connect(settingsDialog, &SettingsDialog::updateUiSettings,
                      this, &ViewsHandler::updateUiSettingsHandler);
+
+    // ------------------------------------------------------------------
+    // Relay theme changes to the outside world.
+    //
+    // ViewsHandler owns SettingsDialog (created in the constructor), but
+    // the top-level QMainWindow owns the style sheet and the QStyle, so
+    // we simply forward the signal upward and let MainWindow decide what
+    // to do. Keeping ViewsHandler ignorant of MainWindow avoids a
+    // circular dependency between the two classes.
+    // ------------------------------------------------------------------
+    QObject::connect(settingsDialog, &SettingsDialog::themeChanged,
+                     this, &ViewsHandler::themeChanged);
 
     QObject::connect(viewTree, &NavigationView::pressed,
                      this, &ViewsHandler::fileDisplay);
@@ -360,7 +356,6 @@ void ViewsHandler::connectDocument()
 
     QObject::connect(currentDocument.data(), &MkTextDocument::disconnectCursorPos,
                      viewText, &MkEdit::disconnectSignals);
-
 }
 
 void ViewsHandler::disconnectDocument()
@@ -591,7 +586,6 @@ void ViewsHandler::fileSaveRawHandle()
     if(!viewText->hasFocus())
         return;
 
-    // Startup / new documents have no file path yet; nothing to save.
     const QString filePath = currentDocument.data()->getFilePath();
     if (filePath.isEmpty())
         return;
@@ -752,9 +746,6 @@ void ViewsHandler::fileRenamedHandler(const QString &newName, const QString &old
 
 QString ViewsHandler::setVaultPathHandler()
 {
-    // Pass `this->parent` as the dialog parent so the dialog is properly
-    // associated with the main window. On Wayland a parentless dialog may
-    // end up on a different surface and not be centered / modal to the app.
     QFileDialog dialog(parent);
     dialog.setFileMode(QFileDialog::Directory);
     dialog.setDirectory(vaultPath);
@@ -775,9 +766,6 @@ QString ViewsHandler::setVaultPathHandler()
         recentFileCursorMap.clear();
     }
 
-    // Use the same key spelling as getVaultPath() / setVaultPath():
-    // "vault" (all lowercase). The previous code wrote "VaultPath" which
-    // was never read back anywhere.
     setVaultPath(newPath);
 
     return newPath;
@@ -860,11 +848,6 @@ void ViewsHandler::openRecentFilesDialogHandle(bool show)
 {
     if (show) {
         if (recentFilesView->isHidden()) {
-            // NOTE: On Wayland client-side window positioning is not allowed.
-            // move() will be ignored by the compositor, and the popup will be
-            // placed wherever the compositor decides. This is a protocol
-            // limitation, not a Qt bug. The geometry hint below is still
-            // honoured on X11 and Windows.
             const QPoint pos = this->parent->mapToGlobal(viewRightFrame->pos());
             recentFilesView->setGeometry(viewRightFrame->geometry());
             recentFilesView->move(pos);
