@@ -56,32 +56,48 @@ void WindowApi::cleanUp()
     }
 }
 
-LRESULT WindowApi::detectKeys(int code, WPARAM wParam, LPARAM lParam)
+// ---------------------------------------------------------------------------
+// Low-level keyboard hook callback.
+//
+// `detectKeys` is declared `static` in the header because SetWindowsHookExW
+// requires a plain function pointer (a non-static member function cannot be
+// passed directly). A static member has no `this` pointer, so any access to
+// the instance fields must go through the singleton accessor.
+//
+// Virtual-key codes:
+//   'J'      - the J key
+//   VK_MENU  - the Alt key (generic; VK_LMENU / VK_RMENU for left/right)
+// ---------------------------------------------------------------------------
+LRESULT CALLBACK WindowApi::detectKeys(int code, WPARAM wParam, LPARAM lParam)
 {
+    WindowApi &self = instance();
+
     if (code >= 0) {
-        bool isKeyDown = wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN;
-        bool isKeyUp   = wParam == WM_KEYUP   || wParam == WM_SYSKEYUP;
+        const bool isKeyDown = (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN);
+        const bool isKeyUp   = (wParam == WM_KEYUP   || wParam == WM_SYSKEYUP);
 
-        KBDLLHOOKSTRUCT *kbStruct = (KBDLLHOOKSTRUCT*)lParam;
-        DWORD vkCode = kbStruct->vkCode;
+        const auto *kbStruct = reinterpret_cast<const KBDLLHOOKSTRUCT *>(lParam);
+        const DWORD vkCode = kbStruct->vkCode;
 
-        if (vkCode == KEY_J || vkCode == KEY_ALT) {
+        if (vkCode == 'J' || vkCode == VK_MENU) {
             if (isKeyDown) {
-                if (vkCode == KEY_J)   isKeyJPressedDown   = true;
-                if (vkCode == KEY_ALT) isKeyAltPressedDown = true;
+                if (vkCode == 'J')      self.isKeyJPressedDown   = true;
+                if (vkCode == VK_MENU)  self.isKeyAltPressedDown = true;
             }
             if (isKeyUp) {
-                if (vkCode == KEY_J)   isKeyJPressedDown   = false;
-                if (vkCode == KEY_ALT) isKeyAltPressedDown = false;
+                if (vkCode == 'J')      self.isKeyJPressedDown   = false;
+                if (vkCode == VK_MENU)  self.isKeyAltPressedDown = false;
             }
-            if (isKeyAltPressedDown && isKeyJPressedDown) {
-                emit WindowApi::instance().showApp();
-                isKeyJPressedDown = false;
-                return 1;
+            if (self.isKeyAltPressedDown && self.isKeyJPressedDown) {
+                // `emit` is a no-op macro; this is just a normal signal call.
+                emit self.showApp();
+                self.isKeyJPressedDown = false;
+                return 1;   // swallow the keystroke so it does not reach other apps
             }
         }
     }
-    return instance().CallNextHookExInvoke(keyboardProcHook, code, wParam, lParam);
+
+    return self.CallNextHookExInvoke(self.keyboardProcHook, code, wParam, lParam);
 }
 
 // ============================ Linux ============================
@@ -120,6 +136,7 @@ void WindowApi::installHook()
     rootWindow  = static_cast<unsigned long>(root);
     keycodeJ    = XKeysymToKeycode(dpy, XK_j);
 
+    // Grab Alt+J while also tolerating CapsLock / NumLock being on.
     const unsigned int locks[] = { 0, LockMask, Mod2Mask, LockMask | Mod2Mask };
     for (unsigned int lock : locks) {
         XGrabKey(dpy, keycodeJ, Mod1Mask | lock, root,
@@ -142,7 +159,7 @@ void WindowApi::cleanUp()
 
     if (timer) {
         timer->stop();
-        timer->deleteLater();
+        delete timer;      // QObject child of `this`; direct delete is safe here
         timer = nullptr;
     }
 
