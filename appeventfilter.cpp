@@ -1,7 +1,6 @@
 #include "appeventfilter.h"
 
-AppEventFilter::AppEventFilter(QObject *parent)
-    : QObject{parent}
+AppEventFilter::AppEventFilter(QObject *parent) : QObject{parent}
 {
     altPressed = false;
 }
@@ -10,7 +9,8 @@ bool AppEventFilter::eventFilter(QObject *obj, QEvent *event)
 {
     Q_UNUSED(obj);
 
-    if (QEvent::KeyPress == event->type()) {
+    if (QEvent::KeyPress == event->type())
+    {
         QKeyEvent *keyEvent = static_cast<QKeyEvent *>(event);
 
         // Use a bitwise test instead of strict equality.
@@ -19,10 +19,13 @@ bool AppEventFilter::eventFilter(QObject *obj, QEvent *event)
         // The same can happen on some Wayland compositors.
         const bool ctrlHeld = (keyEvent->modifiers() & Qt::ControlModifier);
 
-        if (Qt::Key_Tab == keyEvent->key() && ctrlHeld) {
+        if (Qt::Key_Tab == keyEvent->key() && ctrlHeld)
+        {
             emit openRecentFiles(true);
         }
-    } else if (QEvent::KeyRelease == event->type()) {
+    }
+    else if (QEvent::KeyRelease == event->type())
+    {
         QKeyEvent *keyEvent = static_cast<QKeyEvent *>(event);
 
         // Ctrl released -> close the popup.
@@ -31,7 +34,8 @@ bool AppEventFilter::eventFilter(QObject *obj, QEvent *event)
         // delivered the release of another key while Ctrl was released
         // outside the application window on Wayland).
         if (Qt::Key_Control == keyEvent->key() ||
-            !(keyEvent->modifiers() & Qt::ControlModifier)) {
+            !(keyEvent->modifiers() & Qt::ControlModifier))
+        {
             emit openRecentFiles(false);
         }
     }

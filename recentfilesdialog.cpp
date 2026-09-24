@@ -39,7 +39,8 @@ RecentFilesDialog::RecentFilesDialog(QWidget *parent, QListWidget *listWidget)
 // ---------------------------------------------------------------------------
 void RecentFilesDialog::keyPressEvent(QKeyEvent *event)
 {
-    if (event->key() == Qt::Key_Tab && listWidget->count() > 0) {
+    if (event->key() == Qt::Key_Tab && listWidget->count() > 0)
+    {
         QListWidgetItem *item = nullptr;
         int row = listWidget->currentRow();
 
@@ -48,7 +49,8 @@ void RecentFilesDialog::keyPressEvent(QKeyEvent *event)
         else
             item = listWidget->item(0);
 
-        if (item) {
+        if (item)
+        {
             listWidget->setCurrentItem(item);
             currentPath = item->text();
         }
@@ -79,9 +81,9 @@ void RecentFilesDialog::show()
     // Defer focus assignment so the compositor has time to map the surface
     // and route keyboard input to it. On X11 this is harmless; on Wayland
     // it makes the difference between focus working and silently failing.
-    QTimer::singleShot(0, listWidget, [this]() {
-        listWidget->setFocus(Qt::OtherFocusReason);
-    });
+    QTimer::singleShot(0, listWidget,
+                       [this]()
+                       { listWidget->setFocus(Qt::OtherFocusReason); });
 }
 
 const QString RecentFilesDialog::getCurrentRelativeFile() const
@@ -103,7 +105,8 @@ void RecentFilesDialog::updateRecentFileHandle(const QString &relativePath)
     newItem->setIcon(iconProvider.icon(QFileIconProvider::File));
     newItem->setText(relativePath);
 
-    for (int i = 0; i < listWidget->count(); ++i) {
+    for (int i = 0; i < listWidget->count(); ++i)
+    {
         QListWidgetItem *item = listWidget->item(i);
         if (item->text() == relativePath)
             delete listWidget->takeItem(i);
@@ -114,9 +117,11 @@ void RecentFilesDialog::updateRecentFileHandle(const QString &relativePath)
     listWidget->setCurrentRow(0, QItemSelectionModel::Select);
 }
 
-void RecentFilesDialog::removeRecentDeletedFileHandle(const QString &relativePath)
+void RecentFilesDialog::removeRecentDeletedFileHandle(
+    const QString &relativePath)
 {
-    for (int i = 0; i < listWidget->count(); ++i) {
+    for (int i = 0; i < listWidget->count(); ++i)
+    {
         QListWidgetItem *item = listWidget->item(i);
         if (item->text() == relativePath)
             delete listWidget->takeItem(i);

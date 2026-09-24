@@ -18,17 +18,21 @@ NavigationProxyModel::NavigationProxyModel(QObject *parent)
 
 QModelIndex NavigationProxyModel::setRootIndexFromPath(QString path)
 {
-    QFileSystemModel *model = dynamic_cast<QFileSystemModel *>(this->sourceModel());
-    if (model) {
+    QFileSystemModel *model =
+        dynamic_cast<QFileSystemModel *>(this->sourceModel());
+    if (model)
+    {
         QModelIndex result = this->mapFromSource(model->index(path));
         return result;
     }
     return QModelIndex();
 }
 
-QFileInfo NavigationProxyModel::getFileInfoMappedToSource(const QModelIndex &index)
+QFileInfo NavigationProxyModel::getFileInfoMappedToSource(
+    const QModelIndex &index)
 {
-    QFileSystemModel *model = qobject_cast<QFileSystemModel *>(this->sourceModel());
+    QFileSystemModel *model =
+        qobject_cast<QFileSystemModel *>(this->sourceModel());
     if (!model)
         return QFileInfo();
 
@@ -38,7 +42,8 @@ QFileInfo NavigationProxyModel::getFileInfoMappedToSource(const QModelIndex &ind
 
 QFileInfo NavigationProxyModel::getFileInfo(const QModelIndex &index)
 {
-    QFileSystemModel *model = qobject_cast<QFileSystemModel *>(this->sourceModel());
+    QFileSystemModel *model =
+        qobject_cast<QFileSystemModel *>(this->sourceModel());
     if (!model)
         return QFileInfo();
 
@@ -47,7 +52,8 @@ QFileInfo NavigationProxyModel::getFileInfo(const QModelIndex &index)
 
 void NavigationProxyModel::createFileHandler(QModelIndex &index, QString &name)
 {
-    QFileSystemModel *model = qobject_cast<QFileSystemModel *>(this->sourceModel());
+    QFileSystemModel *model =
+        qobject_cast<QFileSystemModel *>(this->sourceModel());
     if (!model)
         return;
 
@@ -71,9 +77,11 @@ void NavigationProxyModel::createFileHandler(QModelIndex &index, QString &name)
     name = fileName + fileType;
 }
 
-void NavigationProxyModel::createFolderHandler(QModelIndex &index, QString &name)
+void NavigationProxyModel::createFolderHandler(QModelIndex &index,
+                                               QString &name)
 {
-    QFileSystemModel *model = qobject_cast<QFileSystemModel *>(this->sourceModel());
+    QFileSystemModel *model =
+        qobject_cast<QFileSystemModel *>(this->sourceModel());
     if (!model)
         return;
 
@@ -82,10 +90,13 @@ void NavigationProxyModel::createFolderHandler(QModelIndex &index, QString &name
     QString folderName = QStringLiteral("New Folder");
     QString folderPath;
 
-    if (sourceIndex.isValid()) {
+    if (sourceIndex.isValid())
+    {
         QFileInfo info = model->fileInfo(sourceIndex);
         folderPath = info.absoluteFilePath();
-    } else {
+    }
+    else
+    {
         folderPath = model->rootPath();
     }
 
@@ -98,7 +109,8 @@ void NavigationProxyModel::createFolderHandler(QModelIndex &index, QString &name
 
 void NavigationProxyModel::deleteFileFolderHandler(QModelIndex &index)
 {
-    QFileSystemModel *model = qobject_cast<QFileSystemModel *>(this->sourceModel());
+    QFileSystemModel *model =
+        qobject_cast<QFileSystemModel *>(this->sourceModel());
     if (!model)
         return;
 
@@ -114,7 +126,8 @@ void NavigationProxyModel::deleteFileFolderHandler(QModelIndex &index)
 
 void NavigationProxyModel::openLocationHandler(QModelIndex &index)
 {
-    QFileSystemModel *model = qobject_cast<QFileSystemModel *>(this->sourceModel());
+    QFileSystemModel *model =
+        qobject_cast<QFileSystemModel *>(this->sourceModel());
     if (!model)
         return;
 
@@ -122,9 +135,12 @@ void NavigationProxyModel::openLocationHandler(QModelIndex &index)
 
     QString folderPath;
 
-    if (!sourceIndex.isValid()) {
+    if (!sourceIndex.isValid())
+    {
         folderPath = model->rootPath();
-    } else {
+    }
+    else
+    {
         QFileInfo fileInfo = model->fileInfo(sourceIndex);
         if (!fileInfo.isDir())
             fileInfo.setFile(fileInfo.absoluteFilePath());
@@ -136,7 +152,8 @@ void NavigationProxyModel::openLocationHandler(QModelIndex &index)
 
 void NavigationProxyModel::copyFileFolderHandler(QModelIndex &index)
 {
-    QFileSystemModel *model = qobject_cast<QFileSystemModel *>(this->sourceModel());
+    QFileSystemModel *model =
+        qobject_cast<QFileSystemModel *>(this->sourceModel());
     if (!model)
         return;
 
@@ -152,9 +169,11 @@ void NavigationProxyModel::copyFileFolderHandler(QModelIndex &index)
     clipboard->setText(path);
 }
 
-void NavigationProxyModel::createAllFoldersList(QModelIndex index, QStringList &listPath)
+void NavigationProxyModel::createAllFoldersList(QModelIndex index,
+                                                QStringList &listPath)
 {
-    QFileSystemModel *model = qobject_cast<QFileSystemModel *>(this->sourceModel());
+    QFileSystemModel *model =
+        qobject_cast<QFileSystemModel *>(this->sourceModel());
     if (!model)
         return;
 
@@ -162,16 +181,19 @@ void NavigationProxyModel::createAllFoldersList(QModelIndex index, QStringList &
     QFileInfo info = model->fileInfo(rootIndex);
     QString path = info.absoluteFilePath();
 
-    if (info.isDir()) {
+    if (info.isDir())
+    {
         QDir dir(path);
         if (dir.isEmpty())
             return;
 
         dir.setFilter(QDir::Dirs | QDir::Files | QDir::NoDotAndDotDot);
 
-        if (model->hasChildren(rootIndex)) {
+        if (model->hasChildren(rootIndex))
+        {
             QDirIterator di(path, QDir::Dirs, QDirIterator::Subdirectories);
-            while (di.hasNext()) {
+            while (di.hasNext())
+            {
                 di.next();
                 if (di.fileInfo().isDir())
                     listPath.append(di.fileInfo().absoluteFilePath());
@@ -180,9 +202,11 @@ void NavigationProxyModel::createAllFoldersList(QModelIndex index, QStringList &
     }
 }
 
-void NavigationProxyModel::createAllFilesList(QModelIndex index, QStringList &listPath)
+void NavigationProxyModel::createAllFilesList(QModelIndex index,
+                                              QStringList &listPath)
 {
-    QFileSystemModel *model = qobject_cast<QFileSystemModel *>(this->sourceModel());
+    QFileSystemModel *model =
+        qobject_cast<QFileSystemModel *>(this->sourceModel());
     if (!model)
         return;
 
@@ -192,16 +216,19 @@ void NavigationProxyModel::createAllFilesList(QModelIndex index, QStringList &li
     QFileInfo info = model->fileInfo(rootIndex);
     QString path = info.absoluteFilePath();
 
-    if (info.isDir()) {
+    if (info.isDir())
+    {
         QDir dir(path);
         if (dir.isEmpty())
             return;
 
         dir.setFilter(QDir::Dirs | QDir::Files | QDir::NoDotAndDotDot);
 
-        if (model->hasChildren(rootIndex)) {
+        if (model->hasChildren(rootIndex))
+        {
             QDirIterator di(path, QDir::Files, QDirIterator::Subdirectories);
-            while (di.hasNext()) {
+            while (di.hasNext())
+            {
                 di.next();
                 if (di.fileInfo().isFile())
                     listPath.append(di.fileInfo().absoluteFilePath());
@@ -210,27 +237,33 @@ void NavigationProxyModel::createAllFilesList(QModelIndex index, QStringList &li
     }
 }
 
-void NavigationProxyModel::uniqueFileName(QFile &file, QString &name, QString &type, const QString &path)
+void NavigationProxyModel::uniqueFileName(QFile &file, QString &name,
+                                          QString &type, const QString &path)
 {
     file.setFileName(path + name + type);
-    if (file.exists()) {
+    if (file.exists())
+    {
         name = name + QStringLiteral("_new");
         uniqueFileName(file, name, type, path);
     }
 }
 
-void NavigationProxyModel::uniqueFolderName(QDir &dir, QString &name, const QString &path)
+void NavigationProxyModel::uniqueFolderName(QDir &dir, QString &name,
+                                            const QString &path)
 {
     dir.setPath(path + name);
-    if (dir.exists()) {
+    if (dir.exists())
+    {
         name = name + QStringLiteral("_new");
         uniqueFolderName(dir, name, path);
     }
 }
 
-bool NavigationProxyModel::filterAcceptsRow(int source_row, const QModelIndex &source_parent) const
+bool NavigationProxyModel::filterAcceptsRow(
+    int source_row, const QModelIndex &source_parent) const
 {
-    QFileSystemModel *model = qobject_cast<QFileSystemModel *>(this->sourceModel());
+    QFileSystemModel *model =
+        qobject_cast<QFileSystemModel *>(this->sourceModel());
     if (!model)
         return false;
 
@@ -248,7 +281,9 @@ bool NavigationProxyModel::filterAcceptsRow(int source_row, const QModelIndex &s
     return filterChildIndex(model, source_row, childIndex);
 }
 
-bool NavigationProxyModel::filterChildIndex(QFileSystemModel *model, int source_row, const QModelIndex &source_parent) const
+bool NavigationProxyModel::filterChildIndex(
+    QFileSystemModel *model, int source_row,
+    const QModelIndex &source_parent) const
 {
     Q_UNUSED(source_row);
 
@@ -257,10 +292,12 @@ bool NavigationProxyModel::filterChildIndex(QFileSystemModel *model, int source_
 
     const QString pattern = filterRegularExpression().pattern();
 
-    if (!pattern.isEmpty() && pattern.at(0) == QLatin1Char('/')) {
+    if (!pattern.isEmpty() && pattern.at(0) == QLatin1Char('/'))
+    {
         QString folderName = pattern.mid(1).toLower();
 
-        if (info.isDir()) {
+        if (info.isDir())
+        {
             if (fileName.contains(folderName))
                 return true;
 
@@ -268,7 +305,8 @@ bool NavigationProxyModel::filterChildIndex(QFileSystemModel *model, int source_
             dir.setFilter(QDir::Dirs | QDir::Files | QDir::NoDotAndDotDot);
             int rowCount = dir.count();
 
-            for (int row = 0; row < rowCount; row++) {
+            for (int row = 0; row < rowCount; row++)
+            {
                 QModelIndex childIndex = model->index(row, 0, source_parent);
                 if (filterChildIndex(model, row, childIndex))
                     return true;
@@ -277,14 +315,18 @@ bool NavigationProxyModel::filterChildIndex(QFileSystemModel *model, int source_
 
         if (info.absolutePath().toLower().contains(folderName))
             return true;
-    } else {
-        if (info.isFile()) {
+    }
+    else
+    {
+        if (info.isFile())
+        {
             if (fileName.contains(pattern))
                 return true;
             return false;
         }
 
-        if (info.isDir()) {
+        if (info.isDir())
+        {
             QDir dir(info.absoluteFilePath());
             if (dir.isEmpty())
                 return false;
@@ -292,7 +334,8 @@ bool NavigationProxyModel::filterChildIndex(QFileSystemModel *model, int source_
             dir.setFilter(QDir::Dirs | QDir::Files | QDir::NoDotAndDotDot);
             int rowCount = dir.count();
 
-            for (int row = 0; row < rowCount; row++) {
+            for (int row = 0; row < rowCount; row++)
+            {
                 QModelIndex childIndex = model->index(row, 0, source_parent);
                 if (filterChildIndex(model, row, childIndex))
                     return true;
@@ -311,10 +354,11 @@ bool NavigationProxyModel::filterChildIndex(QFileSystemModel *model, int source_
 // inside /home/al. Append a trailing separator to the parent path so the
 // comparison only succeeds on an actual path-component boundary.
 // -----------------------------------------------------------------------------
-bool NavigationProxyModel::isSubdirectory(const QString &subDirPath, const QString &parentDirPath) const
+bool NavigationProxyModel::isSubdirectory(const QString &subDirPath,
+                                          const QString &parentDirPath) const
 {
-    const QString sub    = QDir(subDirPath).absolutePath();
-    QString       parent = QDir(parentDirPath).absolutePath();
+    const QString sub = QDir(subDirPath).absolutePath();
+    QString parent = QDir(parentDirPath).absolutePath();
 
     if (sub == parent)
         return true;

@@ -35,4 +35,4 @@ private:
     QString currentPath;
 };
 
-#endif // RECENTFILESDIALOG_H
+#endif  // RECENTFILESDIALOG_H

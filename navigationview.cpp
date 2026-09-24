@@ -1,17 +1,16 @@
 #include "navigationview.h"
 
 #include <QApplication>
-#include <QTimer>
-#include <QMenu>
-#include <QLineEdit>
 #include <QFileSystemModel>
+#include <QLineEdit>
+#include <QMenu>
+#include <QTimer>
 
 // ---------------------------------------------------------------------------
 // Constructor
 // ---------------------------------------------------------------------------
 NavigationView::NavigationView(QWidget *parent, bool editable)
-    : QTreeView(parent)
-    , editable(editable)
+    : QTreeView(parent), editable(editable)
 {
     this->setColumnHidden(1, true);
     this->setHeaderHidden(true);
@@ -25,31 +24,34 @@ NavigationView::NavigationView(QWidget *parent, bool editable)
     copyPath.setText(QStringLiteral("Copy Path"));
     SetVault.setText(QStringLiteral("Set Vault Path"));
 
-    connect(&addFileAction,      &QAction::triggered, this, &NavigationView::addFile);
-    connect(&addFolderAction,    &QAction::triggered, this, &NavigationView::addFolder);
-    connect(&renameFileAction,   &QAction::triggered, this, &NavigationView::renameFile);
-    connect(&deleteFileAction,   &QAction::triggered, this, &NavigationView::deleteFile);
-    connect(&openLocationAction, &QAction::triggered, this, &NavigationView::openFileFolder);
-    connect(&copyPath,           &QAction::triggered, this, &NavigationView::copyFileFolderPath);
-    connect(&SetVault,           &QAction::triggered, this, &NavigationView::setVaultHandler);
+    connect(&addFileAction, &QAction::triggered, this,
+            &NavigationView::addFile);
+    connect(&addFolderAction, &QAction::triggered, this,
+            &NavigationView::addFolder);
+    connect(&renameFileAction, &QAction::triggered, this,
+            &NavigationView::renameFile);
+    connect(&deleteFileAction, &QAction::triggered, this,
+            &NavigationView::deleteFile);
+    connect(&openLocationAction, &QAction::triggered, this,
+            &NavigationView::openFileFolder);
+    connect(&copyPath, &QAction::triggered, this,
+            &NavigationView::copyFileFolderPath);
+    connect(&SetVault, &QAction::triggered, this,
+            &NavigationView::setVaultHandler);
 
-    connect(this, &NavigationView::customContextMenuRequested,
-            this, &NavigationView::ContextMenuHandler);
+    connect(this, &NavigationView::customContextMenuRequested, this,
+            &NavigationView::ContextMenuHandler);
 
-    connect(&expandTimer, &QTimer::timeout,
-            this, &NavigationView::expandTimerHandler);
+    connect(&expandTimer, &QTimer::timeout, this,
+            &NavigationView::expandTimerHandler);
 
-    connect(this, &NavigationView::clicked,
-            this, &NavigationView::rowClicked);
+    connect(this, &NavigationView::clicked, this, &NavigationView::rowClicked);
 }
 
 // ---------------------------------------------------------------------------
 // Enable or disable inline editing
 // ---------------------------------------------------------------------------
-void NavigationView::setRowsEditable(bool enable)
-{
-    editable = enable;
-}
+void NavigationView::setRowsEditable(bool enable) { editable = enable; }
 
 // ---------------------------------------------------------------------------
 // Start the delayed expansion timer (used after bulk model changes)
@@ -73,14 +75,17 @@ void NavigationView::keyPressEvent(QKeyEvent *event)
     if (isPersistentEditorOpen(index))
         return;
 
-    if (event->key() == Qt::Key_Enter || event->key() == Qt::Key_Return) {
+    if (event->key() == Qt::Key_Enter || event->key() == Qt::Key_Return)
+    {
         emit pressed(index);
 
         if (this->isExpanded(index))
             this->collapse(index);
         else
             this->expand(index);
-    } else if (event->key() == Qt::Key_Backspace) {
+    }
+    else if (event->key() == Qt::Key_Backspace)
+    {
         emit sendFocusToSearch(this);
     }
 }
@@ -117,7 +122,8 @@ void NavigationView::rowsInserted(const QModelIndex &parent, int start, int end)
 // ---------------------------------------------------------------------------
 void NavigationView::mouseDoubleClickEvent(QMouseEvent *event)
 {
-    if (editable) {
+    if (editable)
+    {
         renameFile();
         event->accept();
         return;
@@ -137,7 +143,8 @@ void NavigationView::ContextMenuHandler(QPoint pos)
     QModelIndex index = indexAt(pos);
     lastClickedIndex = index;
 
-    if (!index.isValid()) {
+    if (!index.isValid())
+    {
         menu.addAction(&addFileAction);
         menu.addAction(&addFolderAction);
         menu.addAction(&openLocationAction);
@@ -147,13 +154,15 @@ void NavigationView::ContextMenuHandler(QPoint pos)
         return;
     }
 
-    NavigationProxyModel *fileModel = qobject_cast<NavigationProxyModel *>(this->model());
+    NavigationProxyModel *fileModel =
+        qobject_cast<NavigationProxyModel *>(this->model());
     if (!fileModel)
         return;
 
     QFileInfo fileInfo = fileModel->getFileInfoMappedToSource(index);
 
-    if (fileInfo.isDir()) {
+    if (fileInfo.isDir())
+    {
         menu.addAction(&addFileAction);
         menu.addAction(&addFolderAction);
     }
@@ -251,10 +260,7 @@ void NavigationView::copyFileFolderPath()
 // ---------------------------------------------------------------------------
 // Set vault path
 // ---------------------------------------------------------------------------
-void NavigationView::setVaultHandler()
-{
-    emit setVaultPath();
-}
+void NavigationView::setVaultHandler() { emit setVaultPath(); }
 
 // ---------------------------------------------------------------------------
 // After the model has been updated, look for the newly created entry and
@@ -268,12 +274,14 @@ void NavigationView::folderChangedHandler()
         index = rootIndex();
 
     const int totalFiles = model()->rowCount(index);
-    for (int i = 0; i < totalFiles; ++i) {
+    for (int i = 0; i < totalFiles; ++i)
+    {
         const QModelIndex fileIndex = model()->index(i, 0, index);
         if (!fileIndex.isValid())
             continue;
 
-        const QString name = model()->data(fileIndex, Qt::DisplayRole).toString();
+        const QString name =
+            model()->data(fileIndex, Qt::DisplayRole).toString();
         if (name != newEntryName)
             continue;
 
@@ -288,9 +296,8 @@ void NavigationView::folderChangedHandler()
         // Defer edit() to the next event-loop iteration so that focus is
         // guaranteed to be back on this view. This avoids silent failures
         // on Wayland where focus may still be pending.
-        QTimer::singleShot(0, this, [this, fileIndex]() {
-            this->edit(fileIndex);
-        });
+        QTimer::singleShot(0, this,
+                           [this, fileIndex]() { this->edit(fileIndex); });
         return;
     }
 }
@@ -300,7 +307,8 @@ void NavigationView::folderChangedHandler()
 // Read the new value from the editor widget, not from the model (the model
 // still holds the old value at this point).
 // ---------------------------------------------------------------------------
-void NavigationView::closeEditor(QWidget *editor, QAbstractItemDelegate::EndEditHint hint)
+void NavigationView::closeEditor(QWidget *editor,
+                                 QAbstractItemDelegate::EndEditHint hint)
 {
     QString newName;
     if (auto *lineEdit = qobject_cast<QLineEdit *>(editor))

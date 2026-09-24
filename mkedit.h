@@ -1,21 +1,21 @@
 #ifndef MKEDIT_H
 #define MKEDIT_H
 
-#include <QObject>
-#include <QWidget>
-#include <QTextEdit>
-#include <QPainter>
-#include <QRegularExpressionMatch>
-#include <QTextDocument>
-#include <QMenu>
-#include <QMimeData>
-#include <QTimer>
-#include <QScrollBar>
+#include <QDragEnterEvent>
 #include <QInputMethodEvent>
 #include <QKeyEvent>
-#include <QWheelEvent>
+#include <QMenu>
+#include <QMimeData>
 #include <QMouseEvent>
-#include <QDragEnterEvent>
+#include <QObject>
+#include <QPainter>
+#include <QRegularExpressionMatch>
+#include <QScrollBar>
+#include <QTextDocument>
+#include <QTextEdit>
+#include <QTimer>
+#include <QWheelEvent>
+#include <QWidget>
 
 #include "highlighter.h"
 #include "mktextdocument.h"
@@ -33,10 +33,7 @@ public:
     {
         disconnectSignals(true);
     }
-    ~Connector()
-    {
-        connectSignals(true);
-    }
+    ~Connector() { connectSignals(true); }
 
 private:
     std::function<void(bool)> connectSignals;
@@ -45,14 +42,22 @@ private:
 class MkEdit : public QTextEdit
 {
     Q_OBJECT
-    Q_PROPERTY(QColor blockColor      READ blockColor         WRITE blockColor         NOTIFY blockColorChanged)
-    Q_PROPERTY(QColor typeColor       READ getTypeColor       WRITE setTypeColor       NOTIFY typeColorChanged)
-    Q_PROPERTY(QColor methodColor     READ getMethodColor     WRITE setMethodColor     NOTIFY methodColorChanged)
-    Q_PROPERTY(QColor argumentColor   READ getArgumentColor   WRITE setArgumentColor   NOTIFY argumentColorChanged)
-    Q_PROPERTY(QColor commentColor    READ getCommentColor    WRITE setCommentColor    NOTIFY commentColorChanged)
-    Q_PROPERTY(QColor quoteColor      READ getQuoteColor      WRITE setQuoteColor      NOTIFY quoteColorChanged)
-    Q_PROPERTY(QColor keywordColor    READ getKeywordColor    WRITE setKeywordColor    NOTIFY keywordColorChanged)
-    Q_PROPERTY(QColor searchMatchColor READ getSearchMatchColor WRITE setSearchMatchColor NOTIFY searchMatchColorChanged)
+    Q_PROPERTY(QColor blockColor READ blockColor WRITE blockColor NOTIFY
+                   blockColorChanged)
+    Q_PROPERTY(QColor typeColor READ getTypeColor WRITE setTypeColor NOTIFY
+                   typeColorChanged)
+    Q_PROPERTY(QColor methodColor READ getMethodColor WRITE setMethodColor
+                   NOTIFY methodColorChanged)
+    Q_PROPERTY(QColor argumentColor READ getArgumentColor WRITE setArgumentColor
+                   NOTIFY argumentColorChanged)
+    Q_PROPERTY(QColor commentColor READ getCommentColor WRITE setCommentColor
+                   NOTIFY commentColorChanged)
+    Q_PROPERTY(QColor quoteColor READ getQuoteColor WRITE setQuoteColor NOTIFY
+                   quoteColorChanged)
+    Q_PROPERTY(QColor keywordColor READ getKeywordColor WRITE setKeywordColor
+                   NOTIFY keywordColorChanged)
+    Q_PROPERTY(QColor searchMatchColor READ getSearchMatchColor WRITE
+                   setSearchMatchColor NOTIFY searchMatchColorChanged)
 
 public:
     explicit MkEdit(QWidget *parent = nullptr);
@@ -97,19 +102,19 @@ protected:
 
 private:
     QColor codeBlockColor;
-    int    widthCodeBlock = 0;
+    int widthCodeBlock = 0;
     QBrush brushDefault;
-    QPen   penCodeBlock;
-    QPen   whitePen;
-    int    savedCharacterNumber = -1;
+    QPen penCodeBlock;
+    QPen whitePen;
+    int savedCharacterNumber = -1;
 
-    UndoData   undoData;
-    EditType   undoRedoEditType;
+    UndoData undoData;
+    EditType undoRedoEditType;
 
     HighlightColor syntaxColor;
-    QTimer         fileSaveTimer;
-    SelectRange    selectRange;
-    SelectRange    undoRedoSelectRange;
+    QTimer fileSaveTimer;
+    SelectRange selectRange;
+    SelectRange undoRedoSelectRange;
 
     bool isCalcuatedForStartPos = false;
     bool isCursorChangedHandleTriggered = false;
@@ -131,18 +136,18 @@ private:
     QAction selectBlockAction;
     QAction disableMarkdown;
     QAction lineWrapAction;
-    QPoint  contextMenuPos;
+    QPoint contextMenuPos;
 
-    QRegularExpression      regexUrl;
-    QRegularExpression      regexFolderFile;
-    QRegularExpression      regexCodeBlock;
+    QRegularExpression regexUrl;
+    QRegularExpression regexFolderFile;
+    QRegularExpression regexCodeBlock;
     QRegularExpressionMatch matchUrl;
     QRegularExpressionMatch matchFolderFile;
     QRegularExpressionMatch matchCodeBlockRegex;
 
     QRect getVisibleRect();
-    void  clearMkEffects(EditType editType = EditType::singleEdit);
-    void  applyMkEffects(const int blockNumber);
+    void clearMkEffects(EditType editType = EditType::singleEdit);
+    void applyMkEffects(const int blockNumber);
 
     void updateRawDocument();
     void fileSaveNow();
@@ -152,8 +157,11 @@ private:
     bool isMouseOnCheckBox(QMouseEvent *e);
     void showSelectionAfterUndo();
     void showSelectionAfterRedo();
-    void setPreArrowKeys(const bool isShiftPressed, const bool isUpOrDownArrowPressed);
-    void setPostArrowKeys(const bool isShiftPressed, const bool isLeftArrowPressed, const bool isUpOrDownArrowPressed);
+    void setPreArrowKeys(const bool isShiftPressed,
+                         const bool isUpOrDownArrowPressed);
+    void setPostArrowKeys(const bool isShiftPressed,
+                          const bool isLeftArrowPressed,
+                          const bool isUpOrDownArrowPressed);
 
     void restoreTextCursor(int blockNo, int posInBlock, bool hasSelection);
     void postCursorPosChangedSignal();
@@ -221,4 +229,4 @@ signals:
     void escapeFocus(QWidget *view);
 };
 
-#endif // MKEDIT_H
+#endif  // MKEDIT_H

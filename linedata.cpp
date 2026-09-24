@@ -1,21 +1,10 @@
 #include "linedata.h"
 
-LineData::LineData()
-    : status(horizontalLine)
-    , draw(true)
-    , hidden(false)
-{
-}
+LineData::LineData() : status(horizontalLine), draw(true), hidden(false) {}
 
-LineData::statusID LineData::getStatus() const
-{
-    return status;
-}
+LineData::statusID LineData::getStatus() const { return status; }
 
-void LineData::setStatus(statusID newStatus)
-{
-    status = newStatus;
-}
+void LineData::setStatus(statusID newStatus) { status = newStatus; }
 
 const QString &LineData::getSymbol() const
 {
@@ -25,22 +14,10 @@ const QString &LineData::getSymbol() const
     return symbol;
 }
 
-bool LineData::getDraw() const
-{
-    return draw;
-}
+bool LineData::getDraw() const { return draw; }
 
-void LineData::setDraw(bool newDraw)
-{
-    draw = newDraw;
-}
+void LineData::setDraw(bool newDraw) { draw = newDraw; }
 
-void LineData::setHidden(bool hidden)
-{
-    this->hidden = hidden;
-}
+void LineData::setHidden(bool hidden) { this->hidden = hidden; }
 
-bool LineData::isHidden() const
-{
-    return hidden;
-}
+bool LineData::isHidden() const { return hidden; }

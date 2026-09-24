@@ -3,26 +3,21 @@
 // ---------------------------------------------------------------------------
 // Singleton
 // ---------------------------------------------------------------------------
-WindowApi& WindowApi::instance()
+WindowApi &WindowApi::instance()
 {
     static WindowApi s_instance;
     return s_instance;
 }
 
-WindowApi::WindowApi(QObject *parent)
-    : QObject(parent)
-{
-}
+WindowApi::WindowApi(QObject *parent) : QObject(parent) {}
 
-WindowApi::~WindowApi()
-{
-    cleanUp();
-}
+WindowApi::~WindowApi() { cleanUp(); }
 
 // ============================ Windows ============================
 #ifdef Q_OS_WIN
 
-HHOOK WindowApi::SetWindowsHookExInvoke(int idHook, HOOKPROC lpfn, HINSTANCE hmod, DWORD dwThreadId)
+HHOOK WindowApi::SetWindowsHookExInvoke(int idHook, HOOKPROC lpfn,
+                                        HINSTANCE hmod, DWORD dwThreadId)
 {
     return SetWindowsHookExW(idHook, lpfn, hmod, dwThreadId);
 }
@@ -32,7 +27,8 @@ BOOL WindowApi::UnhookWindowsHookExInoke(HHOOK hhk)
     return UnhookWindowsHookEx(hhk);
 }
 
-LRESULT WindowApi::CallNextHookExInvoke(HHOOK hhk, int nCode, WPARAM wParam, LPARAM lParam)
+LRESULT WindowApi::CallNextHookExInvoke(HHOOK hhk, int nCode, WPARAM wParam,
+                                        LPARAM lParam)
 {
     return CallNextHookEx(hhk, nCode, wParam, lParam);
 }
@@ -50,7 +46,8 @@ void WindowApi::installHook()
 
 void WindowApi::cleanUp()
 {
-    if (keyboardProcHook) {
+    if (keyboardProcHook)
+    {
         UnhookWindowsHookExInoke(keyboardProcHook);
         keyboardProcHook = nullptr;
     }
@@ -72,32 +69,45 @@ LRESULT CALLBACK WindowApi::detectKeys(int code, WPARAM wParam, LPARAM lParam)
 {
     WindowApi &self = instance();
 
-    if (code >= 0) {
-        const bool isKeyDown = (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN);
-        const bool isKeyUp   = (wParam == WM_KEYUP   || wParam == WM_SYSKEYUP);
+    if (code >= 0)
+    {
+        const bool isKeyDown =
+            (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN);
+        const bool isKeyUp = (wParam == WM_KEYUP || wParam == WM_SYSKEYUP);
 
-        const auto *kbStruct = reinterpret_cast<const KBDLLHOOKSTRUCT *>(lParam);
+        const auto *kbStruct =
+            reinterpret_cast<const KBDLLHOOKSTRUCT *>(lParam);
         const DWORD vkCode = kbStruct->vkCode;
 
-        if (vkCode == 'J' || vkCode == VK_MENU) {
-            if (isKeyDown) {
-                if (vkCode == 'J')      self.isKeyJPressedDown   = true;
-                if (vkCode == VK_MENU)  self.isKeyAltPressedDown = true;
+        if (vkCode == 'J' || vkCode == VK_MENU)
+        {
+            if (isKeyDown)
+            {
+                if (vkCode == 'J')
+                    self.isKeyJPressedDown = true;
+                if (vkCode == VK_MENU)
+                    self.isKeyAltPressedDown = true;
             }
-            if (isKeyUp) {
-                if (vkCode == 'J')      self.isKeyJPressedDown   = false;
-                if (vkCode == VK_MENU)  self.isKeyAltPressedDown = false;
+            if (isKeyUp)
+            {
+                if (vkCode == 'J')
+                    self.isKeyJPressedDown = false;
+                if (vkCode == VK_MENU)
+                    self.isKeyAltPressedDown = false;
             }
-            if (self.isKeyAltPressedDown && self.isKeyJPressedDown) {
+            if (self.isKeyAltPressedDown && self.isKeyJPressedDown)
+            {
                 // `emit` is a no-op macro; this is just a normal signal call.
                 emit self.showApp();
                 self.isKeyJPressedDown = false;
-                return 1;   // swallow the keystroke so it does not reach other apps
+                return 1;  // swallow the keystroke so it does not reach other
+                           // apps
             }
         }
     }
 
-    return self.CallNextHookExInvoke(self.keyboardProcHook, code, wParam, lParam);
+    return self.CallNextHookExInvoke(self.keyboardProcHook, code, wParam,
+                                     lParam);
 }
 
 // ============================ Linux ============================
@@ -105,8 +115,8 @@ LRESULT CALLBACK WindowApi::detectKeys(int code, WPARAM wParam, LPARAM lParam)
 
 // Qt headers first.
 #include <QGuiApplication>
-#include <QTimer>
 #include <QString>
+#include <QTimer>
 
 // X11 last, so its macros (Bool, None, Status, ...) cannot break Qt headers.
 #include <X11/Xlib.h>
@@ -120,27 +130,30 @@ bool WindowApi::isWayland() const
 
 void WindowApi::installHook()
 {
-    if (isWayland()) {
+    if (isWayland())
+    {
         hookInstalled = false;
         return;
     }
 
     Display *dpy = XOpenDisplay(nullptr);
-    if (!dpy) {
+    if (!dpy)
+    {
         hookInstalled = false;
         return;
     }
     display = dpy;
 
     Window root = DefaultRootWindow(dpy);
-    rootWindow  = static_cast<unsigned long>(root);
-    keycodeJ    = XKeysymToKeycode(dpy, XK_j);
+    rootWindow = static_cast<unsigned long>(root);
+    keycodeJ = XKeysymToKeycode(dpy, XK_j);
 
     // Grab Alt+J while also tolerating CapsLock / NumLock being on.
-    const unsigned int locks[] = { 0, LockMask, Mod2Mask, LockMask | Mod2Mask };
-    for (unsigned int lock : locks) {
-        XGrabKey(dpy, keycodeJ, Mod1Mask | lock, root,
-                 True, GrabModeAsync, GrabModeAsync);
+    const unsigned int locks[] = {0, LockMask, Mod2Mask, LockMask | Mod2Mask};
+    for (unsigned int lock : locks)
+    {
+        XGrabKey(dpy, keycodeJ, Mod1Mask | lock, root, True, GrabModeAsync,
+                 GrabModeAsync);
     }
     XFlush(dpy);
 
@@ -157,17 +170,21 @@ void WindowApi::cleanUp()
     if (!hookInstalled)
         return;
 
-    if (timer) {
+    if (timer)
+    {
         timer->stop();
-        delete timer;      // QObject child of `this`; direct delete is safe here
+        delete timer;  // QObject child of `this`; direct delete is safe here
         timer = nullptr;
     }
 
-    Display *dpy = static_cast<Display*>(display);
-    if (dpy) {
+    Display *dpy = static_cast<Display *>(display);
+    if (dpy)
+    {
         Window root = static_cast<Window>(rootWindow);
-        const unsigned int locks[] = { 0, LockMask, Mod2Mask, LockMask | Mod2Mask };
-        for (unsigned int lock : locks) {
+        const unsigned int locks[] = {0, LockMask, Mod2Mask,
+                                      LockMask | Mod2Mask};
+        for (unsigned int lock : locks)
+        {
             XUngrabKey(dpy, keycodeJ, Mod1Mask | lock, root);
         }
         XCloseDisplay(dpy);
@@ -182,8 +199,9 @@ WId WindowApi::GetForegroundWindowInvoke()
     if (isWayland())
         return 0;
 
-    Display *dpy = static_cast<Display*>(display);
-    if (!dpy) {
+    Display *dpy = static_cast<Display *>(display);
+    if (!dpy)
+    {
         dpy = XOpenDisplay(nullptr);
         if (!dpy)
             return 0;
@@ -198,11 +216,12 @@ WId WindowApi::GetForegroundWindowInvoke()
 
 void WindowApi::pollEvents()
 {
-    Display *dpy = static_cast<Display*>(display);
+    Display *dpy = static_cast<Display *>(display);
     if (!dpy)
         return;
 
-    while (XPending(dpy)) {
+    while (XPending(dpy))
+    {
         XEvent ev;
         XNextEvent(dpy, &ev);
         if (ev.type == KeyPress)

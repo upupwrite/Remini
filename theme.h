@@ -16,13 +16,14 @@ struct HighlightColor
     QColor searchMatch;
 };
 
-enum ThemeState {
+enum ThemeState
+{
     lightThemeState,
     darkThemeState,
 };
 
-
-namespace ThemeQss {
+namespace ThemeQss
+{
 
 inline const QString& lightTheme()
 {
@@ -48,11 +49,13 @@ inline const QString& lightTheme()
         "	background-color:#f4f2f1;"
         "	color: black;"
         "	selection-background-color: #3379B7;"
-        "	padding-left:15; padding-top:10; padding-bottom:10; padding-right:10;"
+        "	padding-left:15; padding-top:10; padding-bottom:10; "
+        "padding-right:10;"
         "}"
         "QTreeView {"
         "    background-color: #f4f2f1;"
-        "    border-width: 1px; border-style: outset; border-color: gray transparent transparent transparent;"
+        "    border-width: 1px; border-style: outset; border-color: gray "
+        "transparent transparent transparent;"
         "    color: black;"
         "    image: none;"
         "    padding-left:10; padding-right:10; padding-top:5;"
@@ -127,8 +130,7 @@ inline const QString& lightTheme()
         "}"
         "QWidget{"
         "    border-style: none;"
-        "}"
-    );
+        "}");
     return s;
 }
 
@@ -283,12 +285,11 @@ inline const QString& darkTheme()
         "	   background-color:#353535;"
         "    border-radius: 3px;"
         "    border-color: #707070;"
-        "}"
-    );
+        "}");
     return s;
 }
 
-} // namespace ThemeQss
+}  // namespace ThemeQss
 
 struct Theme
 {
@@ -297,42 +298,47 @@ struct Theme
     QString qss;
 };
 
-namespace themes {
+namespace themes
+{
 
 inline const Theme& light()
 {
-    static const Theme t{ThemeState::lightThemeState, QStringLiteral("Light"), ThemeQss::lightTheme() };
+    static const Theme t{ThemeState::lightThemeState, QStringLiteral("Light"),
+                         ThemeQss::lightTheme()};
     return t;
 }
 
 inline const Theme& dark()
 {
-    static const Theme t{ThemeState::darkThemeState, QStringLiteral("Dark"), ThemeQss::darkTheme() };
+    static const Theme t{ThemeState::darkThemeState, QStringLiteral("Dark"),
+                         ThemeQss::darkTheme()};
     return t;
 }
 
-} // namespace themes
+}  // namespace themes
 
-namespace themeAchieve {
+namespace themeAchieve
+{
 
 inline const std::array<Theme, 2>& themeVec()
 {
-    static const std::array<Theme, 2> arr = { themes::light(), themes::dark() };
+    static const std::array<Theme, 2> arr = {themes::light(), themes::dark()};
     return arr;
 }
 
 // Return a pointer to the theme whose name matches, or nullptr if none.
 // The returned pointer is stable: the Theme objects live in a function-local
 // static std::array, so their address does not change over the program's life.
-inline const Theme* findByName(const QString &name)
+inline const Theme* findByName(const QString& name)
 {
-    for (const Theme &t : themeVec()) {
+    for (const Theme& t : themeVec())
+    {
         if (t.name == name)
             return &t;
     }
     return nullptr;
 }
 
-} // namespace themeAchieve
+}  // namespace themeAchieve
 
-#endif // THEME_H
+#endif  // THEME_H

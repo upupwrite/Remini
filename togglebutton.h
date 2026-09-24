@@ -28,4 +28,4 @@ private:
     QBrush circleReadonly;
 };
 
-#endif // TOGGLEBUTTON_H
+#endif  // TOGGLEBUTTON_H

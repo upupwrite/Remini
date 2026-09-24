@@ -9,9 +9,10 @@ class LineData : public QTextBlockUserData
 {
 public:
     LineData();
-    enum statusID{
+    enum statusID
+    {
         horizontalLine,
-    } ;
+    };
 
     statusID getStatus() const;
     void setStatus(statusID newStatus);
@@ -27,4 +28,4 @@ private:
     bool hidden;
 };
 
-#endif // LINEDATA_H
+#endif  // LINEDATA_H

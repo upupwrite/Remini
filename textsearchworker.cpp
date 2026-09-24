@@ -10,22 +10,13 @@
 
 // Maximum size of a file that will be scanned. Files larger than this are
 // skipped so a single huge file cannot exhaust memory.
-static constexpr qint64 MAX_SCAN_FILE_SIZE = 50LL * 1024 * 1024; // 50 MB
+static constexpr qint64 MAX_SCAN_FILE_SIZE = 50LL * 1024 * 1024;  // 50 MB
 
-TextSearchWorker::TextSearchWorker(QObject *parent)
-    : QObject(parent)
-{
-}
+TextSearchWorker::TextSearchWorker(QObject *parent) : QObject(parent) {}
 
-QStringList &TextSearchWorker::getListPaths()
-{
-    return listPaths;
-}
+QStringList &TextSearchWorker::getListPaths() { return listPaths; }
 
-void TextSearchWorker::setText(const QString &text)
-{
-    this->text = text;
-}
+void TextSearchWorker::setText(const QString &text) { this->text = text; }
 
 void TextSearchWorker::setRootPath(QString rootPath)
 {
@@ -38,7 +29,8 @@ void TextSearchWorker::doWork()
 
     // An empty search string would loop forever inside findAllMatches
     // and would create one item per character position in every file.
-    if (this->text.isEmpty()) {
+    if (this->text.isEmpty())
+    {
         emit updateTextSearchView(&model, 0);
         emit finished();
         return;
@@ -47,7 +39,8 @@ void TextSearchWorker::doWork()
     QDir dir(rootPath);
     int matchCount = 0;
 
-    for (const QString &path : std::as_const(listPaths)) {
+    for (const QString &path : std::as_const(listPaths))
+    {
         QFileInfo fileInfo(path);
 
         // Skip files that are too large to scan safely.
@@ -69,7 +62,8 @@ void TextSearchWorker::doWork()
         QTextDocument document;
         int childRow = 0;
 
-        if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        if (file.open(QIODevice::ReadOnly | QIODevice::Text))
+        {
             QTextStream stream(&file);
             const QString content = stream.readAll();
             document.setPlainText(content);
@@ -77,7 +71,8 @@ void TextSearchWorker::doWork()
         }
 
         findAllMatches(matchCount, fileItem, childRow, document, 0, this->text);
-        fileItem->setData(displayPath + " (" + QString::number(childRow) + ")", Qt::DisplayRole);
+        fileItem->setData(displayPath + " (" + QString::number(childRow) + ")",
+                          Qt::DisplayRole);
 
         if (!fileItem->hasChildren())
             delete fileItem;
@@ -94,8 +89,7 @@ void TextSearchWorker::doWork()
 // files that contain many occurrences of a common word.
 // ---------------------------------------------------------------------------
 void TextSearchWorker::findAllMatches(int &matchCount,
-                                      QStandardItem *parentItem,
-                                      int &row,
+                                      QStandardItem *parentItem, int &row,
                                       QTextDocument &document,
                                       int startPosition,
                                       const QString &searchText)
@@ -104,18 +98,21 @@ void TextSearchWorker::findAllMatches(int &matchCount,
         return;
 
     int pos = startPosition;
-    while (true) {
+    while (true)
+    {
         const QTextCursor foundCursor = document.find(searchText, pos);
         if (foundCursor.isNull())
             break;
 
-        const int positionInFile  = foundCursor.position();
-        const int blockNumber     = foundCursor.blockNumber();
+        const int positionInFile = foundCursor.position();
+        const int blockNumber = foundCursor.blockNumber();
         const int positionInBlock = foundCursor.positionInBlock();
 
         auto *positionItem = new QStandardItem(QString::number(positionInFile));
-        positionItem->setFlags(Qt::ItemNeverHasChildren | Qt::ItemIsSelectable | Qt::ItemIsEnabled);
-        positionItem->setData(extractNeighbourWords(document, positionInFile), Qt::DisplayRole);
+        positionItem->setFlags(Qt::ItemNeverHasChildren | Qt::ItemIsSelectable |
+                               Qt::ItemIsEnabled);
+        positionItem->setData(extractNeighbourWords(document, positionInFile),
+                              Qt::DisplayRole);
         positionItem->setData(searchText.length(), Qt::UserRole);
         positionItem->setData(blockNumber, Qt::UserRole + 1);
         positionItem->setData(positionInBlock, Qt::UserRole + 2);
@@ -130,7 +127,8 @@ void TextSearchWorker::findAllMatches(int &matchCount,
     }
 }
 
-QString TextSearchWorker::extractNeighbourWords(QTextDocument &document, int position)
+QString TextSearchWorker::extractNeighbourWords(QTextDocument &document,
+                                                int position)
 {
     QTextCursor cursor(&document);
     cursor.setPosition(position, QTextCursor::MoveAnchor);

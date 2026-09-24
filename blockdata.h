@@ -8,11 +8,12 @@
 class BlockData : public QTextBlockUserData
 {
 public:
-    enum statusID{
+    enum statusID
+    {
         start,
         content,
         end
-    } ;
+    };
 
     BlockData();
     BlockData(const statusID status);
@@ -25,6 +26,7 @@ public:
     void setEndBlock(const int end);
     int getStartBlock() const;
     int getEndBlock() const;
+
 private:
     statusID status;
     bool hidden;
@@ -32,4 +34,4 @@ private:
     int endBlock;
 };
 
-#endif // BLOCKDATA_H
+#endif  // BLOCKDATA_H

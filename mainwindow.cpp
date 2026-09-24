@@ -1,21 +1,21 @@
 #include "mainwindow.h"
-#include "theme.h"
 
 #include <QApplication>
 #include <QGuiApplication>
 #include <QKeyEvent>
+#include <QSettings>
+#include <QString>
 #include <QStyle>
 #include <QStyleFactory>
 #include <QTimer>
-#include <QString>
-#include <QSettings>
+
+#include "theme.h"
 
 // ---------------------------------------------------------------------------
 // Constructor
 // ---------------------------------------------------------------------------
 MainWindow::MainWindow(QWidget *parent)
-    : QMainWindow(parent)
-    , ui(new Ui::MainWindow)
+    : QMainWindow(parent), ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
     setup_views(this, *ui);
@@ -28,9 +28,12 @@ MainWindow::MainWindow(QWidget *parent)
     // QApplication again later is fine.
     // ------------------------------------------------------------------
     if (QStyleFactory::keys().contains(QStringLiteral("windowsvista"),
-                                       Qt::CaseInsensitive)) {
+                                       Qt::CaseInsensitive))
+    {
         lightThemeStyle = QStyleFactory::create(QStringLiteral("windowsvista"));
-    } else {
+    }
+    else
+    {
         lightThemeStyle = QStyleFactory::create(QStringLiteral("fusion"));
     }
     darkThemeStyle = QStyleFactory::create(QStringLiteral("fusion"));
@@ -45,23 +48,25 @@ MainWindow::MainWindow(QWidget *parent)
     applyThemeByName(savedTheme);
 
     rightShiftTimer = new QTimer(this);
-    leftShiftTimer  = new QTimer(this);
+    leftShiftTimer = new QTimer(this);
 
-    QObject::connect(rightShiftTimer, &QTimer::timeout,
-                     this, &MainWindow::shiftTimerHandle);
-    QObject::connect(leftShiftTimer, &QTimer::timeout,
-                     this, &MainWindow::shiftTimerHandle);
+    QObject::connect(rightShiftTimer, &QTimer::timeout, this,
+                     &MainWindow::shiftTimerHandle);
+    QObject::connect(leftShiftTimer, &QTimer::timeout, this,
+                     &MainWindow::shiftTimerHandle);
 
     QObject::connect(this, &MainWindow::openRecentFilesDialog,
-                     view_handler.get(), &ViewsHandler::openRecentFilesDialogHandle);
-    QObject::connect(this, &MainWindow::startSearchAll,
-                     view_handler.get(), &ViewsHandler::startTextSearchInAllFilesHandle);
-    QObject::connect(this, &MainWindow::startFileSearch,
-                     view_handler.get(), &ViewsHandler::startFileSearchHandle);
+                     view_handler.get(),
+                     &ViewsHandler::openRecentFilesDialogHandle);
+    QObject::connect(this, &MainWindow::startSearchAll, view_handler.get(),
+                     &ViewsHandler::startTextSearchInAllFilesHandle);
+    QObject::connect(this, &MainWindow::startFileSearch, view_handler.get(),
+                     &ViewsHandler::startFileSearchHandle);
     QObject::connect(this, &MainWindow::sendFocusToNavigationView,
-                     view_handler.get(), &ViewsHandler::sendFocusToNavigationViewHandler);
-    QObject::connect(this, &MainWindow::editLock,
-                     view_handler.get(), &ViewsHandler::editLockHandle);
+                     view_handler.get(),
+                     &ViewsHandler::sendFocusToNavigationViewHandler);
+    QObject::connect(this, &MainWindow::editLock, view_handler.get(),
+                     &ViewsHandler::editLockHandle);
 
     // ------------------------------------------------------------------
     // Live theme switching: when the user accepts the settings dialog with
@@ -69,13 +74,12 @@ MainWindow::MainWindow(QWidget *parent)
     // The relay goes through ViewsHandler so that MainWindow never needs
     // to know about SettingsDialog directly.
     // ------------------------------------------------------------------
-    QObject::connect(view_handler.get(), &ViewsHandler::themeChanged,
-                     this, &MainWindow::applyThemeByName);
+    QObject::connect(view_handler.get(), &ViewsHandler::themeChanged, this,
+                     &MainWindow::applyThemeByName);
 
 #ifdef Q_OS_WIN
     win = &WindowApi::instance();
-    QObject::connect(win, &WindowApi::showApp,
-                     this, &MainWindow::showHideApp);
+    QObject::connect(win, &WindowApi::showApp, this, &MainWindow::showHideApp);
 #endif
 }
 
@@ -107,17 +111,20 @@ void MainWindow::applyThemeByName(const QString &name)
 {
     const Theme *theme = themeAchieve::findByName(name);
     if (!theme)
-        theme = &themes::dark();   // defensive fallback
+        theme = &themes::dark();  // defensive fallback
 
     themeContents = theme->qss;
-    themeState    = theme->state;
+    themeState = theme->state;
 
     // QStyle first: changing the QStyle clears widget style sheets, so the
     // order matters here.
-    if (themeState == lightThemeState) {
+    if (themeState == lightThemeState)
+    {
         if (lightThemeStyle)
             QApplication::setStyle(lightThemeStyle);
-    } else {
+    }
+    else
+    {
         if (darkThemeStyle)
             QApplication::setStyle(darkThemeStyle);
     }
@@ -139,31 +146,37 @@ void MainWindow::keyReleaseEvent(QKeyEvent *event)
 
 #ifdef Q_OS_LINUX
     const bool isX11 = QGuiApplication::platformName().contains(
-                           QStringLiteral("xcb"), Qt::CaseInsensitive);
-    const int leftShiftCode  = isX11 ? LEFT_SHIFT_KEY_X11  : LEFT_SHIFT_KEY;
+        QStringLiteral("xcb"), Qt::CaseInsensitive);
+    const int leftShiftCode = isX11 ? LEFT_SHIFT_KEY_X11 : LEFT_SHIFT_KEY;
     const int rightShiftCode = isX11 ? RIGHT_SHIFT_KEY_X11 : RIGHT_SHIFT_KEY;
 #else
-    const int leftShiftCode  = LEFT_SHIFT_KEY;
+    const int leftShiftCode = LEFT_SHIFT_KEY;
     const int rightShiftCode = RIGHT_SHIFT_KEY;
 #endif
 
-    if (scan == rightShiftCode) {
+    if (scan == rightShiftCode)
+    {
         if (rightShiftTimer->isActive())
             emit startSearchAll();
         rightShiftTimer->start(DOUBLE_SHIFT_TIMER_MS);
         leftShiftTimer->stop();
-    } else if (scan == leftShiftCode) {
+    }
+    else if (scan == leftShiftCode)
+    {
         if (leftShiftTimer->isActive())
             emit startFileSearch();
         leftShiftTimer->start(DOUBLE_SHIFT_TIMER_MS);
         rightShiftTimer->stop();
-    } else {
+    }
+    else
+    {
         rightShiftTimer->stop();
         leftShiftTimer->stop();
     }
 
     // --- Other shortcuts --------------------------------------------------
-    switch (event->key()) {
+    switch (event->key())
+    {
     case Qt::Key_Escape:
         emit sendFocusToNavigationView();
         break;
@@ -202,12 +215,18 @@ void MainWindow::recentFilesHandler(bool show)
 void MainWindow::showHideApp()
 {
 #ifdef Q_OS_WIN
-    if (this->isMinimized()) {
+    if (this->isMinimized())
+    {
         this->showNormal();
-    } else {
-        if (QWidget::winId() == win->GetForegroundWindowInvoke()) {
+    }
+    else
+    {
+        if (QWidget::winId() == win->GetForegroundWindowInvoke())
+        {
             this->showMinimized();
-        } else {
+        }
+        else
+        {
             this->showMinimized();
             this->showNormal();
         }

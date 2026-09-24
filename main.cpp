@@ -1,8 +1,8 @@
-#include "mainwindow.h"
-
 #include <QApplication>
 #include <QKeyEvent>
+
 #include "appeventfilter.h"
+#include "mainwindow.h"
 
 int main(int argc, char *argv[])
 {
@@ -16,8 +16,8 @@ int main(int argc, char *argv[])
 
     MainWindow w;
 
-    QObject::connect(&filter, &AppEventFilter::openRecentFiles,
-                     &w, &MainWindow::recentFilesHandler);
+    QObject::connect(&filter, &AppEventFilter::openRecentFiles, &w,
+                     &MainWindow::recentFilesHandler);
 
     // When the application loses focus, release any pending Alt state in
     // the event filter. Using applicationStateChanged is more accurate than
@@ -26,13 +26,15 @@ int main(int argc, char *argv[])
     //
     // The event is created on the stack so sendEvent() does not leak it.
     QObject::connect(&a, &QGuiApplication::applicationStateChanged,
-                     [&a](Qt::ApplicationState state) {
-        if (state != Qt::ApplicationInactive)
-            return;
+                     [&a](Qt::ApplicationState state)
+                     {
+                         if (state != Qt::ApplicationInactive)
+                             return;
 
-        QKeyEvent event(QEvent::KeyRelease, Qt::Key_Alt, Qt::AltModifier);
-        QCoreApplication::sendEvent(&a, &event);
-    });
+                         QKeyEvent event(QEvent::KeyRelease, Qt::Key_Alt,
+                                         Qt::AltModifier);
+                         QCoreApplication::sendEvent(&a, &event);
+                     });
 
     w.show();
     return a.exec();

@@ -1,18 +1,18 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
+#include <QKeyEvent>
 #include <QMainWindow>
-#include <QTimer>
+#include <QSharedPointer>
 #include <QStyle>
 #include <QStyleFactory>
-#include <QSharedPointer>
+#include <QTimer>
 #include <QtGlobal>
-#include <QKeyEvent>
 
 #include "./ui_mainwindow.h"
+#include "theme.h"
 #include "views_handler.h"
 #include "windowapi.h"
-#include "theme.h"
 
 // ---------------------------------------------------------------------------
 // Double-Shift detection uses QKeyEvent::nativeScanCode(), which returns
@@ -26,19 +26,22 @@
 // platform plugin name ("xcb" -> X11, "wayland" -> Wayland).
 // ---------------------------------------------------------------------------
 #ifdef Q_OS_LINUX
-    #define LEFT_SHIFT_KEY       42   // Wayland / evdev
-    #define RIGHT_SHIFT_KEY      54   // Wayland / evdev
-    #define LEFT_SHIFT_KEY_X11   50   // X11 / xkb
-    #define RIGHT_SHIFT_KEY_X11  62   // X11 / xkb
+#define LEFT_SHIFT_KEY 42       // Wayland / evdev
+#define RIGHT_SHIFT_KEY 54      // Wayland / evdev
+#define LEFT_SHIFT_KEY_X11 50   // X11 / xkb
+#define RIGHT_SHIFT_KEY_X11 62  // X11 / xkb
 #else
-    #define LEFT_SHIFT_KEY       42
-    #define RIGHT_SHIFT_KEY      54
+#define LEFT_SHIFT_KEY 42
+#define RIGHT_SHIFT_KEY 54
 #endif
 
 #define DOUBLE_SHIFT_TIMER_MS 200
 
 QT_BEGIN_NAMESPACE
-namespace Ui { class MainWindow; }
+namespace Ui
+{
+class MainWindow;
+}
 QT_END_NAMESPACE
 
 class MainWindow : public QMainWindow
@@ -65,20 +68,19 @@ private slots:
 
 private:
     QTimer *rightShiftTimer = nullptr;
-    QTimer *leftShiftTimer  = nullptr;
-    Ui::MainWindow *ui      = nullptr;
+    QTimer *leftShiftTimer = nullptr;
+    Ui::MainWindow *ui = nullptr;
 
-    QString    themeContents;
+    QString themeContents;
     ThemeState themeState = darkThemeState;
 
-
-    QString darkTheme=themes::dark().qss;
-    QString lightTheme=themes::light().qss;
+    QString darkTheme = themes::dark().qss;
+    QString lightTheme = themes::light().qss;
 
     QSharedPointer<ViewsHandler> view_handler;
 
     QStyle *lightThemeStyle = nullptr;
-    QStyle *darkThemeStyle  = nullptr;
+    QStyle *darkThemeStyle = nullptr;
 
 #ifdef Q_OS_WIN
     WindowApi *win = nullptr;
@@ -94,4 +96,4 @@ signals:
     void sendFocusToNavigationView();
 };
 
-#endif // MAINWINDOW_H
+#endif  // MAINWINDOW_H

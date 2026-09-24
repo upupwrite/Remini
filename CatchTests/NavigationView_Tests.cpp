@@ -22,11 +22,6 @@
 // file connects lambdas directly with QObject::connect and records what
 // it needs.
 
-#include <catch2/catch.hpp>
-
-#include "navigationview.h"
-#include "navigationmodel.h"
-
 #include <QAbstractItemDelegate>
 #include <QApplication>
 #include <QDir>
@@ -34,7 +29,10 @@
 #include <QKeyEvent>
 #include <QLineEdit>
 #include <QTemporaryDir>
+#include <catch2/catch.hpp>
 
+#include "navigationmodel.h"
+#include "navigationview.h"
 
 // ===========================================================================
 // Fixture: a NavigationView attached to a real QFileSystemModel through a
@@ -45,10 +43,10 @@
 // ===========================================================================
 struct NavigationViewFixture
 {
-    QTemporaryDir       tempDir;
-    QFileSystemModel    fileModel;
+    QTemporaryDir tempDir;
+    QFileSystemModel fileModel;
     NavigationProxyModel proxyModel;
-    NavigationView     *view = nullptr;
+    NavigationView *view = nullptr;
 
     explicit NavigationViewFixture(bool editable = true)
     {
@@ -65,12 +63,8 @@ struct NavigationViewFixture
         view->setRootIndex(proxyModel.setRootIndexFromPath(tempDir.path()));
     }
 
-    ~NavigationViewFixture()
-    {
-        delete view;
-    }
+    ~NavigationViewFixture() { delete view; }
 };
-
 
 // ===========================================================================
 // Original placeholder test, filled in.
@@ -79,15 +73,16 @@ TEST_CASE("NavigationView Add file Test", "[NavigationView]")
 {
     NavigationView view;
 
-    int         createFileCalls = 0;
+    int createFileCalls = 0;
     QModelIndex receivedIndex;
-    QString     receivedName;
+    QString receivedName;
 
     QObject::connect(&view, &NavigationView::createFile,
-                     [&](QModelIndex &index, QString &name) {
+                     [&](QModelIndex &index, QString &name)
+                     {
                          ++createFileCalls;
                          receivedIndex = index;
-                         receivedName  = name;
+                         receivedName = name;
                      });
 
     int emptySearchCalls = 0;
@@ -107,7 +102,6 @@ TEST_CASE("NavigationView Add file Test", "[NavigationView]")
     REQUIRE(emptySearchCalls == 1);
 }
 
-
 // ===========================================================================
 // addFolder mirrors addFile: it emits createFolder and emptySearch.
 // ===========================================================================
@@ -115,15 +109,16 @@ TEST_CASE("NavigationView Add folder Test", "[NavigationView]")
 {
     NavigationView view;
 
-    int         createFolderCalls = 0;
+    int createFolderCalls = 0;
     QModelIndex receivedIndex;
-    QString     receivedName;
+    QString receivedName;
 
     QObject::connect(&view, &NavigationView::createFolder,
-                     [&](QModelIndex &index, QString &name) {
+                     [&](QModelIndex &index, QString &name)
+                     {
                          ++createFolderCalls;
                          receivedIndex = index;
-                         receivedName  = name;
+                         receivedName = name;
                      });
 
     int emptySearchCalls = 0;
@@ -138,11 +133,11 @@ TEST_CASE("NavigationView Add folder Test", "[NavigationView]")
     REQUIRE(emptySearchCalls == 1);
 }
 
-
 // ===========================================================================
 // setVaultHandler: pure signal relay, no state touched.
 // ===========================================================================
-TEST_CASE("NavigationView setVaultHandler emits setVaultPath", "[NavigationView]")
+TEST_CASE("NavigationView setVaultHandler emits setVaultPath",
+          "[NavigationView]")
 {
     NavigationView view;
 
@@ -155,11 +150,11 @@ TEST_CASE("NavigationView setVaultHandler emits setVaultPath", "[NavigationView]
     REQUIRE(setVaultPathCalls == 1);
 }
 
-
 // ===========================================================================
 // openFileFolder: relays lastClickedIndex as openLocation.
 // ===========================================================================
-TEST_CASE("NavigationView openFileFolder emits openLocation", "[NavigationView]")
+TEST_CASE("NavigationView openFileFolder emits openLocation",
+          "[NavigationView]")
 {
     NavigationView view;
 
@@ -172,11 +167,11 @@ TEST_CASE("NavigationView openFileFolder emits openLocation", "[NavigationView]"
     REQUIRE(openLocationCalls == 1);
 }
 
-
 // ===========================================================================
 // copyFileFolderPath: relays lastClickedIndex as copyFolderFilePath.
 // ===========================================================================
-TEST_CASE("NavigationView copyFileFolderPath emits copyFolderFilePath", "[NavigationView]")
+TEST_CASE("NavigationView copyFileFolderPath emits copyFolderFilePath",
+          "[NavigationView]")
 {
     NavigationView view;
 
@@ -189,19 +184,18 @@ TEST_CASE("NavigationView copyFileFolderPath emits copyFolderFilePath", "[Naviga
     REQUIRE(copyCalls == 1);
 }
 
-
 // ===========================================================================
 // renameFile with no current index: must early-return silently.
 // ===========================================================================
-TEST_CASE("NavigationView renameFile with no current index does nothing", "[NavigationView]")
+TEST_CASE("NavigationView renameFile with no current index does nothing",
+          "[NavigationView]")
 {
     NavigationView view;
 
     int renameCalls = 0;
     QObject::connect(&view, &NavigationView::fileRenamed,
-                     [&](const QString &, const QString &, const QModelIndex &) {
-                         ++renameCalls;
-                     });
+                     [&](const QString &, const QString &, const QModelIndex &)
+                     { ++renameCalls; });
 
     // No model, no current index -> renameFile() returns before calling
     // edit() and before emitting anything.
@@ -210,11 +204,11 @@ TEST_CASE("NavigationView renameFile with no current index does nothing", "[Navi
     REQUIRE(renameCalls == 0);
 }
 
-
 // ===========================================================================
 // deleteFile with an empty selection: must not emit per-index delete.
 // ===========================================================================
-TEST_CASE("NavigationView deleteFile with no selection emits nothing", "[NavigationView]")
+TEST_CASE("NavigationView deleteFile with no selection emits nothing",
+          "[NavigationView]")
 {
     NavigationView view;
 
@@ -227,18 +221,19 @@ TEST_CASE("NavigationView deleteFile with no selection emits nothing", "[Navigat
     REQUIRE(deleteCalls == 0);
 }
 
-
 // ===========================================================================
 // keyPressEvent: Backspace -> sendFocusToSearch(this).
 // ===========================================================================
-TEST_CASE("NavigationView Backspace key emits sendFocusToSearch", "[NavigationView]")
+TEST_CASE("NavigationView Backspace key emits sendFocusToSearch",
+          "[NavigationView]")
 {
     NavigationView view;
 
     QWidget *receivedView = nullptr;
-    int      sendFocusCalls = 0;
+    int sendFocusCalls = 0;
     QObject::connect(&view, &NavigationView::sendFocusToSearch,
-                     [&](QWidget *v) {
+                     [&](QWidget *v)
+                     {
                          ++sendFocusCalls;
                          receivedView = v;
                      });
@@ -251,7 +246,6 @@ TEST_CASE("NavigationView Backspace key emits sendFocusToSearch", "[NavigationVi
     // receiver distinguish "focus the search box" from other views.
     REQUIRE(receivedView == &view);
 }
-
 
 // ===========================================================================
 // keyPressEvent: Enter / Return -> pressed(index).
@@ -272,11 +266,11 @@ TEST_CASE("NavigationView Enter key emits pressed", "[NavigationView]")
     REQUIRE(pressedCalls == 1);
 }
 
-
 // ===========================================================================
 // expandTimerHandler: stops the timer and emits expansionComplete.
 // ===========================================================================
-TEST_CASE("NavigationView expandTimerHandler emits expansionComplete", "[NavigationView]")
+TEST_CASE("NavigationView expandTimerHandler emits expansionComplete",
+          "[NavigationView]")
 {
     NavigationView view;
 
@@ -288,7 +282,6 @@ TEST_CASE("NavigationView expandTimerHandler emits expansionComplete", "[Navigat
 
     REQUIRE(expansionCompleteCalls == 1);
 }
-
 
 // ===========================================================================
 // rowClicked: toggles expansion of a valid index. Uses the fixture so
@@ -310,7 +303,6 @@ TEST_CASE("NavigationView rowClicked toggles expansion", "[NavigationView]")
     REQUIRE_FALSE(fixture.view->isExpanded(root));
 }
 
-
 // ===========================================================================
 // setRowsEditable: the flag is stored, and toggling it must not crash.
 // The "editable" effect only becomes observable through the double-click
@@ -328,7 +320,6 @@ TEST_CASE("NavigationView setRowsEditable does not crash", "[NavigationView]")
     // remain side-effect-free and safe.
     SUCCEED();
 }
-
 
 // ===========================================================================
 // closeEditor: reads the line editor's text and always emits

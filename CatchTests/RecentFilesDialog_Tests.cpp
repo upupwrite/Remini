@@ -27,22 +27,21 @@
 //   reaches RecentFilesDialog::keyPressEvent. The dialog does not
 //   inspect modifiers, so the semantic behaviour is unchanged.
 
-#include <catch2/catch.hpp>
-
-#include "recentfilesdialog.h"
-
 #include <QListWidget>
 #include <QListWidgetItem>
 #include <QScopedPointer>
 #include <QtTest/QtTest>
+#include <catch2/catch.hpp>
 
+#include "recentfilesdialog.h"
 
 TEST_CASE("selection when list is empty", "[RecentFilesDialog]")
 {
     const int expectedRow = -1;
 
     QListWidget *listPtr = new QListWidget;
-    QScopedPointer<RecentFilesDialog> dialog(new RecentFilesDialog(nullptr, listPtr));
+    QScopedPointer<RecentFilesDialog> dialog(
+        new RecentFilesDialog(nullptr, listPtr));
 
     dialog->show();
 
@@ -53,13 +52,13 @@ TEST_CASE("selection when list is empty", "[RecentFilesDialog]")
     // No delete: the dialog owns listPtr from construction onwards.
 }
 
-
 TEST_CASE("selection in 2nd item test", "[RecentFilesDialog]")
 {
     const int expectedRow = 1;
 
     QListWidget *listPtr = new QListWidget;
-    QScopedPointer<RecentFilesDialog> dialog(new RecentFilesDialog(nullptr, listPtr));
+    QScopedPointer<RecentFilesDialog> dialog(
+        new RecentFilesDialog(nullptr, listPtr));
 
     listPtr->addItem("text1.txt");
     listPtr->addItem("test2.txt");
@@ -69,13 +68,13 @@ TEST_CASE("selection in 2nd item test", "[RecentFilesDialog]")
     REQUIRE(listPtr->currentRow() == expectedRow);
 }
 
-
 TEST_CASE("selection in 2nd item and correct path test", "[RecentFilesDialog]")
 {
     const QString expectedPath("path.txt");
 
     QListWidget *listPtr = new QListWidget;
-    QScopedPointer<RecentFilesDialog> dialog(new RecentFilesDialog(nullptr, listPtr));
+    QScopedPointer<RecentFilesDialog> dialog(
+        new RecentFilesDialog(nullptr, listPtr));
 
     listPtr->addItem("text1.txt");
     listPtr->addItem(expectedPath);
@@ -84,17 +83,17 @@ TEST_CASE("selection in 2nd item and correct path test", "[RecentFilesDialog]")
     REQUIRE(dialog->getCurrentRelativeFile() == expectedPath);
 }
 
-
 TEST_CASE("selection in 1st item and correct path test", "[RecentFilesDialog]")
 {
     const QString expectedPath("path.txt");
 
     QListWidget *listPtr = new QListWidget;
-    QScopedPointer<RecentFilesDialog> dialog(new RecentFilesDialog(nullptr, listPtr));
+    QScopedPointer<RecentFilesDialog> dialog(
+        new RecentFilesDialog(nullptr, listPtr));
 
-    listPtr->addItem(expectedPath);   // row 0
-    listPtr->addItem("text2.txt");    // row 1
-    dialog->show();                   // selects row 1
+    listPtr->addItem(expectedPath);  // row 0
+    listPtr->addItem("text2.txt");   // row 1
+    dialog->show();                  // selects row 1
 
     // Ctrl+Tab guarantees delivery to keyPressEvent. Row 1 -> 2 wraps to
     // row 0, which is expectedPath.
@@ -103,18 +102,18 @@ TEST_CASE("selection in 1st item and correct path test", "[RecentFilesDialog]")
     REQUIRE(dialog->getCurrentRelativeFile() == expectedPath);
 }
 
-
 TEST_CASE("adding paths to the list", "[RecentFilesDialog]")
 {
     const QString expectedPath("path.txt");
 
     QListWidget *listPtr = new QListWidget;
-    QScopedPointer<RecentFilesDialog> dialog(new RecentFilesDialog(nullptr, listPtr));
+    QScopedPointer<RecentFilesDialog> dialog(
+        new RecentFilesDialog(nullptr, listPtr));
 
     // updateRecentFileHandle inserts at row 0.
-    dialog->updateRecentFileHandle(expectedPath);   // row 0
-    listPtr->addItem("text2.txt");                  // row 1
-    dialog->show();                                 // selects row 1
+    dialog->updateRecentFileHandle(expectedPath);  // row 0
+    listPtr->addItem("text2.txt");                 // row 1
+    dialog->show();                                // selects row 1
 
     QTest::keyPress(dialog.data(), Qt::Key_Tab, Qt::ControlModifier);
     // Row 1 -> 2 wraps to row 0, which is expectedPath.
@@ -122,13 +121,13 @@ TEST_CASE("adding paths to the list", "[RecentFilesDialog]")
     REQUIRE(dialog->getCurrentRelativeFile() == expectedPath);
 }
 
-
 TEST_CASE("adding path to the dialog using slots", "[RecentFilesDialog]")
 {
     const QString item1 = "test1.txt";
 
     QListWidget *listPtr = new QListWidget;
-    QScopedPointer<RecentFilesDialog> dialog(new RecentFilesDialog(nullptr, listPtr));
+    QScopedPointer<RecentFilesDialog> dialog(
+        new RecentFilesDialog(nullptr, listPtr));
 
     dialog->updateRecentFileHandle(item1);
     dialog->show();
@@ -136,14 +135,15 @@ TEST_CASE("adding path to the dialog using slots", "[RecentFilesDialog]")
     REQUIRE(dialog->getCurrentRelativeFile() == item1);
 }
 
-
-TEST_CASE("adding 2 paths to the dialog using slots with show()", "[RecentFilesDialog]")
+TEST_CASE("adding 2 paths to the dialog using slots with show()",
+          "[RecentFilesDialog]")
 {
     const QString item1 = "test1.txt";
     const QString item2 = "test2.txt";
 
     QListWidget *listPtr = new QListWidget;
-    QScopedPointer<RecentFilesDialog> dialog(new RecentFilesDialog(nullptr, listPtr));
+    QScopedPointer<RecentFilesDialog> dialog(
+        new RecentFilesDialog(nullptr, listPtr));
 
     // FIX: the original test declared item2 but never inserted it, so it
     // did not match its own name. Add both paths.
@@ -151,19 +151,20 @@ TEST_CASE("adding 2 paths to the dialog using slots with show()", "[RecentFilesD
     dialog->updateRecentFileHandle(item1);
     dialog->updateRecentFileHandle(item2);
 
-    dialog->show();   // 2 items -> selects row 1, i.e. item1
+    dialog->show();  // 2 items -> selects row 1, i.e. item1
 
     REQUIRE(dialog->getCurrentRelativeFile() == item1);
 }
 
-
-TEST_CASE("adding 2 paths to the dialog using slots without show()", "[RecentFilesDialog]")
+TEST_CASE("adding 2 paths to the dialog using slots without show()",
+          "[RecentFilesDialog]")
 {
     const QString item1 = "test1.txt";
     const QString item2 = "test2.txt";
 
     QListWidget *listPtr = new QListWidget;
-    QScopedPointer<RecentFilesDialog> dialog(new RecentFilesDialog(nullptr, listPtr));
+    QScopedPointer<RecentFilesDialog> dialog(
+        new RecentFilesDialog(nullptr, listPtr));
 
     // updateRecentFileHandle selects row 0 itself. After both inserts the
     // list is [test2.txt, test1.txt], so row 0 is item2.
@@ -173,7 +174,6 @@ TEST_CASE("adding 2 paths to the dialog using slots without show()", "[RecentFil
     REQUIRE(dialog->getCurrentRelativeFile() == item2);
 }
 
-
 TEST_CASE("adding more paths to the dialog using slots", "[RecentFilesDialog]")
 {
     const QString item1 = "test1.txt";
@@ -181,21 +181,21 @@ TEST_CASE("adding more paths to the dialog using slots", "[RecentFilesDialog]")
     const QString item3 = "test3.txt";
 
     QListWidget *listPtr = new QListWidget;
-    QScopedPointer<RecentFilesDialog> dialog(new RecentFilesDialog(nullptr, listPtr));
+    QScopedPointer<RecentFilesDialog> dialog(
+        new RecentFilesDialog(nullptr, listPtr));
 
     // List after all three inserts: [test3.txt, test2.txt, test1.txt].
     dialog->updateRecentFileHandle(item1);
     dialog->updateRecentFileHandle(item2);
     dialog->updateRecentFileHandle(item3);
 
-    dialog->show();   // selects row 1 = item2
+    dialog->show();  // selects row 1 = item2
 
     // Ctrl+Tab: row 1 -> row 2 = item1.
     QTest::keyPress(dialog.data(), Qt::Key_Tab, Qt::ControlModifier);
 
     REQUIRE(dialog->getCurrentRelativeFile() == item1);
 }
-
 
 TEST_CASE("cycling back to the last file", "[RecentFilesDialog]")
 {
@@ -204,17 +204,20 @@ TEST_CASE("cycling back to the last file", "[RecentFilesDialog]")
     const QString item3 = "test3.txt";
 
     QListWidget *listPtr = new QListWidget;
-    QScopedPointer<RecentFilesDialog> dialog(new RecentFilesDialog(nullptr, listPtr));
+    QScopedPointer<RecentFilesDialog> dialog(
+        new RecentFilesDialog(nullptr, listPtr));
 
     // List after all three inserts: [test3.txt, test2.txt, test1.txt].
     dialog->updateRecentFileHandle(item1);
     dialog->updateRecentFileHandle(item2);
     dialog->updateRecentFileHandle(item3);
 
-    dialog->show();   // selects row 1 = item2
+    dialog->show();  // selects row 1 = item2
 
-    QTest::keyPress(dialog.data(), Qt::Key_Tab, Qt::ControlModifier);  // row 1 -> row 2 = item1
-    QTest::keyPress(dialog.data(), Qt::Key_Tab, Qt::ControlModifier);  // row 2 -> wraps to row 0 = item3
+    QTest::keyPress(dialog.data(), Qt::Key_Tab,
+                    Qt::ControlModifier);  // row 1 -> row 2 = item1
+    QTest::keyPress(dialog.data(), Qt::Key_Tab,
+                    Qt::ControlModifier);  // row 2 -> wraps to row 0 = item3
 
     REQUIRE(dialog->getCurrentRelativeFile() == item3);
 }

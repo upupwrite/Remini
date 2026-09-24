@@ -1,10 +1,9 @@
 #include "highlighter.h"
 
-#include <utility>   // std::as_const
+#include <utility>  // std::as_const
 
 Highlighter::Highlighter(QObject *parent)
-    : QSyntaxHighlighter(parent)
-    , initialised(false)
+    : QSyntaxHighlighter(parent), initialised(false)
 {
 }
 
@@ -13,11 +12,15 @@ void Highlighter::highlightBlock(const QString &text)
     if (!initialised)
         return;
 
-    for (const HighlightingRule &rule : std::as_const(highlightingRules)) {
-        QRegularExpressionMatchIterator matchIterator = rule.pattern.globalMatch(text);
-        while (matchIterator.hasNext()) {
+    for (const HighlightingRule &rule : std::as_const(highlightingRules))
+    {
+        QRegularExpressionMatchIterator matchIterator =
+            rule.pattern.globalMatch(text);
+        while (matchIterator.hasNext())
+        {
             const QRegularExpressionMatch match = matchIterator.next();
-            setFormat(match.capturedStart(), match.capturedLength(), rule.format);
+            setFormat(match.capturedStart(), match.capturedLength(),
+                      rule.format);
         }
     }
     setCurrentBlockState(0);
@@ -27,30 +30,40 @@ void Highlighter::highlightBlock(const QString &text)
     if (previousBlockState() != 1)
         startIndex = text.indexOf(commentStartExpression);
 
-    while (startIndex >= 0) {
-        const QRegularExpressionMatch match = commentEndExpression.match(text, startIndex);
+    while (startIndex >= 0)
+    {
+        const QRegularExpressionMatch match =
+            commentEndExpression.match(text, startIndex);
         const int endIndex = match.capturedStart();
         int commentLength = 0;
-        if (endIndex == -1) {
+        if (endIndex == -1)
+        {
             setCurrentBlockState(1);
             commentLength = text.length() - startIndex;
-        } else {
+        }
+        else
+        {
             commentLength = endIndex - startIndex + match.capturedLength();
         }
         setFormat(startIndex, commentLength, multiLineCommentFormat);
-        startIndex = text.indexOf(commentStartExpression, startIndex + commentLength);
+        startIndex =
+            text.indexOf(commentStartExpression, startIndex + commentLength);
     }
 
     // Search highlight. Skip when the pattern is empty / invalid, otherwise
     // an empty regex would match every position and paint the whole document.
-    if (!searchMatchExpression.pattern().isEmpty() && searchMatchExpression.isValid()) {
+    if (!searchMatchExpression.pattern().isEmpty() &&
+        searchMatchExpression.isValid())
+    {
         QRegularExpressionMatchIterator searchMatchIterator =
             searchMatchExpression.globalMatch(text);
-        while (searchMatchIterator.hasNext()) {
+        while (searchMatchIterator.hasNext())
+        {
             const QRegularExpressionMatch match = searchMatchIterator.next();
             if (match.capturedLength() == 0)
                 continue;
-            setFormat(match.capturedStart(), match.capturedLength(), searchMatchFormat);
+            setFormat(match.capturedStart(), match.capturedLength(),
+                      searchMatchFormat);
         }
     }
 }
@@ -82,52 +95,54 @@ void Highlighter::initColors()
         QStringLiteral("\\bunion\\b"),     QStringLiteral("\\bunsigned\\b"),
         QStringLiteral("\\bvirtual\\b"),   QStringLiteral("\\bvoid\\b"),
         QStringLiteral("\\bvolatile\\b"),  QStringLiteral("\\bbool\\b"),
-        QStringLiteral("\\bcmake\\b")
-    };
-    for (const QString &pattern : keywordPatterns) {
+        QStringLiteral("\\bcmake\\b")};
+    for (const QString &pattern : keywordPatterns)
+    {
         rule.pattern = QRegularExpression(pattern);
-        rule.format  = keywordFormat;
+        rule.format = keywordFormat;
         highlightingRules.append(rule);
     }
 
     classFormat.setFontWeight(QFont::Bold);
     classFormat.setForeground(syntaxColor.argument);
-    rule.pattern = QRegularExpression(QStringLiteral("(?<=\\s)--?[a-zA-Z0-9_]+"));
-    rule.format  = classFormat;
+    rule.pattern =
+        QRegularExpression(QStringLiteral("(?<=\\s)--?[a-zA-Z0-9_]+"));
+    rule.format = classFormat;
     highlightingRules.append(rule);
 
     tickMarkFormat.setForeground(QColor(60, 179, 113));
     tickMarkFormat.setFontWeight(QFont::ExtraBold);
     rule.pattern = QRegularExpression(QStringLiteral("(☑|-\\s\\[x]\\s)"));
-    rule.format  = tickMarkFormat;
+    rule.format = tickMarkFormat;
     highlightingRules.append(rule);
 
     unTickMarkFormat.setForeground(QColor(219, 112, 147));
     unTickMarkFormat.setFontWeight(QFont::ExtraBold);
     rule.pattern = QRegularExpression(QStringLiteral("(☐|-\\s\\[\\s\\]\\s)"));
-    rule.format  = unTickMarkFormat;
+    rule.format = unTickMarkFormat;
     highlightingRules.append(rule);
 
     singleLineCommentFormat.setForeground(syntaxColor.comment);
     rule.pattern = QRegularExpression(QStringLiteral("//[^\n]*"));
-    rule.format  = singleLineCommentFormat;
+    rule.format = singleLineCommentFormat;
     highlightingRules.append(rule);
 
     multiLineCommentFormat.setForeground(syntaxColor.comment);
 
     quotationFormat.setForeground(syntaxColor.quote);
     rule.pattern = QRegularExpression(QStringLiteral("\"(.*?)\""));
-    rule.format  = quotationFormat;
+    rule.format = quotationFormat;
     highlightingRules.append(rule);
 
     functionFormat.setFontItalic(true);
     functionFormat.setForeground(syntaxColor.method);
-    rule.pattern = QRegularExpression(QStringLiteral("\\b[A-Za-z0-9_]+(?=\\()"));
-    rule.format  = functionFormat;
+    rule.pattern =
+        QRegularExpression(QStringLiteral("\\b[A-Za-z0-9_]+(?=\\()"));
+    rule.format = functionFormat;
     highlightingRules.append(rule);
 
     commentStartExpression = QRegularExpression(QStringLiteral("/\\*"));
-    commentEndExpression   = QRegularExpression(QStringLiteral("\\*/"));
+    commentEndExpression = QRegularExpression(QStringLiteral("\\*/"));
 
     regexCodeBlock.setPattern(QStringLiteral("^```+.*"));
 
@@ -138,12 +153,12 @@ void Highlighter::initColors()
 
 void Highlighter::syntaxColorUpdateHandler(HighlightColor &colors)
 {
-    syntaxColor.argument    = colors.argument;
-    syntaxColor.keyword     = colors.keyword;
-    syntaxColor.method      = colors.method;
-    syntaxColor.comment     = colors.comment;
-    syntaxColor.quote       = colors.quote;
-    syntaxColor.type        = colors.type;
+    syntaxColor.argument = colors.argument;
+    syntaxColor.keyword = colors.keyword;
+    syntaxColor.method = colors.method;
+    syntaxColor.comment = colors.comment;
+    syntaxColor.quote = colors.quote;
+    syntaxColor.type = colors.type;
     syntaxColor.searchMatch = colors.searchMatch;
 
     // initColors() clears highlightingRules before re-populating,
@@ -154,7 +169,8 @@ void Highlighter::syntaxColorUpdateHandler(HighlightColor &colors)
 
 void Highlighter::updateSearchText(const QString &text)
 {
-    if (text.isEmpty()) {
+    if (text.isEmpty())
+    {
         // Clearing the search box must remove all search highlighting.
         searchMatchExpression.setPattern(QString());
         rehighlight();

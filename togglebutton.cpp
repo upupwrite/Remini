@@ -9,8 +9,7 @@
 // The button starts unchecked. If you want it to start checked, call
 // setChecked(true) after construction instead of relying on a default.
 // ---------------------------------------------------------------------------
-ToggleButton::ToggleButton(QWidget *parent)
-    : QAbstractButton(parent)
+ToggleButton::ToggleButton(QWidget *parent) : QAbstractButton(parent)
 {
     setCheckable(true);
 
@@ -27,10 +26,7 @@ ToggleButton::ToggleButton(QWidget *parent)
     circleReadonly.setColor(QStringLiteral("#eaeaf0"));
 }
 
-bool ToggleButton::getState() const
-{
-    return isChecked();
-}
+bool ToggleButton::getState() const { return isChecked(); }
 
 // ---------------------------------------------------------------------------
 // setChecked:
@@ -62,15 +58,15 @@ void ToggleButton::paintEvent(QPaintEvent *event)
     const bool on = isChecked();
 
     // Reserve some outer margin so the track is never flush with the border.
-    const qreal margin    = qMin(width(), height()) * 0.15;
-    const qreal trackW    = width()  - 2 * margin;
-    const qreal trackH    = height() * 0.35;
-    const qreal trackY    = (height() - trackH) / 2.0;
-    const qreal radius    = trackH / 2.0;
-    const qreal knobR     = radius * 0.85;
-    const qreal knobY     = trackY + trackH / 2.0;
-    const qreal knobOnX   = margin + trackW - radius;
-    const qreal knobOffX  = margin + radius;
+    const qreal margin = qMin(width(), height()) * 0.15;
+    const qreal trackW = width() - 2 * margin;
+    const qreal trackH = height() * 0.35;
+    const qreal trackY = (height() - trackH) / 2.0;
+    const qreal radius = trackH / 2.0;
+    const qreal knobR = radius * 0.85;
+    const qreal knobY = trackY + trackH / 2.0;
+    const qreal knobOnX = margin + trackW - radius;
+    const qreal knobOffX = margin + radius;
 
     p.setBrush(on ? trackEdit : trackReadonly);
     p.drawRoundedRect(QRectF(margin, trackY, trackW, trackH), radius, radius);
