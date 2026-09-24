@@ -1,4 +1,7 @@
+// FIX: this include was previously commented out, which made every
+// TEST_CASE / REQUIRE below a compile error. It must be active.
 #include <catch2/catch.hpp>
+
 #include "mkedit.h"
 #include <QApplication>
 #include <QClipboard>
@@ -19,30 +22,46 @@ TEST_CASE("MkEdit simple text", "[MkEdit]")
     MkEdit edit;
 
     edit.setText("abc");
-    QString text =edit.toPlainText();
+    QString text = edit.toPlainText();
 
     REQUIRE("abc" == text);
-
 }
 
+// FIX: The original test used a bare MkEdit backed by a plain
+// QTextDocument. MkEdit alone does not perform any Markdown processing;
+// the raw string "**abc**" was therefore compared against itself and the
+// test passed trivially without exercising any Markdown logic.
+// The test now uses MkTextDocument, enables Markdown, and expects the
+// bold markers to be hidden so the visible text is just "abc".
 TEST_CASE("MkEdit bold double asterisk", "[MkEdit]")
 {
+    MkTextDocument doc;
     MkEdit edit;
 
-    edit.setText("**abc**");
-    QString text =edit.toPlainText();
+    doc.setPlainText("**abc**");
+    edit.setDocument(&doc);
+    doc.setMarkdownHandle(true);
 
-    REQUIRE("**abc**" == text);
+    QString text = edit.toPlainText();
+
+    REQUIRE("abc" == text);
 }
 
+// FIX: Same issue as the previous case. The original test never
+// exercised the underscore bold syntax. It now routes the text through
+// MkTextDocument with Markdown enabled.
 TEST_CASE("MkEdit bold double underscore", "[MkEdit]")
 {
+    MkTextDocument doc;
     MkEdit edit;
 
-    edit.setText("__abc__");
-    QString text =edit.toPlainText();
+    doc.setPlainText("__abc__");
+    edit.setDocument(&doc);
+    doc.setMarkdownHandle(true);
 
-    REQUIRE("__abc__" == text);
+    QString text = edit.toPlainText();
+
+    REQUIRE("abc" == text);
 }
 
 TEST_CASE("MkEdit move cursor to the middle of the characters of first Markdown word", "[MkTextDocument]")

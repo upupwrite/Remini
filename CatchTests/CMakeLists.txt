@@ -13,6 +13,12 @@ set(CMAKE_AUTORCC ON)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
+# FIX: AUTOUIC by default only searches the current source dir for .ui files.
+# Since the tests live in a subdirectory but the .ui files live in the project
+# root, the search path must be extended or `ui_mainwindow.h` / 
+# `ui_settingsdialog.h` will never be generated.
+set(CMAKE_AUTOUIC_SEARCH_PATHS ${CMAKE_SOURCE_DIR})
+
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets Gui Test)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Gui Test)
 
@@ -34,6 +40,17 @@ add_executable(${PROJECT_NAME}
     ${CMAKE_SOURCE_DIR}/navigationmodel.cpp
     ${CMAKE_SOURCE_DIR}/recentfilesdialog.cpp
     ${CMAKE_SOURCE_DIR}/settingsdialog.cpp
+
+    # FIX: views_handler.cpp instantiates ToggleButton and owns a
+    # TextSearchWorker member, so both translation units must be linked,
+    # otherwise the build fails at link time with "undefined reference
+    # to ToggleButton::ToggleButton" / "TextSearchWorker::...".
+    ${CMAKE_SOURCE_DIR}/togglebutton.cpp
+    ${CMAKE_SOURCE_DIR}/textsearchworker.cpp
+
+    # FIX: add the .ui files explicitly so AUTOUIC has something to chew on.
+    ${CMAKE_SOURCE_DIR}/mainwindow.ui
+    ${CMAKE_SOURCE_DIR}/settingsdialog.ui
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE
@@ -46,6 +63,14 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     Qt${QT_VERSION_MAJOR}::Widgets
     Qt${QT_VERSION_MAJOR}::Test
 )
+
+# FIX: windowapi.cpp is NOT compiled here (no reference to it from the
+# test target), so X11 is not required. If you later add windowapi.cpp,
+# re-enable this block.
+# if (UNIX AND NOT APPLE)
+#     find_package(X11 REQUIRED)
+#     target_link_libraries(${PROJECT_NAME} PRIVATE X11::X11)
+# endif()
 
 if (DEFINED ENV{CATCH_INCLUDE_DIR})
     set(CATCH_INCLUDE_DIR $ENV{CATCH_INCLUDE_DIR})
