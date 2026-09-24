@@ -10,8 +10,12 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     strategy:
+      fail-fast: false
       matrix:
         build_type: [Debug, Release]
+
+    env:
+      QT_QPA_PLATFORM: offscreen
 
     steps:
       - name: Checkout repository
@@ -42,9 +46,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
 
       - name: Build
-        run: cmake --build build --config ${{ matrix.build_type }} --parallel
+        run: cmake --build build --parallel
 
       - name: Run tests
-        env:
-          QT_QPA_PLATFORM: offscreen
         run: ctest --test-dir build --output-on-failure

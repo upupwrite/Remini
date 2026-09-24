@@ -8,23 +8,25 @@ on:
 
 jobs:
   build:
-
     runs-on: windows-latest
+
+    env:
+      QT_DIR: ${{ github.workspace }}\Remini\Qt\6.5.0\msvc2019_64
 
     steps:
     - name: Checkout Repo
-      uses: actions/checkout@v1
-      
+      uses: actions/checkout@v4
+
     - name: Download catch.hpp and setup Environment Variable
+      shell: pwsh
       run: |
-        mkdir Catch2
+        mkdir Catch2 -Force
         cd Catch2
         $url = "https://github.com/catchorg/Catch2/releases/download/v2.13.10/catch.hpp"
-        $output = "catch.hpp"
-        Invoke-WebRequest -Uri $url -OutFile $output
+        Invoke-WebRequest -Uri $url -OutFile catch.hpp
         echo "CATCH_INCLUDE_DIR=$(Get-Location)" >> $env:GITHUB_ENV
         cd ..
-      
+
     - name: Install Qt
       uses: jurplel/install-qt-action@v3
       with:
@@ -33,22 +35,32 @@ jobs:
         host: 'windows'
         target: 'desktop'
         arch: 'win64_msvc2019_64'
-        dir: '${{ github.workspace }}\Remini\' 
+        dir: '${{ github.workspace }}\Remini'
         cache: 'true'
         cache-key-prefix: 'install-qt-action'
         setup-python: 'false'
         tools: 'tools_cmake'
-        
+
     - name: Configure CMake
-      run: cmake -DCMAKE_BUILD_TYPE=Release -B="Build" -DQt6_DIR="D:\a\Remini\Remini\Remini\Qt\6.5.0\msvc2019_64"
+      shell: pwsh
+      run: |
+        cmake -S . -B Build -DCMAKE_BUILD_TYPE=Release -DQt6_DIR="$env:QT_DIR"
 
     - name: Build the Qt project with CMake
-      run: cmake --build build --config Release
+      run: cmake --build Build --config Release
 
-    - name: Run test
+    - name: Deploy main executable
+      shell: pwsh
       run: |
-        echo "Workspace path is ${{ github.workspace }}"
-        cd D:\a\Remini\Remini\Build\CatchTests\Release\
-        ${{ github.workspace }}\Remini\Qt\6.5.0\msvc2019_64\bin\windeployqt.exe ReminiTests.exe
-        dir
-        .\ReminiTests.exe       
+        & "$env:QT_DIR\bin\windeployqt.exe" `
+          --no-translations `
+          "Build\Release\Remini.exe"
+
+    - name: Run tests
+      shell: pwsh
+      working-directory: ${{ github.workspace }}\Build\CatchTests\Release
+      run: |
+        Write-Host "Contents:"
+        Get-ChildItem
+        & "$env:QT_DIR\bin\windeployqt.exe" --no-translations CatchTests.exe
+        .\CatchTests.exe
