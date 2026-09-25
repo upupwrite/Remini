@@ -91,6 +91,7 @@ public:
 
     void setFont(const QFont &font);
     void setMkState(bool enable);
+    void setLineWrap(bool enable);
 
 protected:
     void insertFromMimeData(const QMimeData *source) override;

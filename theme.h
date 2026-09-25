@@ -285,7 +285,27 @@ inline const QString& darkTheme()
         "	   background-color:#353535;"
         "    border-radius: 3px;"
         "    border-color: #707070;"
-        "}");
+        "}"
+        "QLabel {"
+        "color: rgb(225, 225, 225);"
+        "}"
+        "#txt_preview {"
+        "background-color: #353535;"
+        "color: rgb(225, 225, 225);"
+        "}"
+        "#listWidget {"
+        "background-color: #353535;"
+        "color: #ffffff;"
+        "}"
+        "QComboBox {"
+        "background-color: #353535;"
+        "color: #ffffff;"
+        "}"
+        "QToolButton {"
+        "background-color: #353535;"
+        "color: #ffffff;"
+        "}"
+        );
     return s;
 }
 

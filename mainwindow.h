@@ -79,8 +79,6 @@ private:
 
     QSharedPointer<ViewsHandler> view_handler;
 
-    QStyle *lightThemeStyle = nullptr;
-    QStyle *darkThemeStyle = nullptr;
 
 #ifdef Q_OS_WIN
     WindowApi *win = nullptr;

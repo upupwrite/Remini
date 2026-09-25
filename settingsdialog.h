@@ -76,6 +76,11 @@ private:
     MkTextDocument previewDocument;
     Highlighter previewHighligher;
 
+    QWidget *normal = nullptr;
+    QWidget *edit   = nullptr;
+    QWidget *file   = nullptr;
+    QWidget *markdown = nullptr;
+    
     const QString getVaultRootPath();
     QString vaultRootPath;
 };

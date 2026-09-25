@@ -9,10 +9,12 @@
 #include <QSignalBlocker>
 #include <QStringList>
 #include <QTextStream>
+#include <QTimer>
 
 #include "mktextdocument.h"
 #include "theme.h"
 #include "ui_settingsdialog.h"
+
 // ---------------------------------------------------------------------------
 // Default monospace font per platform.
 // "Cascadia Mono" ships with Windows Terminal, so it is only a safe default
@@ -218,33 +220,42 @@ void SettingsDialog::updateStretchHandler(const int index)
 void SettingsDialog::updateWeightHandler(const int weight)
 {
     QFont font = ui->txt_preview->font();
+
+    // The combo box order must match the indices used here.
+    // Current order:
+    // 0: Thin, 1: ExtraLight, 2: Light, 3: Normal, 4: Medium,
+    // 5: DemiBold, 6: Bold, 7: ExtraBold, 8: Black
     switch (weight)
     {
     case 0:
         font.setWeight(QFont::Thin);
         break;
     case 1:
-        font.setWeight(QFont::Light);
+        font.setWeight(QFont::ExtraLight);
         break;
     case 2:
-        font.setWeight(QFont::Normal);
+        font.setWeight(QFont::Light);
         break;
     case 3:
-        font.setWeight(QFont::Medium);
+        font.setWeight(QFont::Normal);
         break;
     case 4:
-        font.setWeight(QFont::DemiBold);
+        font.setWeight(QFont::Medium);
         break;
     case 5:
-        font.setWeight(QFont::Bold);
+        font.setWeight(QFont::DemiBold);
         break;
     case 6:
-        font.setWeight(QFont::ExtraBold);
+        font.setWeight(QFont::Bold);
         break;
     case 7:
+        font.setWeight(QFont::ExtraBold);
+        break;
+    case 8:
         font.setWeight(QFont::Black);
         break;
     default:
+        font.setWeight(QFont::Normal);
         break;
     }
     ui->txt_preview->setFont(font);
@@ -266,23 +277,46 @@ void SettingsDialog::saveSettingsHandler()
     settings.setValue("vaultPath", ui->edit_vaultRootPath->text());
 
     // ------------------------------------------------------------------
-    // Theme: read the previously saved value before overwriting it so we
-    // can decide whether to notify the rest of the app.
+    // Read the previously stored theme BEFORE overwriting it. The result
+    // decides whether the application needs a full style rebuild.
     //
-    // We deliberately do NOT emit on every OK click: the signal triggers
-    // a QApplication::setStyle() + setStyleSheet() cycle, which rebuilds
-    // every widget's style, and there is no reason to pay that cost when
-    // the user only changed the font size.
+    // We deliberately do NOT emit themeChanged on every OK click: the
+    // signal triggers a QApplication::setStyle() + setStyleSheet() cycle,
+    // which rebuilds every widget's style. There is no reason to pay that
+    // cost when the user only changed the font size.
     // ------------------------------------------------------------------
     const QString previousTheme =
         settings.value(QStringLiteral("theme"), themes::dark().name).toString();
     const QString newTheme = ui->cmb_theme->currentText();
     settings.setValue("theme", newTheme);
 
+    // ------------------------------------------------------------------
+    // Hide the dialog before notifying the rest of the application.
+    //
+    // accept() hides this widget and (when the caller used exec())
+    // terminates the local event loop. Doing this first guarantees the
+    // dialog is off-screen when the main window rebuilds its style sheet,
+    // so no re-polish can happen while the dialog is still visible.
+    // ------------------------------------------------------------------
+    accept();
+
+    // ------------------------------------------------------------------
+    // Apply the font change. This only touches main-window widgets, so it
+    // is safe to run synchronously.
+    // ------------------------------------------------------------------
     emit updateUiSettings(font);
 
+    // ------------------------------------------------------------------
+    // Only emit themeChanged when the theme actually changed. Defer the
+    // emission to the next event-loop iteration so the style rebuild runs
+    // after the current call stack (button click handling, accept(), the
+    // updateUiSettings slot, etc.) has fully unwound.
+    // ------------------------------------------------------------------
     if (newTheme != previousTheme)
-        emit themeChanged(newTheme);
+    {
+        QTimer::singleShot(0, this,
+                           [this, newTheme]() { emit themeChanged(newTheme); });
+    }
 }
 
 void SettingsDialog::syntaxColorUpdateHandler(HighlightColor &colors)
@@ -293,8 +327,23 @@ void SettingsDialog::syntaxColorUpdateHandler(HighlightColor &colors)
 
 void SettingsDialog::show()
 {
+    // Block signals from all widgets that will be programmatically updated
+    // during initialization. This prevents handler functions (e.g.
+    // updateFontHandler, updateStretchHandler, etc.) from firing while we
+    // are still setting up the UI.
+    const QSignalBlocker blockerTheme(ui->cmb_theme);
+    const QSignalBlocker blockerFont(ui->cmb_font);
+    const QSignalBlocker blockerSize(ui->ledit_font_size);
+    const QSignalBlocker blockerWeight(ui->cmb_weight);
+    const QSignalBlocker blockerStretch(ui->cmb_stretch);
+    const QSignalBlocker blockerMk(ui->cmb_mkState);
+    const QSignalBlocker blockerWrap(ui->cmb_lineWrap);
+
     QSettings settings("Remini", "Remini");
 
+    // ------------------------------------------------------------------
+    // Retrieve stored settings with sensible defaults.
+    // ------------------------------------------------------------------
     const QString fontFamily =
         settings.value("font", defaultMonospaceFont()).toString();
     const int fontSize = settings.value("fontsize", 11).toInt();
@@ -302,34 +351,34 @@ void SettingsDialog::show()
     const bool linewrap = settings.value("linewrap", true).toBool();
     const int stretch = settings.value("stretch", QFont::Unstretched).toInt();
     const int weight = settings.value("weight", QFont::Normal).toInt();
-    vaultRootPath = settings.value("vaultPath", QDir::currentPath()).toString();
+    vaultRootPath =
+        settings.value("vaultPath", QDir::currentPath()).toString();
 
+    // ------------------------------------------------------------------
+    // Populate the simple combo boxes and path field.
+    // ------------------------------------------------------------------
     ui->cmb_mkState->setCurrentIndex(markdown ? 1 : 0);
     ui->cmb_lineWrap->setCurrentIndex(linewrap ? 1 : 0);
     ui->edit_vaultRootPath->setText(vaultRootPath);
 
     // ------------------------------------------------------------------
-    // Restore the saved theme selection.
-    //
-    // Without this the combo box would always show its first entry (Light)
-    // no matter what the user last picked, so opening the dialog and
-    // pressing OK would silently overwrite the theme back to Light.
-    //
-    // QSignalBlocker guards against any connection on currentTextChanged
-    // firing during this initial programmatic change.
+    // Restore the saved theme selection. Without this, the combo box would
+    // always show its first entry and pressing OK would silently overwrite
+    // the theme. Signal blocking is already active for this widget.
     // ------------------------------------------------------------------
     const QString savedTheme =
         settings.value(QStringLiteral("theme"), themes::dark().name).toString();
     const int themeIndex = ui->cmb_theme->findText(savedTheme);
     if (themeIndex >= 0)
     {
-        QSignalBlocker blocker(ui->cmb_theme);
         ui->cmb_theme->setCurrentIndex(themeIndex);
     }
 
-    // If the stored font is not present (e.g. "Cascadia Mono" on Linux),
-    // findText() returns -1. Fall back to the first available font so the
-    // combo box is never left empty.
+    // ------------------------------------------------------------------
+    // Font family: if the stored font is not present (e.g. "Cascadia Mono"
+    // on Linux), findText() returns -1. Fall back to the default monospace
+    // font, and if that is also missing, fall back to the first available.
+    // ------------------------------------------------------------------
     int fontIndex = ui->cmb_font->findText(fontFamily);
     if (fontIndex < 0)
     {
@@ -342,39 +391,53 @@ void SettingsDialog::show()
 
     ui->ledit_font_size->setText(QString::number(fontSize));
 
-    int index_weight;
+    // ------------------------------------------------------------------
+    // Map the stored QFont::Weight value to the corresponding combo index.
+    //
+    // Note the combo order used above:
+    //   0 Thin, 1 ExtraLight, 2 Light, 3 Normal, 4 Medium,
+    //   5 DemiBold, 6 Bold, 7 ExtraBold, 8 Black
+    // ------------------------------------------------------------------
+    int index_weight = 3; // Default to Normal.
     switch (weight)
     {
     case QFont::Thin:
         index_weight = 0;
         break;
-    case QFont::Light:
+    case QFont::ExtraLight:
         index_weight = 1;
         break;
-    case QFont::Normal:
+    case QFont::Light:
         index_weight = 2;
         break;
-    case QFont::Medium:
+    case QFont::Normal:
         index_weight = 3;
         break;
-    case QFont::DemiBold:
+    case QFont::Medium:
         index_weight = 4;
         break;
-    case QFont::Bold:
+    case QFont::DemiBold:
         index_weight = 5;
         break;
-    case QFont::ExtraBold:
+    case QFont::Bold:
         index_weight = 6;
         break;
-    case QFont::Black:
+    case QFont::ExtraBold:
         index_weight = 7;
         break;
+    case QFont::Black:
+        index_weight = 8;
+        break;
     default:
-        index_weight = 2;
+        index_weight = 3;
+        break;
     }
     ui->cmb_weight->setCurrentIndex(index_weight);
 
-    int index_stretch = 0;
+    // ------------------------------------------------------------------
+    // Map the stored QFont::Stretch value to the corresponding combo index.
+    // ------------------------------------------------------------------
+    int index_stretch = 0; // Default to AnyStretch.
     switch (stretch)
     {
     case QFont::AnyStretch:
@@ -409,14 +472,64 @@ void SettingsDialog::show()
         break;
     default:
         index_stretch = 6;
+        break;
     }
     ui->cmb_stretch->setCurrentIndex(index_stretch);
 
-    QFont font(fontFamily, fontSize, weight);
-    font.setStretch(stretch);
-    ui->txt_preview->setFont(font);
+    // ------------------------------------------------------------------
+    // Map the chosen combo index back to a QFont::Weight. Doing the lookup
+    // from the index (instead of static_cast'ing the raw int read from
+    // QSettings) is robust against Qt5/Qt6 enum value differences and
+    // guarantees we never feed setWeight() an out-of-range value.
+    // ------------------------------------------------------------------
+    QFont::Weight weightEnum = QFont::Normal;
+    switch (index_weight)
+    {
+    case 0:
+        weightEnum = QFont::Thin;
+        break;
+    case 1:
+        weightEnum = QFont::ExtraLight;
+        break;
+    case 2:
+        weightEnum = QFont::Light;
+        break;
+    case 3:
+        weightEnum = QFont::Normal;
+        break;
+    case 4:
+        weightEnum = QFont::Medium;
+        break;
+    case 5:
+        weightEnum = QFont::DemiBold;
+        break;
+    case 6:
+        weightEnum = QFont::Bold;
+        break;
+    case 7:
+        weightEnum = QFont::ExtraBold;
+        break;
+    case 8:
+        weightEnum = QFont::Black;
+        break;
+    default:
+        weightEnum = QFont::Normal;
+        break;
+    }
+
+    // ------------------------------------------------------------------
+    // Build the preview font from the combo box's current font so that the
+    // preview always reflects what the user actually sees (avoids mismatch
+    // when the stored family is not available and a fallback was chosen).
+    // ------------------------------------------------------------------
+    QFont previewFont = ui->cmb_font->currentFont();
+    previewFont.setPointSize(fontSize);
+    previewFont.setWeight(weightEnum);
+    previewFont.setStretch(stretch);
+    ui->txt_preview->setFont(previewFont);
     ui->txt_preview->update();
 
+    // Finally, show the dialog.
     QDialog::show();
 }
 

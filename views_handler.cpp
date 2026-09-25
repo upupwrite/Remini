@@ -601,10 +601,11 @@ void ViewsHandler::updateUiSettingsHandler(const QFont &font)
     QSettings settings(QStringLiteral("Remini"), QStringLiteral("Remini"));
     QString vaultPath = settings.value(QStringLiteral("vaultPath")).toString();
     bool markdown = settings.value(QStringLiteral("markdown"), true).toBool();
-
+    bool linewrap= settings.value(QStringLiteral("linewrap"),true).toBool();
     fontBase = font;
     viewText->setFont(fontBase);
     viewText->setMkState(markdown);
+    viewText->setLineWrap(linewrap);
 
     QFont fontTitle = font;
     fontTitle.setPointSize(fontBase.pointSize() * 2);

@@ -21,26 +21,15 @@ MainWindow::MainWindow(QWidget *parent)
     setup_views(this, *ui);
 
     // ------------------------------------------------------------------
-    // Build the QStyle objects first, because applyThemeByName() picks one
-    // of them based on the theme's state. Creating them here also means
-    // there is exactly one instance of each style: QApplication::setStyle()
-    // takes ownership, and passing a style that is already owned by
-    // QApplication again later is fine.
-    // ------------------------------------------------------------------
-    if (QStyleFactory::keys().contains(QStringLiteral("windowsvista"),
-                                       Qt::CaseInsensitive))
-    {
-        lightThemeStyle = QStyleFactory::create(QStringLiteral("windowsvista"));
-    }
-    else
-    {
-        lightThemeStyle = QStyleFactory::create(QStringLiteral("fusion"));
-    }
-    darkThemeStyle = QStyleFactory::create(QStringLiteral("fusion"));
-
-    // ------------------------------------------------------------------
-    // Apply the user's saved theme. Falls back to dark when the stored
-    // name is unknown (e.g. after a rename in a future version).
+    // NOTE: We no longer cache QStyle instances.
+    //
+    // QApplication::setStyle(QStyle *) takes ownership of the passed
+    // pointer and, when called again, deletes the previously installed
+    // style before adopting the new one. Caching a pointer and re-passing
+    // it therefore results in a use-after-free inside
+    // QObjectPrivate::setParent_helper.
+    //
+    // Instead, applyThemeByName() creates a fresh QStyle on every call.
     // ------------------------------------------------------------------
     QSettings settings(QStringLiteral("Remini"), QStringLiteral("Remini"));
     const QString savedTheme =
@@ -90,9 +79,8 @@ MainWindow::~MainWindow()
 {
     delete rightShiftTimer;
     delete leftShiftTimer;
-    // lightThemeStyle / darkThemeStyle are owned by QApplication after
-    // setStyle() takes them; do NOT delete them here or they will be
-    // double-freed when the application is destroyed.
+    // No style pointers to clean up: QApplication owns the currently
+    // installed style and will delete it on exit.
     delete ui;
 }
 
@@ -104,8 +92,10 @@ MainWindow::~MainWindow()
 //   * the F12 handler (light/dark toggle),
 //   * ViewsHandler::themeChanged when the user accepts the settings dialog.
 //
-// The function is idempotent: calling it with the currently active theme
-// is harmless (it just re-sets the same style sheet).
+// A fresh QStyle is created on every call. This is mandatory: setStyle()
+// adopts the pointer, and re-passing the same pointer (which would then
+// already be owned by QApplication) causes it to be deleted before the
+// parent is reassigned, producing a use-after-free.
 // ---------------------------------------------------------------------------
 void MainWindow::applyThemeByName(const QString &name)
 {
@@ -116,18 +106,27 @@ void MainWindow::applyThemeByName(const QString &name)
     themeContents = theme->qss;
     themeState = theme->state;
 
-    // QStyle first: changing the QStyle clears widget style sheets, so the
-    // order matters here.
+    // ------------------------------------------------------------------
+    // QStyle first: changing the QStyle clears widget style sheets, so
+    // the order matters here.
+    //
+    // QStyleFactory::create() returns a brand-new heap object each time,
+    // which is exactly what setStyle() expects.
+    // ------------------------------------------------------------------
+    QString styleName = QStringLiteral("fusion");
     if (themeState == lightThemeState)
     {
-        if (lightThemeStyle)
-            QApplication::setStyle(lightThemeStyle);
+        // Prefer the native-looking style on platforms that have it.
+        if (QStyleFactory::keys().contains(QStringLiteral("windowsvista"),
+                                           Qt::CaseInsensitive))
+        {
+            styleName = QStringLiteral("windowsvista");
+        }
     }
-    else
-    {
-        if (darkThemeStyle)
-            QApplication::setStyle(darkThemeStyle);
-    }
+
+    QStyle *style = QStyleFactory::create(styleName);
+    if (style)
+        QApplication::setStyle(style);
 
     // Then the QSS. MkEdit widgets inside the window react to the new
     // qproperty-* color rules automatically; each setter emits
