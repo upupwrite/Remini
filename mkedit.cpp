@@ -68,6 +68,7 @@ MkEdit::MkEdit(QWidget *parent) : QTextEdit(parent)
     deleteTextAction.setText("Delete        Del");
     selectAllAction.setText("Select All    Ctrl+A");
     selectBlockAction.setText("Copy Block");
+    //TODO:auto disable
     disableMarkdown.setText("Disable Markdown");
     lineWrapAction.setText("Disable line-wrap");
 
@@ -1500,6 +1501,19 @@ void MkEdit::diableMarkdown_internal()
 void MkEdit::lineWrapHandler()
 {
     if ("Enable line-wrap" == lineWrapAction.text())
+    {
+        this->setLineWrapMode(QTextEdit::WidgetWidth);
+        lineWrapAction.setText("Disable line-wrap");
+    }
+    else
+    {
+        this->setLineWrapMode(QTextEdit::NoWrap);
+        lineWrapAction.setText("Enable line-wrap");
+    }
+}
+
+void MkEdit::setLineWrap(bool enable){
+    if (enable)
     {
         this->setLineWrapMode(QTextEdit::WidgetWidth);
         lineWrapAction.setText("Disable line-wrap");
