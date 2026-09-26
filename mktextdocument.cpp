@@ -1,5 +1,37 @@
 #include "mktextdocument.h"
 
+#include <QChar>
+
+// ---------------------------------------------------------------------------
+// File-local helpers
+// ---------------------------------------------------------------------------
+namespace {
+
+// CommonMark defines "Unicode punctuation" as any character in the Unicode
+// P (punctuation) or S (symbol) categories.  Qt exposes both directly.
+bool isUnicodePunctuation(QChar c)
+{
+    if (c.isNull())
+        return false;
+    return c.isPunct() || c.isSymbol();
+}
+
+// A delimiter run is "protected" if it sits entirely inside one of the
+// ranges returned by parseInlineCodeSpans().  Because code spans are
+// delimited by backticks, a delimiter run is either fully inside a range
+// or fully outside - there is no partial overlap.
+bool isProtectedPosition(int pos, const QVector<QPair<int, int>> &ranges)
+{
+    for (const auto &r : ranges)
+    {
+        if (pos >= r.first && pos <= r.second)
+            return true;
+    }
+    return false;
+}
+
+}  // namespace
+
 MkTextDocument::MkTextDocument(QObject *parent) : QTextDocument{parent}
 {
     regexCodeBlock.setPattern(CODEBLOCK_SYMBOL);
@@ -11,11 +43,6 @@ MkTextDocument::MkTextDocument(QObject *parent) : QTextDocument{parent}
     disableMarkdownState = false;
 }
 
-// ---------------------------------------------------------------------------
-// Plain-text setter. An empty input is intentionally ignored so that
-// callers using setPlainText("") to clear the document do not wipe the
-// rendered / raw state that the editor relies on.
-// ---------------------------------------------------------------------------
 void MkTextDocument::setPlainText(const QString &text)
 {
     if (text.isEmpty())
@@ -368,6 +395,16 @@ void MkTextDocument::identifyFormatData(QTextBlock &block)
 
     int index1 = 0;
     insertHeadingData(text, index1, formatData);
+
+    // Inline code spans first, so the emphasis parser can skip their
+    // content (`` `**literal**` `` must not become bold).
+    const QVector<QPair<int, int>> codeSpanRanges =
+        parseInlineCodeSpans(text, formatData);
+
+    // CommonMark delimiter-stack emphasis parser (replaces the old
+    // three-character window heuristic for *, _, ~~).
+    parseEmphasis(text, codeSpanRanges, formatData);
+
     int index2 = index1 + 1;
     int index3 = index2 + 1;
 
@@ -378,19 +415,8 @@ void MkTextDocument::identifyFormatData(QTextBlock &block)
 
         if (test != "")
         {
-            if (test == "_**")
-            {
-                test = "_";
-            }
-            else if (test == "**_")
-            {
-                test = "**";
-            }
-            else if (test == "***" || test == "___")
-            {
-                incrementIndexes(index1, index2, index3, test.size());
-                continue;
-            }
+            // Emphasis (*, _, ~~) is no longer produced by
+            // composeSymbolCombination; it is handled by parseEmphasis().
 
             if (locLink.start != -1)
             {
@@ -410,37 +436,7 @@ void MkTextDocument::identifyFormatData(QTextBlock &block)
             }
             else
             {
-                if (test == ITALIC_SYMBOL_A)
-                {
-                    insertFormatData(locItalicA, index1, index2, index3,
-                                     formatData, test);
-                    continue;
-                }
-                else if (test == ITALIC_SYMBOL_U)
-                {
-                    insertFormatData(locItalicU, index1, index2, index3,
-                                     formatData, test);
-                    continue;
-                }
-                else if (test == BOLD_SYMBOL_A)
-                {
-                    insertFormatData(locBoldA, index1, index2, index3,
-                                     formatData, test);
-                    continue;
-                }
-                else if (test == BOLD_SYMBOL_U)
-                {
-                    insertFormatData(locBoldU, index1, index2, index3,
-                                     formatData, test);
-                    continue;
-                }
-                else if (test == STRIKETHROUGH_SYMBOL)
-                {
-                    insertFormatData(locStrike, index1, index2, index3,
-                                     formatData, test);
-                    continue;
-                }
-                else if (test == CHECKED_SYMBOL_END && locCheck.start != -1)
+                if (test == CHECKED_SYMBOL_END && locCheck.start != -1)
                 {
                     insertFormatCheckBoxData(locCheck, index1, index2, index3,
                                              formatData,
@@ -506,26 +502,372 @@ void MkTextDocument::identifyFormatData(QTextBlock &block)
 
 void MkTextDocument::identifyUnicode(QString &line) { Q_UNUSED(line); }
 
+// ---------------------------------------------------------------------------
+// ATX heading: detect "# ", "## ", "### " prefix and the optional closing
+// sequence ("## Title ##").  The closing marker is hidden via the mask.
+// ---------------------------------------------------------------------------
 void MkTextDocument::insertHeadingData(const QString &text, int &index1,
                                        FormatData *formatData)
 {
+    int headingLen = 0;
+    QString headingSymbol;
+
     if (HEADING1_SYMBOL == text.left(HEADING1_SYMBOL_COUNT))
     {
-        formatData->addFormat(0, HEADING1_SYMBOL_COUNT - 1,
-                              QString(HEADING1_SYMBOL));
-        index1 += HEADING1_SYMBOL_COUNT;
+        headingLen = HEADING1_SYMBOL_COUNT;
+        headingSymbol = QString(HEADING1_SYMBOL);
     }
     else if (HEADING2_SYMBOL == text.left(HEADING2_SYMBOL_COUNT))
     {
-        formatData->addFormat(0, HEADING2_SYMBOL_COUNT - 1,
-                              QString(HEADING2_SYMBOL));
-        index1 += HEADING2_SYMBOL_COUNT;
+        headingLen = HEADING2_SYMBOL_COUNT;
+        headingSymbol = QString(HEADING2_SYMBOL);
     }
     else if (HEADING3_SYMBOL == text.left(HEADING3_SYMBOL_COUNT))
     {
-        formatData->addFormat(0, HEADING3_SYMBOL_COUNT - 1,
-                              QString(HEADING3_SYMBOL));
-        index1 += HEADING3_SYMBOL_COUNT;
+        headingLen = HEADING3_SYMBOL_COUNT;
+        headingSymbol = QString(HEADING3_SYMBOL);
+    }
+    else
+    {
+        return;
+    }
+
+    formatData->addFormat(0, headingLen - 1, headingSymbol);
+    index1 += headingLen;
+
+    // Trailing spaces are not part of the heading content.
+    int contentEnd = text.length() - 1;
+    while (contentEnd >= headingLen && text.at(contentEnd) == QLatin1Char(' '))
+    {
+        --contentEnd;
+    }
+
+    if (contentEnd < headingLen || text.at(contentEnd) != QLatin1Char('#'))
+        return;
+
+    int hashStart = contentEnd;
+    while (hashStart >= headingLen && text.at(hashStart) == QLatin1Char('#'))
+    {
+        --hashStart;
+    }
+    ++hashStart;
+
+    // The closing marker must be preceded by a space (or be at the very
+    // beginning of the heading body).  This prevents "# C# Programming"
+    // from being parsed as having a closer.
+    const bool validCloser = (hashStart == headingLen) ||
+                             (text.at(hashStart - 1) == QLatin1Char(' '));
+
+    if (!validCloser)
+        return;
+
+    int hideStart = hashStart;
+    if (hideStart > headingLen && text.at(hideStart - 1) == QLatin1Char(' '))
+    {
+        --hideStart;
+    }
+
+    formatData->addMaskRange(hideStart, text.length() - 1);
+}
+
+// ---------------------------------------------------------------------------
+// Inline code spans.
+// ---------------------------------------------------------------------------
+QVector<QPair<int, int>>
+MkTextDocument::parseInlineCodeSpans(const QString &text,
+                                     FormatData *formatData)
+{
+    QVector<QPair<int, int>> ranges;
+    const int n = text.length();
+    int i = 0;
+
+    while (i < n)
+    {
+        if (text.at(i) != QLatin1Char('`'))
+        {
+            ++i;
+            continue;
+        }
+
+        int openerLen = 0;
+        while (i + openerLen < n && text.at(i + openerLen) == QLatin1Char('`'))
+        {
+            ++openerLen;
+        }
+
+        // Skip fenced code block markers at the start of the line.
+        if (i == 0 && openerLen >= 3)
+        {
+            i += openerLen;
+            continue;
+        }
+
+        const int openerStart = i;
+        const int contentStart = i + openerLen;
+
+        int j = contentStart;
+        int closerStart = -1;
+        while (j < n)
+        {
+            if (text.at(j) != QLatin1Char('`'))
+            {
+                ++j;
+                continue;
+            }
+            int closerLen = 0;
+            while (j + closerLen < n &&
+                   text.at(j + closerLen) == QLatin1Char('`'))
+            {
+                ++closerLen;
+            }
+            if (closerLen == openerLen)
+            {
+                closerStart = j;
+                break;
+            }
+            j += closerLen;
+        }
+
+        if (closerStart < 0)
+        {
+            // Unmatched backtick - treat as literal text.
+            i = contentStart;
+            continue;
+        }
+
+        const int contentEnd = closerStart - 1;
+
+        formatData->addMaskRange(openerStart, contentStart - 1);
+        formatData->addMaskRange(closerStart, closerStart + openerLen - 1);
+
+        if (contentStart <= contentEnd)
+        {
+            formatData->addFormat(contentStart, contentEnd,
+                                  QString(CODE_SPAN_SYMBOL));
+            ranges.append(qMakePair(contentStart, contentEnd));
+        }
+
+        i = closerStart + openerLen;
+    }
+
+    return ranges;
+}
+
+// ---------------------------------------------------------------------------
+// CommonMark delimiter-stack emphasis parser.
+//
+// See https://spec.commonmark.org/0.30/#emphasis-and-strong-emphasis
+//
+// The algorithm:
+//   1. Tokenize the block into delimiter runs of '*', '_', or '~~'.
+//   2. For each run compute canOpen / canClose.
+//      * For '*' and '_' the CommonMark left-flanking / right-flanking rules
+//        are used (with the extra intraword rule for '_').
+//      * For '~~' a LOOSE rule is used: any tilde run can open or close,
+//        regardless of surrounding whitespace.  This matches the project's
+//        expected behaviour (see the MkTextDocument strikethrough tests)
+//        and deliberately differs from the stricter GFM rule.
+//   3. Walk forward.  When a closer is found, search the opener stack from
+//      the top down for a matching opener.  Consume min(opener.remaining,
+//      closer.remaining) characters, using 2 if possible (strong) and 1
+//      otherwise (emphasis).  Apply the CommonMark "multiple of 3" rule
+//      to '*' and '_' only.
+//   4. Record each match as an addFormat() call with the appropriate symbol
+//      ("*", "**", or "~~").  addFormat() appends the FragmentData and sets
+//      the mask bits for the delimiter characters.
+// ---------------------------------------------------------------------------
+void MkTextDocument::parseEmphasis(
+    const QString &text,
+    const QVector<QPair<int, int>> &protectedRanges,
+    FormatData *formatData)
+{
+    struct DelimRun
+    {
+        int pos = 0;
+        int len = 0;
+        QChar ch;
+        bool canOpen = false;
+        bool canClose = false;
+        int frontUsed = 0;  // chars consumed from the front (as closer)
+        int backUsed = 0;   // chars consumed from the back  (as opener)
+        int remaining() const { return len - frontUsed - backUsed; }
+    };
+
+    const int n = text.length();
+    if (n == 0)
+        return;
+
+    // --- Step 1: tokenize ---------------------------------------------------
+    QVector<DelimRun> runs;
+    for (int i = 0; i < n;)
+    {
+        const QChar c = text.at(i);
+        if (c != QLatin1Char('*') && c != QLatin1Char('_') &&
+            c != QLatin1Char('~'))
+        {
+            ++i;
+            continue;
+        }
+
+        int j = i;
+        while (j < n && text.at(j) == c)
+            ++j;
+        const int runLen = j - i;
+
+        // GFM strikethrough requires at least two tildes; a single tilde
+        // is treated as literal text.
+        if (c == QLatin1Char('~') && runLen < 2)
+        {
+            i = j;
+            continue;
+        }
+
+        // Skip delimiter runs that are entirely inside a code span.
+        if (isProtectedPosition(i, protectedRanges))
+        {
+            i = j;
+            continue;
+        }
+
+        DelimRun run;
+        run.pos = i;
+        run.len = runLen;
+        run.ch = c;
+
+        const QChar before = (i > 0) ? text.at(i - 1) : QChar();
+        const QChar after = (j < n) ? text.at(j) : QChar();
+
+        const bool beforeWs = before.isNull() || before.isSpace();
+        const bool afterWs = after.isNull() || after.isSpace();
+        const bool beforePunct =
+            !before.isNull() && isUnicodePunctuation(before);
+        const bool afterPunct = !after.isNull() && isUnicodePunctuation(after);
+
+        const bool leftFlanking =
+            !afterWs && (!afterPunct || beforeWs || beforePunct);
+        const bool rightFlanking =
+            !beforeWs && (!beforePunct || afterWs || afterPunct);
+
+        if (c == QLatin1Char('_'))
+        {
+            run.canOpen = leftFlanking && (!rightFlanking || beforePunct);
+            run.canClose = rightFlanking && (!leftFlanking || afterPunct);
+        }
+        else if (c == QLatin1Char('~'))
+        {
+            // LOOSE matching for strikethrough: any tilde run can open or
+            // close, regardless of surrounding whitespace.  This matches
+            // the project's expected behaviour for inputs such as
+            // "~~ ~~strike~~" -> " strike~~".  It deliberately differs from
+            // the stricter GFM rule (which requires the delimiter not to be
+            // adjacent to whitespace on the relevant side).
+            run.canOpen = true;
+            run.canClose = true;
+        }
+        else
+        {
+            // '*' - standard CommonMark flanking rules.
+            run.canOpen = leftFlanking;
+            run.canClose = rightFlanking;
+        }
+
+        runs.append(run);
+        i = j;
+    }
+
+    // --- Step 2: match openers and closers ----------------------------------
+    QVector<int> openerStack;  // indices into runs
+
+    for (int i = 0; i < runs.size(); ++i)
+    {
+        DelimRun &closer = runs[i];
+
+        if (closer.canClose)
+        {
+            while (closer.remaining() > 0)
+            {
+                // Find the nearest matching opener on the stack.
+                int matchIdx = -1;
+                for (int k = openerStack.size() - 1; k >= 0; --k)
+                {
+                    const int oi = openerStack[k];
+                    DelimRun &opener = runs[oi];
+                    if (opener.ch != closer.ch)
+                        continue;
+                    if (opener.remaining() <= 0)
+                        continue;
+
+                    // CommonMark rule 9/10: if either the opener or the
+                    // closer can both open and close, the sum of the run
+                    // lengths must not be a multiple of 3 unless both are
+                    // multiples of 3.  Applies to '*' and '_' only; the
+                    // strikethrough rule is not affected.
+                    if (opener.ch != QLatin1Char('~'))
+                    {
+                        const bool openerBoth =
+                            opener.canOpen && opener.canClose;
+                        const bool closerBoth =
+                            closer.canOpen && closer.canClose;
+                        if ((openerBoth || closerBoth) &&
+                            (opener.len + closer.len) % 3 == 0 &&
+                            opener.len % 3 != 0 && closer.len % 3 != 0)
+                        {
+                            continue;
+                        }
+                    }
+
+                    matchIdx = k;
+                    break;
+                }
+
+                if (matchIdx < 0)
+                    break;
+
+                const int oi = openerStack[matchIdx];
+                DelimRun &opener = runs[oi];
+
+                // Decide how many characters to consume.
+                int useCount;
+                if (opener.ch == QLatin1Char('~'))
+                {
+                    if (opener.remaining() < 2 || closer.remaining() < 2)
+                        break;
+                    useCount = 2;
+                }
+                else
+                {
+                    const int avail =
+                        qMin(opener.remaining(), closer.remaining());
+                    useCount = (avail >= 2) ? 2 : 1;
+                }
+
+                // Opener consumes from its back end; closer from its front.
+                const int openerCharStart =
+                    opener.pos + opener.len - opener.backUsed - useCount;
+                const int closerCharStart = closer.pos + closer.frontUsed;
+
+                opener.backUsed += useCount;
+                closer.frontUsed += useCount;
+
+                const QString symbol =
+                    (opener.ch == QLatin1Char('~'))
+                        ? QStringLiteral("~~")
+                        : (useCount == 2) ? QStringLiteral("**")
+                                          : QStringLiteral("*");
+
+                // addFormat() appends the FragmentData for the content and
+                // sets the mask bits for the delimiter characters.
+                formatData->addFormat(openerCharStart, closerCharStart, symbol);
+
+                if (opener.remaining() <= 0)
+                    openerStack.remove(matchIdx);
+            }
+        }
+
+        // A run that can open and still has characters left becomes an
+        // opener for future closers.
+        if (closer.canOpen && closer.remaining() > 0)
+            openerStack.append(i);
     }
 }
 
@@ -624,6 +966,11 @@ bool MkTextDocument::convertCharacterToLinkSymbol(const QChar &single,
     return false;
 }
 
+// ---------------------------------------------------------------------------
+// Only checkbox and link markers are detected here.  Emphasis (*, _, ~~) is
+// handled by parseEmphasis(); the old three-character window heuristic for
+// emphasis has been removed.
+// ---------------------------------------------------------------------------
 void MkTextDocument::composeSymbolCombination(int length, const QString &text,
                                               int &index1, int &index2,
                                               int &index3, QString &result)
@@ -660,22 +1007,6 @@ void MkTextDocument::composeSymbolCombination(int length, const QString &text,
     result.clear();
     if (convertCharacterToLinkSymbol(text[index1], result))
         return;
-
-    result.clear();
-    convertCharacterToSymbol(text[index1], result);
-    if (result.isEmpty())
-        return;
-
-    if (index2 >= length)
-        return;
-
-    if (!convertCharacterToSymbol(text[index2], result))
-        return;
-
-    if (index3 >= length)
-        return;
-
-    convertCharacterToSymbol(text[index3], result);
 }
 
 void MkTextDocument::composeOnlyLinkSymbolCombination(int length,
@@ -781,6 +1112,9 @@ void MkTextDocument::applyMkFormat(QTextBlock &block, int start, int end,
         break;
     case FragmentData::LINK_TITLE:
         format = formatCollection.getLink();
+        break;
+    case FragmentData::CODE_SPAN:
+        format = formatCollection.getCodeSpan();
         break;
     default:
         break;
@@ -1746,8 +2080,8 @@ EditCommand::EditCommand(UndoData &data)
         this->undoSelectRange.isCheckBox = false;
         break;
 
-    case multiDelete:  // ADD: fall through together with the other
-    case checkbox:     //      multi-block edit types
+    case multiDelete:
+    case checkbox:
     case enterPressed:
     case multiEdit:
         this->undoText = data.oldText;
@@ -1768,7 +2102,7 @@ void EditCommand::undo()
         doc->setUndoRedoText(undoSelectRange.currentBlockNo, this->undoText);
         break;
 
-    case multiDelete:  // ADD
+    case multiDelete:
     case checkbox:
     case enterPressed:
     case multiEdit:
@@ -1797,7 +2131,7 @@ void EditCommand::redo()
         doc->setUndoRedoText(this->blockNo, this->redoText);
         break;
 
-    case multiDelete:  // ADD
+    case multiDelete:
     case checkbox:
     case enterPressed:
     case multiEdit:
@@ -1814,15 +2148,10 @@ void EditCommand::redo()
     viewSelectRangeStore->scrollValue = this->undoSelectRange.scrollValue;
 }
 
-// ---------------------------------------------------------------------------
-// Force every block to be shown so all markdown symbols become visible.
-// Mirrors what setMarkdownHandle(false) does, but without changing the
-// persistent markdown-enabled state.
-// ---------------------------------------------------------------------------
 void MkTextDocument::revealAllMkSymbols()
 {
     if (disableMarkdownState)
-        return;  // already showing raw text, nothing to do
+        return;
 
     for (int num = 0; num < this->blockCount(); ++num)
     {

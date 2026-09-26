@@ -936,8 +936,9 @@ TEST_CASE(
     QString selectedTextAfterUndo = edit.textCursor().selectedText();
     selectedTextAfterUndo.replace(paragraphSeparator, '\n');
 
-    // FIX: observed "\n*itali" (leading newline U+000A), not "*itali".
-    REQUIRE("\n*itali" == selectedTextAfterUndo);
+    // FIXED: the selection now correctly starts at position 4 of block 0,
+    // restoring "ld**\n*itali" instead of the truncated "\n*itali".
+    REQUIRE("ld**\n*itali" == selectedTextAfterUndo);
 }
 
 TEST_CASE("MkEdit paste from clipboard into MkEdit", "[MkEdit]")
@@ -1274,8 +1275,9 @@ TEST_CASE("MkEdit selection check after double undo", "[MkEdit]")
     selectedTextAfterUndo = edit.textCursor().selectedText();
     selectedTextAfterUndo.replace(paragraphSeparator, '\n');
 
-    // FIX: observed "\n*itali" (leading newline U+000A).
-    REQUIRE("\n*itali" == selectedTextAfterUndo);
+    // FIXED: the selection now correctly starts at position 4 of block 0,
+    // restoring "ld**\n*itali" instead of the truncated "\n*itali".
+    REQUIRE("ld**\n*itali" == selectedTextAfterUndo);
 }
 
 TEST_CASE(

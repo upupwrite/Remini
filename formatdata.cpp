@@ -22,7 +22,6 @@ FormatData::~FormatData()
     qDeleteAll(linkTitleMapHidden);
     linkTitleMapHidden.clear();
 
-    // Previously missing: linkUrlMap also owns heap-allocated QStrings.
     qDeleteAll(linkUrlMap);
     linkUrlMap.clear();
 }
@@ -88,6 +87,15 @@ void FormatData::addFormat(const int start, const int end,
             mask.setBit(x, true);
         return;
     }
+    // ===== FIX: inline code span =====
+    // The caller (MkTextDocument::parseInlineCodeSpans) has already marked
+    // the backticks in the mask. We only need to emit a formatting fragment
+    // so that applyMkFormat() can apply the monospace style to the content.
+    else if (symbol == CODE_SPAN_SYMBOL)
+    {
+        formats.append(new FragmentData(start, end, FragmentData::CODE_SPAN));
+        return;
+    }
     else if (symbol == BOLD_SYMBOL_A || symbol == BOLD_SYMBOL_U)
     {
         status = FragmentData::BOLD;
@@ -127,7 +135,6 @@ int FormatData::hiddenFormatsCount() const { return hiddenFormats.count(); }
 
 const QString &FormatData::getLinkUrl(int key) const
 {
-    // Avoid dereferencing a null pointer when the key is missing.
     static const QString empty;
     const QString *value = linkMap.value(key, nullptr);
     return value ? *value : empty;
@@ -161,6 +168,18 @@ void FormatData::insertLinkText(int key, QString *linkText)
 void FormatData::setMaskSize(const int size) { mask.resize(size); }
 
 const QBitArray &FormatData::getMask() const { return mask; }
+
+// ===== FIX: helpers for external masking =====
+void FormatData::addMaskRange(const int start, const int end)
+{
+    if (mask.isEmpty())
+        return;
+
+    const int lo = qMax(0, start);
+    const int hi = qMin(end, mask.size() - 1);
+    for (int x = lo; x <= hi; ++x)
+        mask.setBit(x, true);
+}
 
 QString FormatData::getOriginalText() const { return originalText; }
 
@@ -201,7 +220,6 @@ void FormatData::addHiddenFormat(const int start, const int end,
     int last = 0;
     int hiddenBits = 0;
 
-    // Clamp start so mask[x] cannot read out of bounds.
     const int scanEnd = qMin(start, mask.count() - 1);
     for (int x = 0; x <= scanEnd; ++x)
     {
@@ -234,7 +252,7 @@ void FormatData::addMaskBit(const int start, const QString &startSymbol,
                             const int end, const QString &endSymbol)
 {
     const int startLen = startSymbol.length();
-    const int endLen = endSymbol.length();  // fixed: was startSymbol.length()
+    const int endLen = endSymbol.length();
 
     for (int i = start; i < (startLen + start); ++i)
     {

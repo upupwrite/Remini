@@ -22,6 +22,13 @@
 #define LINK_SYMBOL_URL_START "(<"
 #define LINK_SYMBOL_URL_END ">)"
 
+// ===== FIX: inline code span =====
+// Internal sentinel used to route an inline code span through addFormat().
+// It is compared literally and is not expected to appear in real user text.
+// If it ever did, the early-out in addFormat() would simply add a CODE_SPAN
+// fragment (harmless), it would not corrupt the mask.
+#define CODE_SPAN_SYMBOL "__remini_internal_inline_code_span__"
+
 #define CHECKED_PIC "☑"
 #define UNCHECKED_PIC "☐"
 
@@ -46,6 +53,8 @@ public:
         HEADING3,
         LINK_TITLE,
         LINK_URL,
+        // ===== FIX: inline code span =====
+        CODE_SPAN,
     };
     FragmentData(const int start, const int end, const FormatSymbol status)
     {
@@ -118,6 +127,12 @@ public:
 
     void setMaskSize(const int size);
     const QBitArray &getMask() const;
+
+    // ===== FIX: helpers for external masking =====
+    // Mark [start, end] inclusive as hidden characters. Used by the ATX
+    // closing-sequence and inline code span parsers, which both need to
+    // hide characters that are NOT associated with a FragmentData.
+    void addMaskRange(const int start, const int end);
 
     QString getOriginalText() const;
     void setOriginalText(const QString &newOriginalText);

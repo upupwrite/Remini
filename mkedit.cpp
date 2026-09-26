@@ -537,6 +537,14 @@ void MkEdit::inputMethodEvent(QInputMethodEvent *event)
 
 void MkEdit::showSelectionAfterUndo()
 {
+    // Mark the "first calculation" as done BEFORE emitting, so that
+    // postCursorPosChangedSignal() does not overwrite the start position
+    // with the current cursor position (which would truncate the restored
+    // selection).  undoRedoSelectRange already holds the exact range that
+    // was active when the undone edit was performed, so we must use it
+    // verbatim.
+    isCalcuatedForStartPos = true;
+
     selectRange = undoRedoSelectRange;
 
     emit cursorPosChanged(&selectRange, this->isReadOnly());
