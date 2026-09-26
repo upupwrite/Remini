@@ -8,6 +8,7 @@
 #include <QAbstractTextDocumentLayout>
 #include <QDesktopServices>
 #include <QObject>
+#include <QPair>
 #include <QRegularExpression>
 #include <QRegularExpressionMatch>
 #include <QRegularExpressionMatchIterator>
@@ -18,6 +19,8 @@
 #include <QTextEdit>
 #include <QUndoCommand>
 #include <QUndoStack>
+#include <QVector>
+#include <QtGlobal>
 #include <set>
 
 #define MAXIMUM_FONT_SIZE 30
@@ -39,6 +42,15 @@ public:
         link.setFontUnderline(true);
         link.setUnderlineColor(linkColor);
         link.setForeground(linkColor);
+
+        // Qt 6.1 deprecated setFontFamily() in favour of setFontFamilies().
+        // Qt 5 has no setFontFamilies(), so pick the API at compile time.
+#if QT_VERSION >= QT_VERSION_CHECK(6, 1, 0)
+        codeSpan.setFontFamilies({QStringLiteral("Monospace")});
+#else
+        codeSpan.setFontFamily(QStringLiteral("Monospace"));
+#endif
+        codeSpan.setFontFixedPitch(true);
     }
 
     QTextCharFormat *getBold() { return &bold; };
@@ -48,6 +60,7 @@ public:
     QTextCharFormat *getHeading2() { return &heading2; };
     QTextCharFormat *getHeading3() { return &heading3; };
     QTextCharFormat *getLink() { return &link; };
+    QTextCharFormat *getCodeSpan() { return &codeSpan; };
     QColor linkColor;
 
 private:
@@ -58,6 +71,7 @@ private:
     QTextCharFormat heading2;
     QTextCharFormat heading3;
     QTextCharFormat link;
+    QTextCharFormat codeSpan;
 };
 
 #define NO_SELECTION_POS -1
@@ -126,8 +140,6 @@ public:
     QString getFileName() const;
     QTextDocument *getRawDocument();
 
-    // Reveal every hidden markdown symbol in the document.
-    // Used when the user presses Ctrl+A so they can see / copy the raw text.
     void revealAllMkSymbols();
 
 public slots:
@@ -228,6 +240,22 @@ private:
     void identifyUnicode(QString &line);
     void insertHeadingData(const QString &text, int &index1,
                            FormatData *formatData);
+
+    // Detect backtick-delimited inline code spans (`` `code` ``) inside a
+    // single block.  Backticks are hidden via FormatData::addMaskRange() and
+    // a CODE_SPAN fragment is registered for the content.  Returns the list
+    // of [contentStart, contentEnd] pairs (inclusive) so that the emphasis
+    // parser can skip those ranges.
+    QVector<QPair<int, int>>
+    parseInlineCodeSpans(const QString &text, FormatData *formatData);
+
+    // CommonMark delimiter-stack emphasis parser.  Handles * and _ (strong
+    // and emphasis) plus GFM ~~ (strikethrough).  Delimiters within the
+    // supplied protected ranges (inline code spans) are ignored.
+    void parseEmphasis(const QString &text,
+                       const QVector<QPair<int, int>> &protectedRanges,
+                       FormatData *formatData);
+
     void insertFormatData(FormatLocation &loc, int &index1, int &index2,
                           int &index3, FormatData *formatData,
                           const QString &test);
@@ -283,7 +311,7 @@ enum EditType
 {
     undoRedo = 0,
     singleEdit,
-    multiDelete,  // ADD: multi-block deletion in one shot
+    multiDelete,
     checkbox,
     enterPressed,
     multiEdit,
