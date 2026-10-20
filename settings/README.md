@@ -19,7 +19,7 @@ This directory owns the Qt settings dialog and its Designer form.
 ## Development notes
 
 - Keep the UI form focused on layout; put behavior in the dialog implementation.
-- Keep persistent setting keys stable unless adding an explicit migration. Existing keys include `font`, `fontsize`, `stretch`, `weight`, `markdown`, `linewrap`, `vaultPath`, and `theme`.
+- Keep persistent setting keys stable unless adding an explicit migration. The dialog uses `font`, `fontsize`, `stretch`, `weight`, `markdown`, `linewrap`, `vaultPath`, and `theme`. `ViewsHandler` also has legacy vault-path handling through the `vault` key and optional `config.ini`; treat this as existing compatibility behavior rather than silently renaming keys.
 - Use `QSignalBlocker` when restoring control values so initialization does not trigger preview or application handlers unexpectedly.
 - Theme application is intentionally deferred after acceptance because rebuilding the application style while the dialog is visible can cause unnecessary re-polishing.
 - The settings dialog currently shares a few settings concerns with `ViewsHandler`; a follow-up extraction of a dedicated settings repository would further reduce duplicated `QSettings` access.
