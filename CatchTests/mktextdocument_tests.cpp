@@ -1152,3 +1152,14 @@ TEST_CASE(
     QString text = doc.toPlainText();
     REQUIRE("bold italic \n **new line**" == text);
 }
+
+TEST_CASE("MkTextDocument inline triple backticks do not start a code block",
+          "[MkTextDocument]")
+{
+    MkTextDocument doc;
+    doc.setPlainText("literal ``` inside a line\\nordinary text");
+
+    REQUIRE(dynamic_cast<BlockData *>(doc.begin().userData()) == nullptr);
+    REQUIRE(dynamic_cast<BlockData *>(doc.begin().next().userData()) == nullptr);
+}
+
