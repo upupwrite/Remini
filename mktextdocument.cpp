@@ -2217,7 +2217,21 @@ EditCommand::EditCommand(UndoData &data)
 
     case singleEdit:
         this->undoText = data.oldBlock;
-        this->redoText = data.doc->findBlockByNumber(data.blockNo).text();
+        // The view can contain rendered image objects rather than their
+        // Markdown source. Keep redo snapshots in the raw document as well.
+        if (doc)
+        {
+            QTextBlock sourceBlock =
+                doc->getRawDocument()->findBlockByNumber(data.blockNo);
+            this->redoText = sourceBlock.isValid()
+                                 ? sourceBlock.text()
+                                 : QString();
+        }
+        else
+        {
+            this->redoText =
+                data.doc->findBlockByNumber(data.blockNo).text();
+        }
         this->undoSelectRange.isCheckBox = false;
         break;
 
