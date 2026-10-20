@@ -17,6 +17,9 @@
 #define HEADING1_SYMBOL "# "
 #define HEADING2_SYMBOL "## "
 #define HEADING3_SYMBOL "### "
+#define HEADING4_SYMBOL "#### "
+#define HEADING5_SYMBOL "##### "
+#define HEADING6_SYMBOL "###### "
 #define LINK_SYMBOL_TITLE_START "["
 #define LINK_SYMBOL_TITLE_END "]"
 #define LINK_SYMBOL_MID "](<"
@@ -37,6 +40,9 @@
 #define HEADING1_SYMBOL_COUNT 2
 #define HEADING2_SYMBOL_COUNT 3
 #define HEADING3_SYMBOL_COUNT 4
+#define HEADING4_SYMBOL_COUNT 5
+#define HEADING5_SYMBOL_COUNT 6
+#define HEADING6_SYMBOL_COUNT 7
 
 class FragmentData : public BlockSupport
 {
@@ -52,6 +58,9 @@ public:
         HEADING1,
         HEADING2,
         HEADING3,
+        HEADING4,
+        HEADING5,
+        HEADING6,
         LINK_TITLE,
         LINK_URL,
         // ===== FIX: inline code span =====
