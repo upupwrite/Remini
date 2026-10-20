@@ -1771,12 +1771,27 @@ void MkTextDocument::showMKSymbolsFromCurrentSelectedBlocks(
                 if (newData)
                 {
                     newData->setFormatted(true);
+                    // Apply text-only formatting first. Image rendering replaces
+                    // Markdown source with an inline object and changes later offsets.
                     for (QVector<FragmentData *>::Iterator it =
                              newData->formats_begin();
                          it < newData->formats_end(); it++)
                     {
-                        applyMkFormat(block, (*it)->getStart(), (*it)->getEnd(),
-                                      (*it)->getStatus(), formatCollection);
+                        if ((*it)->getStatus() != FragmentData::IMAGE)
+                            applyMkFormat(block, (*it)->getStart(),
+                                          (*it)->getEnd(), (*it)->getStatus(),
+                                          formatCollection);
+                    }
+
+                    // Render images right-to-left so replacing one image cannot
+                    // invalidate the source offsets of images earlier in the line.
+                    for (auto it = newData->formats_rbegin();
+                         it != newData->formats_rend(); ++it)
+                    {
+                        if ((*it)->getStatus() == FragmentData::IMAGE)
+                            applyMkFormat(block, (*it)->getStart(),
+                                          (*it)->getEnd(), (*it)->getStatus(),
+                                          formatCollection);
                     }
 
                     if (isHidden)
