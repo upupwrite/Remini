@@ -1334,3 +1334,45 @@ TEST_CASE("MkTextDocument preserves multiple images when syncing a rendered bloc
 
     REQUIRE(doc.getRawDocument()->toPlainText() == source);
 }
+
+
+TEST_CASE("MkTextDocument supports image destinations with spaces and parentheses",
+          "[MkTextDocument][regression]")
+{
+    MkTextDocument doc;
+    const QString source =
+        "![space](<images/cat photo (1).png>) and "
+        "![paren](images/cat_(2).png)";
+    doc.setPlainText(source);
+
+    FormatData *data = dynamic_cast<FormatData *>(doc.begin().userData());
+    REQUIRE(data != nullptr);
+
+    QStringList imageUrls;
+    for (auto it = data->formats_begin(); it != data->formats_end(); ++it)
+    {
+        if ((*it)->getStatus() == FragmentData::IMAGE)
+            imageUrls.append(data->getImageUrl((*it)->getStart()));
+    }
+    REQUIRE(imageUrls.size() == 2);
+    REQUIRE(imageUrls.at(0) == "images/cat photo (1).png");
+    REQUIRE(imageUrls.at(1) == "images/cat_(2).png");
+
+    doc.applyMkSingleBlockHandle(0);
+    doc.saveSingleRawBlockHandler(0);
+    REQUIRE(doc.getRawDocument()->toPlainText() == source);
+}
+
+TEST_CASE("MkTextDocument ignores escaped image openers",
+          "[MkTextDocument][regression]")
+{
+    MkTextDocument doc;
+    doc.setPlainText(R"(Not an image: \![cat](cat.png))");
+
+    FormatData *data = dynamic_cast<FormatData *>(doc.begin().userData());
+    if (data)
+    {
+        for (auto it = data->formats_begin(); it != data->formats_end(); ++it)
+            REQUIRE((*it)->getStatus() != FragmentData::IMAGE);
+    }
+}
