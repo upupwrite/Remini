@@ -812,10 +812,16 @@ void MkEdit::preUndoSetup()
     undoData.oldSelectRange.currentBlockNo = this->textCursor().blockNumber();
     undoData.oldSelectRange.currentposInBlock =
         this->textCursor().positionInBlock();
-    undoData.oldBlock =
-        this->document()
-            ->findBlockByNumber(this->textCursor().blockNumber())
-            .text();
+    // Capture the source Markdown, not the rendered QTextBlock. Images are
+    // represented as QTextImageFormat objects in the view, so block().text()
+    // can contain an object-replacement character instead of ![alt](path).
+    QTextBlock sourceBlock =
+        mkDoc
+            ? mkDoc->getRawDocument()->findBlockByNumber(
+                  this->textCursor().blockNumber())
+            : this->document()->findBlockByNumber(
+                  this->textCursor().blockNumber());
+    undoData.oldBlock = sourceBlock.isValid() ? sourceBlock.text() : QString();
 
     qDebug() << "[preUndoSetup] editType =" << undoData.editType
              << "oldText.len =" << undoData.oldText.length()
