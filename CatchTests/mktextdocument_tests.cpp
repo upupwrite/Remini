@@ -1196,3 +1196,20 @@ TEST_CASE("MkTextDocument does not parse image syntax inside inline code",
     for (auto it = data->formats_begin(); it != data->formats_end(); ++it)
         REQUIRE((*it)->getStatus() != FragmentData::IMAGE);
 }
+
+TEST_CASE("Code blocks and inline fragments share BlockSupport",
+          "[MkTextDocument]")
+{
+    BlockData codeBlock(BlockData::content);
+    codeBlock.setStartBlock(2);
+    codeBlock.setEndBlock(5);
+
+    BlockSupport *codeSupport = &codeBlock;
+    REQUIRE(codeSupport->getStart() == 2);
+    REQUIRE(codeSupport->getEnd() == 5);
+
+    FragmentData imageFragment(4, 17, FragmentData::IMAGE);
+    BlockSupport *imageSupport = &imageFragment;
+    REQUIRE(imageSupport->getStart() == 4);
+    REQUIRE(imageSupport->getEnd() == 17);
+}
