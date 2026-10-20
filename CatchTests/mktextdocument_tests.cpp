@@ -1163,3 +1163,36 @@ TEST_CASE("MkTextDocument inline triple backticks do not start a code block",
     REQUIRE(dynamic_cast<BlockData *>(doc.begin().next().userData()) == nullptr);
 }
 
+
+TEST_CASE("MkTextDocument recognizes basic Markdown images", "[MkTextDocument]")
+{
+    MkTextDocument doc;
+    doc.setPlainText("Before ![a cat](images/cat.png) after");
+
+    FormatData *data = dynamic_cast<FormatData *>(doc.begin().userData());
+    REQUIRE(data != nullptr);
+
+    bool foundImage = false;
+    for (auto it = data->formats_begin(); it != data->formats_end(); ++it)
+    {
+        if ((*it)->getStatus() == FragmentData::IMAGE)
+        {
+            foundImage = true;
+            REQUIRE(data->getImageUrl((*it)->getStart()) == "images/cat.png");
+            REQUIRE(data->getImageAltText((*it)->getStart()) == "a cat");
+        }
+    }
+    REQUIRE(foundImage);
+}
+
+TEST_CASE("MkTextDocument does not parse image syntax inside inline code",
+          "[MkTextDocument]")
+{
+    MkTextDocument doc;
+    doc.setPlainText("`![cat](cat.png)`");
+
+    FormatData *data = dynamic_cast<FormatData *>(doc.begin().userData());
+    REQUIRE(data != nullptr);
+    for (auto it = data->formats_begin(); it != data->formats_end(); ++it)
+        REQUIRE((*it)->getStatus() != FragmentData::IMAGE);
+}
