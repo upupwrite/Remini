@@ -81,9 +81,8 @@ MkTextDocument::MkTextDocument(QObject *parent) : QTextDocument{parent}
 
 void MkTextDocument::setPlainText(const QString &text)
 {
-    if (text.isEmpty())
-        return;
-
+    // QTextDocument::setPlainText("") is a valid reset operation. Do not
+    // return early: callers use an empty string to clear an existing file.
     QTextDocument::setPlainText(text);
     this->rawDocument.setPlainText(text);
     identifyUserData();
@@ -141,6 +140,7 @@ void MkTextDocument::clear()
     checkMarkPositions.clear();
     linkPositions.clear();
     QTextDocument::clear();
+    rawDocument.clear();
 }
 
 void MkTextDocument::setFilePath(const QString &filePath)
@@ -209,8 +209,14 @@ void MkTextDocument::cursorPosChangedHandle(SelectRange *const range,
 void MkTextDocument::removeAllMkDataHandle(int blockNo)
 {
     Q_UNUSED(blockNo);
+
+    // clear() resets both the rendered and source documents. Preserve the
+    // source first because this operation is only meant to reveal Markdown
+    // syntax in the rendered document, not discard the source.
+    const QString sourceMarkdown = rawDocument.toPlainText();
     this->clear();
-    QTextDocument::setPlainText(this->rawDocument.toPlainText());
+    QTextDocument::setPlainText(sourceMarkdown);
+    rawDocument.setPlainText(sourceMarkdown);
 }
 
 void MkTextDocument::applyAllMkDataHandle(int blockNumber)
