@@ -32,28 +32,25 @@ void FormatData::addFormat(const int start, const int end,
 {
     FragmentData::FormatSymbol status = FragmentData::BOLD;
 
-    if (symbol == HEADING1_SYMBOL)
+    if (symbol == HEADING1_SYMBOL || symbol == HEADING2_SYMBOL ||
+        symbol == HEADING3_SYMBOL || symbol == HEADING4_SYMBOL ||
+        symbol == HEADING5_SYMBOL || symbol == HEADING6_SYMBOL)
     {
-        formats.append(new FragmentData(start, end, FragmentData::HEADING1));
-        mask.setBit(0, true);
-        mask.setBit(1, true);
-        return;
-    }
-    else if (symbol == HEADING2_SYMBOL)
-    {
-        formats.append(new FragmentData(start, end, FragmentData::HEADING2));
-        mask.setBit(0, true);
-        mask.setBit(1, true);
-        mask.setBit(2, true);
-        return;
-    }
-    else if (symbol == HEADING3_SYMBOL)
-    {
-        formats.append(new FragmentData(start, end, FragmentData::HEADING3));
-        mask.setBit(0, true);
-        mask.setBit(1, true);
-        mask.setBit(2, true);
-        mask.setBit(3, true);
+        FragmentData::FormatSymbol headingStatus = FragmentData::HEADING1;
+        if (symbol == HEADING2_SYMBOL)
+            headingStatus = FragmentData::HEADING2;
+        else if (symbol == HEADING3_SYMBOL)
+            headingStatus = FragmentData::HEADING3;
+        else if (symbol == HEADING4_SYMBOL)
+            headingStatus = FragmentData::HEADING4;
+        else if (symbol == HEADING5_SYMBOL)
+            headingStatus = FragmentData::HEADING5;
+        else if (symbol == HEADING6_SYMBOL)
+            headingStatus = FragmentData::HEADING6;
+
+        formats.append(new FragmentData(start, end, headingStatus));
+        for (int x = qMax(0, start); x <= end && x < mask.size(); ++x)
+            mask.setBit(x, true);
         return;
     }
     else if (symbol == CHECKED_SYMBOL_END)
