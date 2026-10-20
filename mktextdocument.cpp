@@ -32,29 +32,214 @@ bool isProtectedPosition(int pos, const QVector<QPair<int, int>> &ranges)
     return false;
 }
 
+// A small inline-image scanner shared by rendering and raw-Markdown sync.
+// Unlike the old regular expression, it accepts angle-bracket destinations
+// containing spaces and balanced parentheses in ordinary destinations.
+struct MarkdownImageExpression
+{
+    int start = -1;
+    int end = -1;  // exclusive
+    QString source;
+    QString url;
+    QString alt;
+};
+
+bool isMarkdownEscaped(const QString &text, int position)
+{
+    int backslashes = 0;
+    for (int i = position - 1; i >= 0 && text.at(i) == QLatin1Char('\\'); --i)
+        ++backslashes;
+    return (backslashes % 2) != 0;
+}
+
+QVector<MarkdownImageExpression> parseMarkdownImages(const QString &text)
+{
+    QVector<MarkdownImageExpression> images;
+    int i = 0;
+    while (i + 3 < text.size())
+    {
+        if (text.at(i) != QLatin1Char('!') ||
+            text.at(i + 1) != QLatin1Char('[') ||
+            isMarkdownEscaped(text, i))
+        {
+            ++i;
+            continue;
+        }
+
+        const int altStart = i + 2;
+        int cursor = altStart;
+        int bracketDepth = 0;
+        int altEnd = -1;
+        for (; cursor < text.size(); ++cursor)
+        {
+            if (isMarkdownEscaped(text, cursor))
+                continue;
+            const QChar c = text.at(cursor);
+            if (c == QLatin1Char('['))
+                ++bracketDepth;
+            else if (c == QLatin1Char(']'))
+            {
+                if (bracketDepth == 0)
+                {
+                    altEnd = cursor;
+                    break;
+                }
+                --bracketDepth;
+            }
+        }
+
+        if (altEnd < 0 || altEnd + 1 >= text.size() ||
+            text.at(altEnd + 1) != QLatin1Char('('))
+        {
+            ++i;
+            continue;
+        }
+
+        const int destinationStart = altEnd + 2;
+        int urlStart = destinationStart;
+        int urlEnd = -1;
+        int expressionEnd = -1;
+
+        if (destinationStart < text.size() &&
+            text.at(destinationStart) == QLatin1Char('<'))
+        {
+            urlStart = destinationStart + 1;
+            int angleEnd = urlStart;
+            for (; angleEnd < text.size(); ++angleEnd)
+            {
+                if (text.at(angleEnd) == QLatin1Char('>') &&
+                    !isMarkdownEscaped(text, angleEnd))
+                    break;
+            }
+            if (angleEnd >= text.size())
+            {
+                ++i;
+                continue;
+            }
+            urlEnd = angleEnd;
+            int close = angleEnd + 1;
+            bool inTitle = false;
+            QChar titleQuote;
+            for (; close < text.size(); ++close)
+            {
+                const QChar c = text.at(close);
+                if (isMarkdownEscaped(text, close))
+                    continue;
+                if (inTitle)
+                {
+                    if (c == titleQuote)
+                        inTitle = false;
+                }
+                else if (c == QLatin1Char('"') || c == QLatin1Char('\''))
+                {
+                    inTitle = true;
+                    titleQuote = c;
+                }
+                else if (c == QLatin1Char(')'))
+                    break;
+            }
+            if (close >= text.size())
+            {
+                ++i;
+                continue;
+            }
+            expressionEnd = close + 1;
+        }
+        else
+        {
+            int depth = 0;
+            cursor = destinationStart;
+            for (; cursor < text.size(); ++cursor)
+            {
+                if (isMarkdownEscaped(text, cursor))
+                    continue;
+                const QChar c = text.at(cursor);
+                if (c.isSpace() && depth == 0)
+                    break;
+                if (c == QLatin1Char('('))
+                    ++depth;
+                else if (c == QLatin1Char(')'))
+                {
+                    if (depth == 0)
+                        break;
+                    --depth;
+                }
+            }
+
+            urlEnd = cursor;
+            if (cursor < text.size() && text.at(cursor) == QLatin1Char(')'))
+            {
+                expressionEnd = cursor + 1;
+            }
+            else
+            {
+                // A title may follow a destination separated by whitespace.
+                bool inTitle = false;
+                QChar titleQuote;
+                int close = cursor;
+                for (; close < text.size(); ++close)
+                {
+                    const QChar c = text.at(close);
+                    if (isMarkdownEscaped(text, close))
+                        continue;
+                    if (inTitle)
+                    {
+                        if (c == titleQuote)
+                            inTitle = false;
+                    }
+                    else if (c == QLatin1Char('"') ||
+                             c == QLatin1Char('\''))
+                    {
+                        inTitle = true;
+                        titleQuote = c;
+                    }
+                    else if (c == QLatin1Char(')'))
+                        break;
+                }
+                if (close >= text.size())
+                {
+                    ++i;
+                    continue;
+                }
+                expressionEnd = close + 1;
+            }
+        }
+
+        if (urlEnd < urlStart || expressionEnd <= i)
+        {
+            ++i;
+            continue;
+        }
+
+        MarkdownImageExpression image;
+        image.start = i;
+        image.end = expressionEnd;
+        image.source = text.mid(i, expressionEnd - i);
+        image.url = text.mid(urlStart, urlEnd - urlStart);
+        image.alt = text.mid(altStart, altEnd - altStart);
+        images.append(image);
+        i = expressionEnd;
+    }
+    return images;
+}
+
 // QTextBlock::text() exposes an inline image as U+FFFC, whereas the raw
-// document stores its Markdown syntax. Restore those image expressions when
-// syncing a rendered block back into the raw Markdown document.
+// document stores its Markdown syntax. Restore each original expression in
+// source order so valid destinations with spaces or balanced parentheses
+// survive an edit to the rendered block.
 QString restoreImageMarkdown(const QString &renderedText,
                              const QString &sourceMarkdown)
 {
-    static const QRegularExpression imageRegex(
-        QStringLiteral("!\\[([^\\]]*)\\]\\(([^\\s)]+)\\)"));
-
-    QStringList imageExpressions;
-    auto matches = imageRegex.globalMatch(sourceMarkdown);
-    while (matches.hasNext())
-        imageExpressions.append(matches.next().captured(0));
-
+    const auto images = parseMarkdownImages(sourceMarkdown);
     QString result;
     result.reserve(renderedText.size());
     int imageIndex = 0;
     for (const QChar character : renderedText)
     {
         if (character == QChar::ObjectReplacementCharacter &&
-            imageIndex < imageExpressions.size())
+            imageIndex < images.size())
         {
-            result.append(imageExpressions.at(imageIndex++));
+            result.append(images.at(imageIndex++).source);
         }
         else
         {
@@ -513,19 +698,15 @@ void MkTextDocument::identifyFormatData(QTextBlock &block)
     }
 
     // Images participate in the same per-block fragment collection as
-    // emphasis, links, and inline code. Keep detection here rather than in a
-    // parallel parser, and protect image-like text inside inline code spans.
-    static const QRegularExpression imageRegex(
-        QStringLiteral("!\\[([^\\]]*)\\]\\(([^\\s)]+)\\)"));
-    auto imageMatches = imageRegex.globalMatch(text);
-    while (imageMatches.hasNext())
+    // emphasis, links, and inline code. Protect image-like text inside code
+    // spans while supporting valid destinations with spaces and parentheses.
+    const auto imageMatches = parseMarkdownImages(text);
+    for (const auto &match : imageMatches)
     {
-        const QRegularExpressionMatch match = imageMatches.next();
         bool insideCodeSpan = false;
         for (const auto &range : codeSpanRanges)
         {
-            if (match.capturedStart() >= range.first &&
-                match.capturedStart() <= range.second)
+            if (match.start >= range.first && match.start <= range.second)
             {
                 insideCodeSpan = true;
                 break;
@@ -534,9 +715,8 @@ void MkTextDocument::identifyFormatData(QTextBlock &block)
         if (insideCodeSpan)
             continue;
 
-        formatData->addImageFormat(match.capturedStart(),
-                                   match.capturedEnd() - 1,
-                                   match.captured(2), match.captured(1));
+        formatData->addImageFormat(match.start, match.end - 1,
+                                   match.url, match.alt);
     }
 
     if (!formatData->isEmpty())
