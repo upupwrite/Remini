@@ -1224,6 +1224,22 @@ TEST_CASE("MkTextDocument recognizes basic Markdown images", "[MkTextDocument]")
     REQUIRE(foundImage);
 }
 
+TEST_CASE("MkTextDocument preserves image Markdown when syncing a rendered block",
+          "[MkTextDocument]")
+{
+    MkTextDocument doc;
+    const QString source = "Before ![a cat](images/cat.png) after";
+    doc.setPlainText(source);
+
+    // Apply the inline image formatting, which replaces the Markdown
+    // expression in the visible document with a QTextImageFormat object.
+    doc.applyMkSingleBlockHandle(0);
+    REQUIRE(doc.begin().text().contains(QChar::ObjectReplacementCharacter));
+
+    doc.saveSingleRawBlockHandler(0);
+    REQUIRE(doc.getRawDocument()->toPlainText() == source);
+}
+
 TEST_CASE("MkTextDocument does not parse image syntax inside inline code",
           "[MkTextDocument]")
 {
