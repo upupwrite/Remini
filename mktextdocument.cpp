@@ -2217,20 +2217,25 @@ EditCommand::EditCommand(UndoData &data)
 
     case singleEdit:
         this->undoText = data.oldBlock;
-        // The view can contain rendered image objects rather than their
-        // Markdown source. Keep redo snapshots in the raw document as well.
-        if (doc)
         {
-            QTextBlock sourceBlock =
-                doc->getRawDocument()->findBlockByNumber(data.blockNo);
-            this->redoText = sourceBlock.isValid()
-                                 ? sourceBlock.text()
+            const QTextBlock viewBlock =
+                data.doc->findBlockByNumber(data.blockNo);
+            this->redoText = viewBlock.isValid()
+                                 ? viewBlock.text()
                                  : QString();
-        }
-        else
-        {
-            this->redoText =
-                data.doc->findBlockByNumber(data.blockNo).text();
+
+            // A rendered image is represented by U+FFFC in QTextBlock::text().
+            // In that case, use the raw Markdown snapshot so redo preserves
+            // the original ![alt](path) expression. For ordinary text edits,
+            // the view snapshot is necessary because some callers/tests may
+            // not have wired saveSingleRawBlock yet.
+            if (doc && this->redoText.contains(QChar::ObjectReplacementCharacter))
+            {
+                QTextBlock sourceBlock =
+                    doc->getRawDocument()->findBlockByNumber(data.blockNo);
+                if (sourceBlock.isValid())
+                    this->redoText = sourceBlock.text();
+            }
         }
         this->undoSelectRange.isCheckBox = false;
         break;
