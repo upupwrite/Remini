@@ -14,8 +14,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
 
-# X11 is required on Linux for the global-hotkey implementation.
-if(UNIX AND NOT APPLE)
+# The global-hotkey implementation uses X11 only on desktop Linux.
+# Do not require X11 on Android or other UNIX-like platforms.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     find_package(X11 REQUIRED)
 endif()
 
@@ -89,8 +90,8 @@ endif()
 
 target_link_libraries(Remini PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
 
-# Link X11 on Linux so windowapi.cpp can use XGrabKey / XGetInputFocus.
-if(UNIX AND NOT APPLE)
+# Link X11 only for the Linux implementation in windowapi.cpp.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_libraries(Remini PRIVATE X11::X11)
 endif()
 
