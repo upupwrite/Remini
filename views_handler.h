@@ -16,7 +16,7 @@
 #include <QTreeWidgetItem>
 
 #include "recentfilesdialog.h"
-#include "settingsdialog.h"
+#include "settings/settingsdialog.h"
 #include "textsearchworker.h"
 #include "togglebutton.h"
 #include "ui_mainwindow.h"
