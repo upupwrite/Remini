@@ -22,6 +22,10 @@ void BlockData::setStartBlock(const int start) { startBlock = start; }
 
 void BlockData::setEndBlock(const int end) { endBlock = end; }
 
+int BlockData::getStart() const { return startBlock; }
+
+int BlockData::getEnd() const { return endBlock; }
+
 int BlockData::getStartBlock() const { return startBlock; }
 
 int BlockData::getEndBlock() const { return endBlock; }

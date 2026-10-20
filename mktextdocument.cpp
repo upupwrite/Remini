@@ -1,6 +1,7 @@
 #include "mktextdocument.h"
 
 #include <QChar>
+#include <QTextImageFormat>
 
 // ---------------------------------------------------------------------------
 // File-local helpers
@@ -470,6 +471,33 @@ void MkTextDocument::identifyFormatData(QTextBlock &block)
             }
         }
         incrementIndexes(index1, index2, index3);
+    }
+
+    // Images participate in the same per-block fragment collection as
+    // emphasis, links, and inline code. Keep detection here rather than in a
+    // parallel parser, and protect image-like text inside inline code spans.
+    static const QRegularExpression imageRegex(
+        QStringLiteral("!\\[([^\\]]*)\\]\\(([^\\s)]+)\\)"));
+    auto imageMatches = imageRegex.globalMatch(text);
+    while (imageMatches.hasNext())
+    {
+        const QRegularExpressionMatch match = imageMatches.next();
+        bool insideCodeSpan = false;
+        for (const auto &range : codeSpanRanges)
+        {
+            if (match.capturedStart() >= range.first &&
+                match.capturedStart() <= range.second)
+            {
+                insideCodeSpan = true;
+                break;
+            }
+        }
+        if (insideCodeSpan)
+            continue;
+
+        formatData->addImageFormat(match.capturedStart(),
+                                   match.capturedEnd() - 1,
+                                   match.captured(2), match.captured(1));
     }
 
     if (!formatData->isEmpty())
@@ -1112,6 +1140,33 @@ void MkTextDocument::applyMkFormat(QTextBlock &block, int start, int end,
     case FragmentData::CODE_SPAN:
         format = formatCollection.getCodeSpan();
         break;
+    case FragmentData::IMAGE:
+    {
+        // Replace the complete Markdown image expression with a QText image
+        // object. The rawDocument retains the original Markdown for editing.
+        FormatData *data = dynamic_cast<FormatData *>(block.userData());
+        if (!data)
+            return;
+
+        const QString destination = data->getImageUrl(start);
+        if (destination.isEmpty())
+            return;
+
+        QTextImageFormat imageFormat;
+        imageFormat.setName(destination);
+        imageFormat.setToolTip(data->getImageAltText(start));
+
+        // TODO: provide asynchronous network loading for HTTP(S) destinations.
+        // QTextDocument can render registered/local resources, but remote image
+        // fetching needs an explicit resource provider and failure handling.
+        QTextCursor imageCursor(this);
+        imageCursor.setPosition(block.position() + start);
+        imageCursor.setPosition(
+            block.position() + qMin(end + 1, block.length() - 1),
+            QTextCursor::KeepAnchor);
+        imageCursor.insertImage(imageFormat);
+        return;
+    }
     default:
         break;
     }
@@ -1704,12 +1759,27 @@ void MkTextDocument::showMKSymbolsFromCurrentSelectedBlocks(
                 if (newData)
                 {
                     newData->setFormatted(true);
+                    // Apply text-only formatting first. Image rendering replaces
+                    // Markdown source with an inline object and changes later offsets.
                     for (QVector<FragmentData *>::Iterator it =
                              newData->formats_begin();
                          it < newData->formats_end(); it++)
                     {
-                        applyMkFormat(block, (*it)->getStart(), (*it)->getEnd(),
-                                      (*it)->getStatus(), formatCollection);
+                        if ((*it)->getStatus() != FragmentData::IMAGE)
+                            applyMkFormat(block, (*it)->getStart(),
+                                          (*it)->getEnd(), (*it)->getStatus(),
+                                          formatCollection);
+                    }
+
+                    // Render images right-to-left so replacing one image cannot
+                    // invalidate the source offsets of images earlier in the line.
+                    for (auto it = newData->formats_rbegin();
+                         it != newData->formats_rend(); ++it)
+                    {
+                        if ((*it)->getStatus() == FragmentData::IMAGE)
+                            applyMkFormat(block, (*it)->getStart(),
+                                          (*it)->getEnd(), (*it)->getStatus(),
+                                          formatCollection);
                     }
 
                     if (isHidden)

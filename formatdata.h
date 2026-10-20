@@ -4,6 +4,7 @@
 #include <QBitArray>
 #include <QTextBlockUserData>
 #include <QVector>
+#include "blocksupport.h"
 
 #define BOLD_SYMBOL_A "**"
 #define BOLD_SYMBOL_U "__"
@@ -37,7 +38,7 @@
 #define HEADING2_SYMBOL_COUNT 3
 #define HEADING3_SYMBOL_COUNT 4
 
-class FragmentData
+class FragmentData : public BlockSupport
 {
 public:
     enum FormatSymbol
@@ -55,6 +56,7 @@ public:
         LINK_URL,
         // ===== FIX: inline code span =====
         CODE_SPAN,
+        IMAGE,
     };
     FragmentData(const int start, const int end, const FormatSymbol status)
     {
@@ -62,8 +64,8 @@ public:
         this->end = end;
         this->status = status;
     }
-    int getStart() const;
-    int getEnd() const;
+    int getStart() const override;
+    int getEnd() const override;
     FormatSymbol getStatus() const;
     void setStatus(FormatSymbol status);
 
@@ -82,6 +84,11 @@ public:
     void addFormat(const int start, const int end, const QString &symbol,
                    const QString *linkUrl = nullptr,
                    const QString *linkTitle = nullptr);
+    void addImageFormat(const int start, const int end, const QString &url,
+                        const QString &altText);
+    QString getImageUrl(int start) const;
+    QString getImageAltText(int start) const;
+
     void addHiddenFormat(const int start, const int end,
                          const FragmentData::FormatSymbol &status,
                          const QString &linkUrl, const QString &linkTitle);
@@ -147,6 +154,8 @@ private:
     QMap<int, QString *> linkTitleMapHidden;
     QMap<int, QString *> linkUrlMap;
     QMap<int, QString *> linkTitleMap;
+    QMap<int, QString> imageUrlMap;
+    QMap<int, QString> imageAltTextMap;
     QBitArray mask;
     QString originalText;
     bool hidden;

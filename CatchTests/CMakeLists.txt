@@ -30,6 +30,7 @@ add_executable(${PROJECT_NAME}
     RecentFilesDialog_Tests.cpp
 
     ${CMAKE_SOURCE_DIR}/blockdata.cpp
+    ${CMAKE_SOURCE_DIR}/blocksupport.h
     ${CMAKE_SOURCE_DIR}/linedata.cpp
     ${CMAKE_SOURCE_DIR}/formatdata.cpp
     ${CMAKE_SOURCE_DIR}/mkedit.cpp

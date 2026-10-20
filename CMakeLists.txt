@@ -33,6 +33,7 @@ set(PROJECT_SOURCES
     mktextdocument.h
     mktextdocument.cpp
     blockdata.h
+    blocksupport.h
     blockdata.cpp
     linedata.h
     linedata.cpp
