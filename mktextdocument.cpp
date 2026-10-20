@@ -32,6 +32,38 @@ bool isProtectedPosition(int pos, const QVector<QPair<int, int>> &ranges)
     return false;
 }
 
+// QTextBlock::text() exposes an inline image as U+FFFC, whereas the raw
+// document stores its Markdown syntax. Restore those image expressions when
+// syncing a rendered block back into the raw Markdown document.
+QString restoreImageMarkdown(const QString &renderedText,
+                             const QString &sourceMarkdown)
+{
+    static const QRegularExpression imageRegex(
+        QStringLiteral("!\\[([^\\]]*)\\]\\(([^\\s)]+)\\)"));
+
+    QStringList imageExpressions;
+    auto matches = imageRegex.globalMatch(sourceMarkdown);
+    while (matches.hasNext())
+        imageExpressions.append(matches.next().captured(0));
+
+    QString result;
+    result.reserve(renderedText.size());
+    int imageIndex = 0;
+    for (const QChar character : renderedText)
+    {
+        if (character == QChar::ObjectReplacementCharacter &&
+            imageIndex < imageExpressions.size())
+        {
+            result.append(imageExpressions.at(imageIndex++));
+        }
+        else
+        {
+            result.append(character);
+        }
+    }
+    return result;
+}
+
 }  // namespace
 
 MkTextDocument::MkTextDocument(QObject *parent) : QTextDocument{parent}
@@ -1655,12 +1687,20 @@ void MkTextDocument::saveRawDocumentHandler()
 
 void MkTextDocument::saveSingleRawBlockHandler(int blockNumber)
 {
+    const QTextBlock rawBlock = this->rawDocument.findBlockByNumber(blockNumber);
+    const QTextBlock viewBlock = this->findBlockByNumber(blockNumber);
+    if (!rawBlock.isValid() || !viewBlock.isValid())
+        return;
+
+    const QString sourceMarkdown = rawBlock.text();
+    const QString updatedMarkdown =
+        restoreImageMarkdown(viewBlock.text(), sourceMarkdown);
+
     QTextCursor rawCursor(&this->rawDocument);
-    rawCursor.setPosition(
-        this->rawDocument.findBlockByNumber(blockNumber).position());
+    rawCursor.setPosition(rawBlock.position());
     rawCursor.movePosition(QTextCursor::StartOfBlock, QTextCursor::MoveAnchor);
     rawCursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
-    rawCursor.insertText(this->findBlockByNumber(blockNumber).text());
+    rawCursor.insertText(updatedMarkdown);
 }
 
 void MkTextDocument::saveEnterPressRawBlockHandler(int blockNumber,
@@ -2217,7 +2257,26 @@ EditCommand::EditCommand(UndoData &data)
 
     case singleEdit:
         this->undoText = data.oldBlock;
-        this->redoText = data.doc->findBlockByNumber(data.blockNo).text();
+        {
+            const QTextBlock viewBlock =
+                data.doc->findBlockByNumber(data.blockNo);
+            this->redoText = viewBlock.isValid()
+                                 ? viewBlock.text()
+                                 : QString();
+
+            // A rendered image is represented by U+FFFC in QTextBlock::text().
+            // In that case, use the raw Markdown snapshot so redo preserves
+            // the original ![alt](path) expression. For ordinary text edits,
+            // the view snapshot is necessary because some callers/tests may
+            // not have wired saveSingleRawBlock yet.
+            if (doc && this->redoText.contains(QChar::ObjectReplacementCharacter))
+            {
+                QTextBlock sourceBlock =
+                    doc->getRawDocument()->findBlockByNumber(data.blockNo);
+                if (sourceBlock.isValid())
+                    this->redoText = sourceBlock.text();
+            }
+        }
         this->undoSelectRange.isCheckBox = false;
         break;
 
