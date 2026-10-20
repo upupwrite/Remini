@@ -249,6 +249,13 @@ private:
     QVector<QPair<int, int>>
     parseInlineCodeSpans(const QString &text, FormatData *formatData);
 
+    // Parse the basic Markdown image form ![alt text](destination). The
+    // current implementation intentionally supports destinations without
+    // whitespace or unescaped parentheses; see TODO in the parser.
+    void parseMarkdownImages(
+        const QString &text, FormatData *formatData,
+        const QVector<QPair<int, int>> &protectedRanges);
+
     // CommonMark delimiter-stack emphasis parser.  Handles * and _ (strong
     // and emphasis) plus GFM ~~ (strikethrough).  Delimiters within the
     // supplied protected ranges (inline code spans) are ignored.
