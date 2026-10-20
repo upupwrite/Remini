@@ -1164,6 +1164,45 @@ TEST_CASE("MkTextDocument inline triple backticks do not start a code block",
 }
 
 
+TEST_CASE("MkTextDocument supports all six ATX heading levels",
+          "[MkTextDocument]")
+{
+    MkTextDocument doc;
+    doc.setPlainText(
+        "# H1\n## H2\n### H3\n#### H4\n##### H5\n###### H6\n"
+        "   ### Indented H3 ###\n####### not a heading\n#not a heading");
+
+    const FragmentData::FormatSymbol expected[] = {
+        FragmentData::HEADING1, FragmentData::HEADING2,
+        FragmentData::HEADING3, FragmentData::HEADING4,
+        FragmentData::HEADING5, FragmentData::HEADING6,
+        FragmentData::HEADING3
+    };
+
+    for (int i = 0; i < 7; ++i)
+    {
+        QTextBlock block = doc.findBlockByNumber(i);
+        FormatData *data = dynamic_cast<FormatData *>(block.userData());
+        REQUIRE(data != nullptr);
+
+        bool foundHeading = false;
+        for (auto it = data->formats_begin(); it != data->formats_end(); ++it)
+        {
+            if ((*it)->getStatus() >= FragmentData::HEADING1 &&
+                (*it)->getStatus() <= FragmentData::HEADING6)
+            {
+                REQUIRE((*it)->getStatus() == expected[i]);
+                foundHeading = true;
+                break;
+            }
+        }
+        REQUIRE(foundHeading);
+    }
+
+    REQUIRE(doc.findBlockByNumber(7).userData() == nullptr);
+    REQUIRE(doc.findBlockByNumber(8).userData() == nullptr);
+}
+
 TEST_CASE("MkTextDocument recognizes basic Markdown images", "[MkTextDocument]")
 {
     MkTextDocument doc;
