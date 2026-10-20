@@ -688,7 +688,7 @@ TEST_CASE("MkTextDocument strikethrough with false positive at the front",
     doc.cursorPosChangedHandle(&range);
 
     QString text = edit.toPlainText();
-    REQUIRE(" strike~~" == text);
+    REQUIRE("~~ strike" == text);
 }
 
 TEST_CASE("MkTestDocument single checkbox unchecked", "[MkTextDocument]")
