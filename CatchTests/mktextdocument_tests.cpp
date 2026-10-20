@@ -1376,3 +1376,25 @@ TEST_CASE("MkTextDocument ignores escaped image openers",
             REQUIRE((*it)->getStatus() != FragmentData::IMAGE);
     }
 }
+
+
+TEST_CASE("MkTextDocument keeps the correct image after deleting an earlier image",
+          "[MkTextDocument][regression]")
+{
+    MkTextDocument doc;
+    const QString source =
+        "![first](images/first.png) middle ![second](images/second.png)";
+    doc.setPlainText(source);
+    doc.applyMkSingleBlockHandle(0);
+
+    QTextCursor cursor(&doc);
+    cursor.setPosition(doc.begin().position());
+    cursor.movePosition(QTextCursor::NextCharacter, QTextCursor::KeepAnchor);
+    REQUIRE(cursor.selectedText() == QString(QChar::ObjectReplacementCharacter));
+    cursor.removeSelectedText();
+
+    doc.saveSingleRawBlockHandler(0);
+
+    REQUIRE(doc.getRawDocument()->toPlainText() ==
+            " middle ![second](images/second.png)");
+}
