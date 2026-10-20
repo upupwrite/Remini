@@ -39,20 +39,22 @@ public:
         heading1.setFontPointSize(fontSize * 1.65);
         heading2.setFontPointSize(fontSize * 1.42);
         heading3.setFontPointSize(fontSize * 1.28);
-        heading4.setFontPointSize(fontSize * 1.16);
-        heading5.setFontPointSize(fontSize * 1.08);
+        // Keep H4 and H5 close to the established H3/H4 styles so they remain
+        // clearly readable instead of becoming too small and low-contrast.
+        heading4.setFontPointSize(fontSize * 1.28);
+        heading5.setFontPointSize(fontSize * 1.16);
         heading6.setFontPointSize(fontSize);
         heading1.setFontWeight(QFont::ExtraBold);
         heading2.setFontWeight(QFont::Bold);
         heading3.setFontWeight(QFont::DemiBold);
         heading4.setFontWeight(QFont::DemiBold);
-        heading5.setFontWeight(QFont::Medium);
+        heading5.setFontWeight(QFont::DemiBold);
         heading6.setFontWeight(QFont::DemiBold);
         heading1.setForeground(QColor(QStringLiteral("#315F91")));
         heading2.setForeground(QColor(QStringLiteral("#3C6F9F")));
         heading3.setForeground(QColor(QStringLiteral("#477DA5")));
-        heading4.setForeground(QColor(QStringLiteral("#4F7188")));
-        heading5.setForeground(QColor(QStringLiteral("#596C7A")));
+        heading4.setForeground(QColor(QStringLiteral("#477DA5")));
+        heading5.setForeground(QColor(QStringLiteral("#4F7188")));
         heading6.setForeground(QColor(QStringLiteral("#65727C")));
         heading6.setFontItalic(true);
         link.setFontUnderline(true);
