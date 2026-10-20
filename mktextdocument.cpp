@@ -227,19 +227,63 @@ QVector<MarkdownImageExpression> parseMarkdownImages(const QString &text)
 // document stores its Markdown syntax. Restore each original expression in
 // source order so valid destinations with spaces or balanced parentheses
 // survive an edit to the rendered block.
-QString restoreImageMarkdown(const QString &renderedText,
+QString restoreImageMarkdown(const QTextBlock &renderedBlock,
                              const QString &sourceMarkdown)
 {
+    const QString renderedText = renderedBlock.text();
     const auto images = parseMarkdownImages(sourceMarkdown);
+    QVector<bool> used(images.size(), false);
+
     QString result;
     result.reserve(renderedText.size());
-    int imageIndex = 0;
-    for (const QChar character : renderedText)
+    for (int offset = 0; offset < renderedText.size(); ++offset)
     {
-        if (character == QChar::ObjectReplacementCharacter &&
-            imageIndex < images.size())
+        const QChar character = renderedText.at(offset);
+        if (character != QChar::ObjectReplacementCharacter)
         {
-            result.append(images.at(imageIndex++).source);
+            result.append(character);
+            continue;
+        }
+
+        // Match each surviving rendered image to its original Markdown by
+        // destination and alt-text tooltip. Sequential replacement alone is
+        // incorrect when an earlier image is deleted: it would assign that
+        // deleted image's Markdown to the next image.
+        QTextCursor imageCursor(renderedBlock);
+        imageCursor.setPosition(renderedBlock.position() + offset);
+        imageCursor.movePosition(QTextCursor::NextCharacter,
+                                 QTextCursor::KeepAnchor);
+        const QTextImageFormat imageFormat =
+            imageCursor.charFormat().toImageFormat();
+        const QString imageUrl = imageFormat.name();
+        const QString imageAlt = imageFormat.toolTip();
+
+        int matchIndex = -1;
+        for (int i = 0; i < images.size(); ++i)
+        {
+            if (used.at(i) || images.at(i).url != imageUrl)
+                continue;
+            if (images.at(i).alt == imageAlt)
+            {
+                matchIndex = i;
+                break;
+            }
+            if (matchIndex < 0)
+                matchIndex = i;
+        }
+
+        if (matchIndex >= 0)
+        {
+            used[matchIndex] = true;
+            result.append(images.at(matchIndex).source);
+        }
+        else if (!imageUrl.isEmpty())
+        {
+            // An image inserted from outside the Markdown source has no
+            // original expression to restore. Serialize its URL rather than
+            // accidentally consuming another image's source expression.
+            result.append(QStringLiteral("![](<") + imageUrl +
+                          QStringLiteral(">)"));
         }
         else
         {
@@ -1880,7 +1924,7 @@ void MkTextDocument::saveSingleRawBlockHandler(int blockNumber)
 
     const QString sourceMarkdown = rawBlock.text();
     const QString updatedMarkdown =
-        restoreImageMarkdown(viewBlock.text(), sourceMarkdown);
+        restoreImageMarkdown(viewBlock, sourceMarkdown);
 
     QTextCursor rawCursor(&this->rawDocument);
     rawCursor.setPosition(rawBlock.position());
