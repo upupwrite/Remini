@@ -39,7 +39,7 @@ QString restoreImageMarkdown(const QString &renderedText,
                              const QString &sourceMarkdown)
 {
     static const QRegularExpression imageRegex(
-        QStringLiteral("!\\\\[([^\\\\]]*)\\\\]\\\\(([^\\\\s)]+)\\\\)"));
+        QStringLiteral("!\\[([^\\]]*)\\]\\(([^\\s)]+)\\)"));
 
     QStringList imageExpressions;
     auto matches = imageRegex.globalMatch(sourceMarkdown);
