@@ -1,19 +1,38 @@
 #include "settingsdialog.h"
 
 #include <QDir>
-#include <QFile>
 #include <QFileDialog>
-#include <QFontDatabase>
 #include <QIntValidator>
 #include <QSettings>
 #include <QSignalBlocker>
 #include <QStringList>
-#include <QTextStream>
 #include <QTimer>
 
 #include "mktextdocument.h"
 #include "theme.h"
 #include "ui_settingsdialog.h"
+
+const QString previewText = QStringLiteral(
+    "The header file declares several type definitions that guarantee a "
+    "specified bit-size on all platforms supported by Qt for various basic "
+    "types, for example qint8 which is a signed char guaranteed to be 8-bit on "
+    "all platforms supported by Qt. The header file also declares the "
+    "qlonglong type definition for long long int ( __int64 on Windows). "
+    "Several convenience type definitions are declared: qreal for double or "
+    "float, uchar for unsigned char, uint for unsigned int, ulong for unsigned "
+    "long and ushort for unsigned short.\n"
+    "\"Finally, the QtMsgType definition identifies the various messages that "
+    "can be generated and sent to a Qt message handler; \"QtMessageHandler is "
+    "a type definition for a pointer to a function with the signature void "
+    "myMessageHandler(QtMsgType, const QMessageLogContext &, const char *). "
+    "QMessageLogContext class contains the line, file, and function the "
+    "message was logged at. This information is created by the QMessageLogger "
+    "class. initialize the new thread before starting its event loop, or to "
+    "run parallel code without an event loop."
+    "//Comment texts examples. "
+    "\n"
+    "cmake -G \"Visual Studio 17 2022\" -A x64 -S path_to_source -B "
+    "\"build64\"");
 
 // ---------------------------------------------------------------------------
 // Default monospace font per platform.
@@ -531,33 +550,4 @@ void SettingsDialog::show()
 
     // Finally, show the dialog.
     QDialog::show();
-}
-
-const QString SettingsDialog::getVaultRootPath()
-{
-    const QString currentPath = QDir::currentPath();
-    // QDir::filePath() handles the separator, avoiding "path"+"file"
-    // concatenation bugs when CONFIG_FILE_NAME has no leading slash.
-    const QString filePath = QDir(currentPath).filePath(CONFIG_FILE_NAME);
-    QFile file(filePath);
-
-    if (file.exists())
-    {
-        if (file.open(QIODevice::ReadOnly | QIODevice::Text))
-        {
-            QTextStream stream(&file);
-            vaultRootPath = stream.readAll();
-        }
-    }
-    else
-    {
-        if (file.open(QIODevice::WriteOnly))
-        {
-            QTextStream stream(&file);
-            stream << currentPath;
-            vaultRootPath = currentPath;
-        }
-    }
-    file.close();
-    return vaultRootPath;
 }

@@ -52,9 +52,9 @@ set(PROJECT_SOURCES
     startuptext.h
     recentfilesdialog.h
     recentfilesdialog.cpp
-    settingsdialog.h
-    settingsdialog.cpp
-    settingsdialog.ui
+    settings/settingsdialog.h
+    settings/settingsdialog.cpp
+    settings/settingsdialog.ui
     togglebutton.h
     togglebutton.cpp
 

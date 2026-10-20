@@ -17,7 +17,7 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 # Since the tests live in a subdirectory but the .ui files live in the project
 # root, the search path must be extended or `ui_mainwindow.h` / 
 # `ui_settingsdialog.h` will never be generated.
-set(CMAKE_AUTOUIC_SEARCH_PATHS ${CMAKE_SOURCE_DIR})
+set(CMAKE_AUTOUIC_SEARCH_PATHS ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/settings)
 
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets Gui Test)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Gui Test)
@@ -40,7 +40,7 @@ add_executable(${PROJECT_NAME}
     ${CMAKE_SOURCE_DIR}/navigationview.cpp
     ${CMAKE_SOURCE_DIR}/navigationmodel.cpp
     ${CMAKE_SOURCE_DIR}/recentfilesdialog.cpp
-    ${CMAKE_SOURCE_DIR}/settingsdialog.cpp
+    ${CMAKE_SOURCE_DIR}/settings/settingsdialog.cpp
 
     # FIX: views_handler.cpp instantiates ToggleButton and owns a
     # TextSearchWorker member, so both translation units must be linked,
@@ -51,7 +51,7 @@ add_executable(${PROJECT_NAME}
 
     # FIX: add the .ui files explicitly so AUTOUIC has something to chew on.
     ${CMAKE_SOURCE_DIR}/mainwindow.ui
-    ${CMAKE_SOURCE_DIR}/settingsdialog.ui
+    ${CMAKE_SOURCE_DIR}/settings/settingsdialog.ui
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE
