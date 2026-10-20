@@ -1113,8 +1113,8 @@ void MkTextDocument::resetTextBlockFormat(QTextBlock block)
     cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
     cursor.setCharFormat(format);
 
-    // Heading spacing is a rendered-view effect. Restore the default block
-    // format when the user returns to the editable Markdown source line.
+    // Reset previous heading spacing before reformatting the line. If it is
+    // still a heading, applyMkFormat() will apply the matching style again.
     FormatData *data = dynamic_cast<FormatData *>(block.userData());
     bool isHeading = false;
     if (data)
