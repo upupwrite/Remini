@@ -1,6 +1,7 @@
 #include "mktextdocument.h"
 
 #include <QChar>
+#include <QTextImageFormat>
 
 // ---------------------------------------------------------------------------
 // File-local helpers
@@ -472,6 +473,10 @@ void MkTextDocument::identifyFormatData(QTextBlock &block)
         incrementIndexes(index1, index2, index3);
     }
 
+    // Add images after text-format fragments so replacing image syntax with an
+    // inline object cannot shift positions used by earlier formatting ranges.
+    parseMarkdownImages(text, formatData, codeSpanRanges);
+
     if (!formatData->isEmpty())
     {
         for (auto it = formatData->formats_begin();
@@ -499,6 +504,41 @@ void MkTextDocument::identifyFormatData(QTextBlock &block)
             }
         }
         block.setUserData(formatData);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Basic inline Markdown images: ![alternative text](destination)
+// ---------------------------------------------------------------------------
+void MkTextDocument::parseMarkdownImages(
+    const QString &text, FormatData *formatData,
+    const QVector<QPair<int, int>> &protectedRanges)
+{
+    // TODO: implement the full CommonMark destination grammar, including
+    // escaped parentheses, nested parentheses, optional titles, and escaped
+    // image markers. This conservative form supports common URL/path values.
+    static const QRegularExpression imageRegex(
+        QStringLiteral(R"(!\\[([^\\]]*)\\]\\(([^\\s)]+)\\))"));
+
+    auto isInsideCodeSpan = [&protectedRanges](int pos) {
+        for (const auto &range : protectedRanges) {
+            if (pos >= range.first && pos <= range.second)
+                return true;
+        }
+        return false;
+    };
+
+    auto matches = imageRegex.globalMatch(text);
+    while (matches.hasNext()) {
+        const QRegularExpressionMatch match = matches.next();
+        if (isInsideCodeSpan(match.capturedStart()))
+            continue;
+
+        const int start = match.capturedStart();
+        const int end = match.capturedEnd() - 1;
+        const QString altText = match.captured(1);
+        const QString destination = match.captured(2);
+        formatData->addImageFormat(start, end, destination, altText);
     }
 }
 
@@ -1112,6 +1152,33 @@ void MkTextDocument::applyMkFormat(QTextBlock &block, int start, int end,
     case FragmentData::CODE_SPAN:
         format = formatCollection.getCodeSpan();
         break;
+    case FragmentData::IMAGE:
+    {
+        // Replace the complete Markdown image expression with a QText image
+        // object. The rawDocument retains the original Markdown for editing.
+        FormatData *data = dynamic_cast<FormatData *>(block.userData());
+        if (!data)
+            return;
+
+        const QString destination = data->getImageUrl(start);
+        if (destination.isEmpty())
+            return;
+
+        QTextImageFormat imageFormat;
+        imageFormat.setName(destination);
+        imageFormat.setToolTip(data->getImageAltText(start));
+
+        // TODO: provide asynchronous network loading for HTTP(S) destinations.
+        // QTextDocument can render registered/local resources, but remote image
+        // fetching needs an explicit resource provider and failure handling.
+        QTextCursor imageCursor(this);
+        imageCursor.setPosition(block.position() + start);
+        imageCursor.setPosition(
+            block.position() + qMin(end + 1, block.length() - 1),
+            QTextCursor::KeepAnchor);
+        imageCursor.insertImage(imageFormat);
+        return;
+    }
     default:
         break;
     }
