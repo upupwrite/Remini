@@ -8,6 +8,8 @@
 #include <QStyle>
 #include <QStyleFactory>
 #include <QTimer>
+#include <QSplitter>
+#include <QSplitterHandle>
 
 #include "theme.h"
 
@@ -18,6 +20,17 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+
+    // Make the file-navigation sidebar resizable with the mouse. The splitter
+    // already separates the sidebar and editor; a wider handle makes it easy
+    // to find and drag, including on high-DPI displays.
+    ui->splitter->setHandleWidth(6);
+    ui->splitter->setChildrenCollapsible(false);
+    ui->uiLeftPane->setMinimumWidth(150);
+    ui->uiRightPane->setMinimumWidth(250);
+    if (QSplitterHandle *handle = ui->splitter->handle(1))
+        handle->setCursor(Qt::SplitHCursor);
+
     setup_views(this, *ui);
 
     // ------------------------------------------------------------------
