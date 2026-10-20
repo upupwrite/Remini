@@ -477,7 +477,7 @@ void MkTextDocument::identifyFormatData(QTextBlock &block)
     // emphasis, links, and inline code. Keep detection here rather than in a
     // parallel parser, and protect image-like text inside inline code spans.
     static const QRegularExpression imageRegex(
-        QStringLiteral("!\\\\[([^\\\\]]*)\\\\]\\\\(([^\\\\s)]+)\\\\)"));
+        QStringLiteral("!\\[([^\\]]*)\\]\\(([^\\s)]+)\\)"));
     auto imageMatches = imageRegex.globalMatch(text);
     while (imageMatches.hasNext())
     {
