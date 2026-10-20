@@ -1268,3 +1268,69 @@ TEST_CASE("Code blocks and inline fragments share BlockSupport",
     REQUIRE(imageSupport->getStart() == 4);
     REQUIRE(imageSupport->getEnd() == 17);
 }
+
+
+// Regression: setting an empty document must clear both the rendered and raw
+// Markdown documents instead of leaving the previous file visible.
+TEST_CASE("MkTextDocument setPlainText empty clears existing content",
+          "[MkTextDocument][regression]")
+{
+    MkTextDocument doc;
+    doc.setPlainText("old content");
+    REQUIRE(doc.toPlainText() == "old content");
+    REQUIRE(doc.getRawDocument()->toPlainText() == "old content");
+
+    doc.setPlainText(QString());
+
+    REQUIRE(doc.toPlainText().isEmpty());
+    REQUIRE(doc.getRawDocument()->toPlainText().isEmpty());
+}
+
+// clear() is a public reset operation, so neither document may retain stale
+// source text after the visible document has been cleared.
+TEST_CASE("MkTextDocument clear resets rendered and raw documents",
+          "[MkTextDocument][regression]")
+{
+    MkTextDocument doc;
+    doc.setPlainText("**content**");
+
+    doc.clear();
+
+    REQUIRE(doc.toPlainText().isEmpty());
+    REQUIRE(doc.getRawDocument()->toPlainText().isEmpty());
+}
+
+// removeAllMkDataHandle() temporarily reveals Markdown syntax. It must preserve
+// the raw source while clearing rendered formatting metadata.
+TEST_CASE("MkTextDocument removeAllMkData preserves raw Markdown",
+          "[MkTextDocument][regression]")
+{
+    MkTextDocument doc;
+    const QString source = "Before ![cat](cat.png) and **bold**";
+    doc.setPlainText(source);
+    doc.applyMkSingleBlockHandle(0);
+    REQUIRE(doc.begin().text().contains(QChar::ObjectReplacementCharacter));
+
+    doc.removeAllMkDataHandle(0);
+
+    REQUIRE(doc.toPlainText() == source);
+    REQUIRE(doc.getRawDocument()->toPlainText() == source);
+}
+
+// Multiple images in one block must be restored in source order when the
+// rendered block is synchronized back into the raw Markdown document.
+TEST_CASE("MkTextDocument preserves multiple images when syncing a rendered block",
+          "[MkTextDocument][regression]")
+{
+    MkTextDocument doc;
+    const QString source =
+        "![first](images/first.png) middle ![second](images/second.png)";
+    doc.setPlainText(source);
+    doc.applyMkSingleBlockHandle(0);
+
+    REQUIRE(doc.begin().text().count(QChar::ObjectReplacementCharacter) == 2);
+
+    doc.saveSingleRawBlockHandler(0);
+
+    REQUIRE(doc.getRawDocument()->toPlainText() == source);
+}
