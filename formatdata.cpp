@@ -211,6 +211,24 @@ int FormatData::getCalculatedCursorPos(const int posInBlock)
     return posInBlock + addedCharacters;
 }
 
+void FormatData::addImageFormat(const int start, const int end,
+                                const QString &url, const QString &altText)
+{
+    formats.append(new FragmentData(start, end, FragmentData::IMAGE));
+    imageUrlMap.insert(start, url);
+    imageAltTextMap.insert(start, altText);
+}
+
+QString FormatData::getImageUrl(int start) const
+{
+    return imageUrlMap.value(start);
+}
+
+QString FormatData::getImageAltText(int start) const
+{
+    return imageAltTextMap.value(start);
+}
+
 void FormatData::addHiddenFormat(const int start, const int end,
                                  const FragmentData::FormatSymbol &status,
                                  const QString &linkUrl,
