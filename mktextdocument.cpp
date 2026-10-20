@@ -663,10 +663,8 @@ MkTextDocument::parseInlineCodeSpans(const QString &text,
 //   2. For each run compute canOpen / canClose.
 //      * For '*' and '_' the CommonMark left-flanking / right-flanking rules
 //        are used (with the extra intraword rule for '_').
-//      * For '~~' a LOOSE rule is used: any tilde run can open or close,
-//        regardless of surrounding whitespace.  This matches the project's
-//        expected behaviour (see the MkTextDocument strikethrough tests)
-//        and deliberately differs from the stricter GFM rule.
+//      * For '~~' GFM flanking rules apply; runs need at least two tildes,
+//        and the multiple-of-3 restriction does not apply.
 //   3. Walk forward.  When a closer is found, search the opener stack from
 //      the top down for a matching opener.  Consume min(opener.remaining,
 //      closer.remaining) characters, using 2 if possible (strong) and 1
@@ -755,14 +753,10 @@ void MkTextDocument::parseEmphasis(
         }
         else if (c == QLatin1Char('~'))
         {
-            // LOOSE matching for strikethrough: any tilde run can open or
-            // close, regardless of surrounding whitespace.  This matches
-            // the project's expected behaviour for inputs such as
-            // "~~ ~~strike~~" -> " strike~~".  It deliberately differs from
-            // the stricter GFM rule (which requires the delimiter not to be
-            // adjacent to whitespace on the relevant side).
-            run.canOpen = true;
-            run.canClose = true;
+            // GFM strikethrough uses left- and right-flanking rules, requires
+            // runs of at least two tildes, and has no multiple-of-3 restriction.
+            run.canOpen = leftFlanking;
+            run.canClose = rightFlanking;
         }
         else
         {
