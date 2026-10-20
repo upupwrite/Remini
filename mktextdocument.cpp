@@ -1117,9 +1117,12 @@ void MkTextDocument::applyMkFormat(QTextBlock &block, int start, int end,
     if (format == nullptr)
         return;
 
-    int startPoint = block.position() + start;
-    int endPoint =
-        (end >= block.length()) ? block.length() - 1 : block.position() + end;
+    // FragmentData ranges use inclusive character indexes, while QTextCursor
+    // selections use an exclusive end position. Convert the end index once,
+    // and clamp it to the end of the block's text (before the paragraph mark).
+    const int startPoint = block.position() + start;
+    const int endPoint =
+        block.position() + qMin(end + 1, block.length() - 1);
 
     QTextCursor cursor(this);
     cursor.setPosition(startPoint);
