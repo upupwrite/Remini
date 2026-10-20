@@ -34,7 +34,9 @@ bool isProtectedPosition(int pos, const QVector<QPair<int, int>> &ranges)
 
 MkTextDocument::MkTextDocument(QObject *parent) : QTextDocument{parent}
 {
-    regexCodeBlock.setPattern(CODEBLOCK_SYMBOL);
+    // A fence must begin the line (CommonMark allows up to three leading spaces).
+    // Matching ``` anywhere in prose incorrectly turns following lines into code.
+    regexCodeBlock.setPattern(QStringLiteral("^ {0,3}```.*$"));
     regexHorizontalLine.setPattern(HORIZONTALLINE_SYMBOL);
     regexBulletCheckBox.setPattern("\\s*- - \\[.\\] \\s*");
     regexCheckBox.setPattern("\\s*- \\[.\\] \\s*");
