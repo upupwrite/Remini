@@ -55,6 +55,7 @@ public:
         LINK_URL,
         // ===== FIX: inline code span =====
         CODE_SPAN,
+        IMAGE,
     };
     FragmentData(const int start, const int end, const FormatSymbol status)
     {
@@ -82,6 +83,11 @@ public:
     void addFormat(const int start, const int end, const QString &symbol,
                    const QString *linkUrl = nullptr,
                    const QString *linkTitle = nullptr);
+    void addImageFormat(const int start, const int end, const QString &url,
+                        const QString &altText);
+    QString getImageUrl(int start) const;
+    QString getImageAltText(int start) const;
+
     void addHiddenFormat(const int start, const int end,
                          const FragmentData::FormatSymbol &status,
                          const QString &linkUrl, const QString &linkTitle);
@@ -147,6 +153,8 @@ private:
     QMap<int, QString *> linkTitleMapHidden;
     QMap<int, QString *> linkUrlMap;
     QMap<int, QString *> linkTitleMap;
+    QMap<int, QString> imageUrlMap;
+    QMap<int, QString> imageAltTextMap;
     QBitArray mask;
     QString originalText;
     bool hidden;
