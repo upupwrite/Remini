@@ -1,6 +1,7 @@
 #include "mktextdocument.h"
 
 #include <QChar>
+#include <QTextBlockFormat>
 #include <QTextImageFormat>
 
 // ---------------------------------------------------------------------------
@@ -533,71 +534,82 @@ void MkTextDocument::identifyFormatData(QTextBlock &block)
 void MkTextDocument::identifyUnicode(QString &line) { Q_UNUSED(line); }
 
 // ---------------------------------------------------------------------------
-// ATX heading: detect "# ", "## ", "### " prefix and the optional closing
-// sequence ("## Title ##").  The closing marker is hidden via the mask.
+// ATX headings (H1-H6), including up to three leading spaces and optional
+// closing hashes. Marker and closing syntax are hidden only in rendered view.
 // ---------------------------------------------------------------------------
 void MkTextDocument::insertHeadingData(const QString &text, int &index1,
                                        FormatData *formatData)
 {
-    int headingLen = 0;
+    int indent = 0;
+    while (indent < text.size() && indent < 3 &&
+           text.at(indent) == QLatin1Char(' '))
+        ++indent;
+
+    int hashStart = indent;
+    while (hashStart < text.size() &&
+           text.at(hashStart) == QLatin1Char('#'))
+        ++hashStart;
+
+    const int headingLevel = hashStart - indent;
+    if (headingLevel < 1 || headingLevel > 6)
+        return;
+
+    // ATX headings require whitespace or end-of-line after the opening hashes.
+    if (hashStart < text.size() &&
+        text.at(hashStart) != QLatin1Char(' ') &&
+        text.at(hashStart) != QLatin1Char('\t'))
+        return;
+
     QString headingSymbol;
-
-    if (HEADING1_SYMBOL == text.left(HEADING1_SYMBOL_COUNT))
+    switch (headingLevel)
     {
-        headingLen = HEADING1_SYMBOL_COUNT;
-        headingSymbol = QString(HEADING1_SYMBOL);
-    }
-    else if (HEADING2_SYMBOL == text.left(HEADING2_SYMBOL_COUNT))
-    {
-        headingLen = HEADING2_SYMBOL_COUNT;
-        headingSymbol = QString(HEADING2_SYMBOL);
-    }
-    else if (HEADING3_SYMBOL == text.left(HEADING3_SYMBOL_COUNT))
-    {
-        headingLen = HEADING3_SYMBOL_COUNT;
-        headingSymbol = QString(HEADING3_SYMBOL);
-    }
-    else
-    {
-        return;
+    case 1: headingSymbol = QStringLiteral(HEADING1_SYMBOL); break;
+    case 2: headingSymbol = QStringLiteral(HEADING2_SYMBOL); break;
+    case 3: headingSymbol = QStringLiteral(HEADING3_SYMBOL); break;
+    case 4: headingSymbol = QStringLiteral(HEADING4_SYMBOL); break;
+    case 5: headingSymbol = QStringLiteral(HEADING5_SYMBOL); break;
+    case 6: headingSymbol = QStringLiteral(HEADING6_SYMBOL); break;
+    default: return;
     }
 
-    formatData->addFormat(0, headingLen - 1, headingSymbol);
-    index1 += headingLen;
+    int contentStart = hashStart;
+    while (contentStart < text.size() &&
+           (text.at(contentStart) == QLatin1Char(' ') ||
+            text.at(contentStart) == QLatin1Char('\t')))
+        ++contentStart;
 
-    // Trailing spaces are not part of the heading content.
-    int contentEnd = text.length() - 1;
-    while (contentEnd >= headingLen && text.at(contentEnd) == QLatin1Char(' '))
-    {
+    // Mask indentation, hashes, and all spacing after the marker.
+    formatData->addFormat(0, contentStart - 1, headingSymbol);
+    index1 = contentStart;
+
+    // A closing hash sequence is valid only when preceded by whitespace.
+    int contentEnd = text.size() - 1;
+    while (contentEnd >= contentStart &&
+           (text.at(contentEnd) == QLatin1Char(' ') ||
+            text.at(contentEnd) == QLatin1Char('\t')))
         --contentEnd;
-    }
 
-    if (contentEnd < headingLen || text.at(contentEnd) != QLatin1Char('#'))
+    if (contentEnd < contentStart ||
+        text.at(contentEnd) != QLatin1Char('#'))
         return;
 
-    int hashStart = contentEnd;
-    while (hashStart >= headingLen && text.at(hashStart) == QLatin1Char('#'))
-    {
-        --hashStart;
-    }
-    ++hashStart;
+    int closingStart = contentEnd;
+    while (closingStart >= contentStart &&
+           text.at(closingStart) == QLatin1Char('#'))
+        --closingStart;
+    ++closingStart;
 
-    // The closing marker must be preceded by a space (or be at the very
-    // beginning of the heading body).  This prevents "# C# Programming"
-    // from being parsed as having a closer.
-    const bool validCloser = (hashStart == headingLen) ||
-                             (text.at(hashStart - 1) == QLatin1Char(' '));
-
+    const bool validCloser =
+        closingStart == contentStart ||
+        text.at(closingStart - 1).isSpace();
     if (!validCloser)
         return;
 
-    int hideStart = hashStart;
-    if (hideStart > headingLen && text.at(hideStart - 1) == QLatin1Char(' '))
-    {
+    int hideStart = closingStart;
+    if (hideStart > contentStart && text.at(hideStart - 1).isSpace())
         --hideStart;
-    }
 
-    formatData->addMaskRange(hideStart, text.length() - 1);
+    formatData->addMaskRange(hideStart, text.size() - 1);
 }
 
 // ---------------------------------------------------------------------------
@@ -1100,6 +1112,34 @@ void MkTextDocument::resetTextBlockFormat(QTextBlock block)
     cursor.setPosition(block.position());
     cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
     cursor.setCharFormat(format);
+
+    // Reset previous heading spacing before reformatting the line. If it is
+    // still a heading, applyMkFormat() will apply the matching style again.
+    FormatData *data = dynamic_cast<FormatData *>(block.userData());
+    bool isHeading = false;
+    if (data)
+    {
+        for (auto it = data->formats_begin(); it != data->formats_end(); ++it)
+        {
+            const auto status = (*it)->getStatus();
+            if (status == FragmentData::HEADING1 ||
+                status == FragmentData::HEADING2 ||
+                status == FragmentData::HEADING3 ||
+                status == FragmentData::HEADING4 ||
+                status == FragmentData::HEADING5 ||
+                status == FragmentData::HEADING6)
+            {
+                isHeading = true;
+                break;
+            }
+        }
+    }
+
+    if (isHeading)
+    {
+        QTextBlockFormat defaultBlockFormat;
+        cursor.setBlockFormat(defaultBlockFormat);
+    }
 }
 
 void MkTextDocument::applyMkFormat(QTextBlock &block, int start, int end,
@@ -1107,6 +1147,7 @@ void MkTextDocument::applyMkFormat(QTextBlock &block, int start, int end,
                                    FormatCollection &formatCollection)
 {
     QTextCharFormat *format = nullptr;
+    int headingLevel = 0;
 
     switch (status)
     {
@@ -1121,14 +1162,32 @@ void MkTextDocument::applyMkFormat(QTextBlock &block, int start, int end,
         break;
     case FragmentData::HEADING1:
         format = formatCollection.getHeading1();
+        headingLevel = 1;
         end = block.length() - 1;
         break;
     case FragmentData::HEADING2:
         format = formatCollection.getHeading2();
+        headingLevel = 2;
         end = block.length() - 1;
         break;
     case FragmentData::HEADING3:
         format = formatCollection.getHeading3();
+        headingLevel = 3;
+        end = block.length() - 1;
+        break;
+    case FragmentData::HEADING4:
+        format = formatCollection.getHeading4();
+        headingLevel = 4;
+        end = block.length() - 1;
+        break;
+    case FragmentData::HEADING5:
+        format = formatCollection.getHeading5();
+        headingLevel = 5;
+        end = block.length() - 1;
+        break;
+    case FragmentData::HEADING6:
+        format = formatCollection.getHeading6();
+        headingLevel = 6;
         end = block.length() - 1;
         break;
     case FragmentData::CHECKED_END:
@@ -1173,6 +1232,19 @@ void MkTextDocument::applyMkFormat(QTextBlock &block, int start, int end,
 
     if (format == nullptr)
         return;
+
+    if (headingLevel > 0)
+    {
+        // Clear, consistent vertical rhythm makes headings read as document
+        // structure rather than merely larger inline text.
+        static const qreal topMargins[] = {0, 12, 10, 8, 6, 5, 4};
+        static const qreal bottomMargins[] = {0, 8, 7, 6, 4, 3, 2};
+        QTextBlockFormat blockFormat = block.blockFormat();
+        blockFormat.setTopMargin(topMargins[headingLevel]);
+        blockFormat.setBottomMargin(bottomMargins[headingLevel]);
+        QTextCursor blockCursor(block);
+        blockCursor.setBlockFormat(blockFormat);
+    }
 
     // FragmentData ranges use inclusive character indexes, while QTextCursor
     // selections use an exclusive end position. Convert the end index once,
