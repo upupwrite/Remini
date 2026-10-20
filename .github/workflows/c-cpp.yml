@@ -30,7 +30,7 @@ jobs:
     runs-on: windows-2022
 
     env:
-      QT_DIR: ${{ github.workspace }}\\Remini\\Qt\\6.5.0\\msvc2019_64
+      QT_DIR: ${{ github.workspace }}\Remini\Qt\6.5.0\msvc2019_64
 
     steps:
     - name: Checkout Repo
@@ -54,7 +54,7 @@ jobs:
         host: 'windows'
         target: 'desktop'
         arch: 'win64_msvc2019_64'
-        dir: '${{ github.workspace }}\\Remini'
+        dir: '${{ github.workspace }}\Remini'
         cache: 'true'
         cache-key-prefix: 'install-qt-action'
         setup-python: 'false'
@@ -71,9 +71,9 @@ jobs:
     - name: Deploy main executable
       shell: pwsh
       run: |
-        & "$env:QT_DIR\\bin\\windeployqt.exe" `
+        & "$env:QT_DIR\bin\windeployqt.exe" `
           --no-translations `
-          "Build\\Release\\Remini.exe"
+          "Build\Release\Remini.exe"
 
     # ---------------------------------------------------------------------
     # Test target name is `CatchTests` (defined in CatchTests/CMakeLists.txt
@@ -82,13 +82,13 @@ jobs:
     #
     # On the MSVC generator the binaries land in
     #   Build/<target>/Release/<target>.exe
-    # hence the `Build\\CatchTests\\Release` working directory below.
+    # hence the `Build\CatchTests\Release` working directory below.
     # ---------------------------------------------------------------------
     - name: Run tests
       shell: pwsh
-      working-directory: ${{ github.workspace }}\\Build\\CatchTests\\Release
+      working-directory: ${{ github.workspace }}\Build\CatchTests\Release
       run: |
         Write-Host "Contents:"
         Get-ChildItem
-        & "$env:QT_DIR\\bin\\windeployqt.exe" --no-translations CatchTests.exe
-        .\\CatchTests.exe
+        & "$env:QT_DIR\bin\windeployqt.exe" --no-translations CatchTests.exe
+        .\CatchTests.exe
