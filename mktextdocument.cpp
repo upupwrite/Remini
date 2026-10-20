@@ -518,7 +518,7 @@ void MkTextDocument::parseMarkdownImages(
     // escaped parentheses, nested parentheses, optional titles, and escaped
     // image markers. This conservative form supports common URL/path values.
     static const QRegularExpression imageRegex(
-        QStringLiteral(R"(!\\[([^\\]]*)\\]\\(([^\\s)]+)\\))"));
+        QStringLiteral("!\\\\[([^\\\\]]*)\\\\]\\\\(([^\\\\s)]+)\\\\)"));
 
     auto isInsideCodeSpan = [&protectedRanges](int pos) {
         for (const auto &range : protectedRanges) {
