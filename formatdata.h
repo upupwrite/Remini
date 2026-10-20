@@ -4,6 +4,7 @@
 #include <QBitArray>
 #include <QTextBlockUserData>
 #include <QVector>
+#include "blocksupport.h"
 
 #define BOLD_SYMBOL_A "**"
 #define BOLD_SYMBOL_U "__"
@@ -37,7 +38,7 @@
 #define HEADING2_SYMBOL_COUNT 3
 #define HEADING3_SYMBOL_COUNT 4
 
-class FragmentData
+class FragmentData : public BlockSupport
 {
 public:
     enum FormatSymbol
@@ -63,8 +64,8 @@ public:
         this->end = end;
         this->status = status;
     }
-    int getStart() const;
-    int getEnd() const;
+    int getStart() const override;
+    int getEnd() const override;
     FormatSymbol getStatus() const;
     void setStatus(FormatSymbol status);
 
