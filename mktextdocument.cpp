@@ -579,7 +579,7 @@ void MkTextDocument::insertHeadingData(const QString &text, int &index1,
         ++contentStart;
 
     // Mask indentation, hashes, and all spacing after the marker.
-    formatData->addFormat(indent, contentStart - 1, headingSymbol);
+    formatData->addFormat(0, contentStart - 1, headingSymbol);
     index1 = contentStart;
 
     // A closing hash sequence is valid only when preceded by whitespace.
