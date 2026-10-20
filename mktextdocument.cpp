@@ -473,9 +473,32 @@ void MkTextDocument::identifyFormatData(QTextBlock &block)
         incrementIndexes(index1, index2, index3);
     }
 
-    // Add images after text-format fragments so replacing image syntax with an
-    // inline object cannot shift positions used by earlier formatting ranges.
-    parseMarkdownImages(text, formatData, codeSpanRanges);
+    // Images participate in the same per-block fragment collection as
+    // emphasis, links, and inline code. Keep detection here rather than in a
+    // parallel parser, and protect image-like text inside inline code spans.
+    static const QRegularExpression imageRegex(
+        QStringLiteral("!\\\\[([^\\\\]]*)\\\\]\\\\(([^\\\\s)]+)\\\\)"));
+    auto imageMatches = imageRegex.globalMatch(text);
+    while (imageMatches.hasNext())
+    {
+        const QRegularExpressionMatch match = imageMatches.next();
+        bool insideCodeSpan = false;
+        for (const auto &range : codeSpanRanges)
+        {
+            if (match.capturedStart() >= range.first &&
+                match.capturedStart() <= range.second)
+            {
+                insideCodeSpan = true;
+                break;
+            }
+        }
+        if (insideCodeSpan)
+            continue;
+
+        formatData->addImageFormat(match.capturedStart(),
+                                   match.capturedEnd() - 1,
+                                   match.captured(2), match.captured(1));
+    }
 
     if (!formatData->isEmpty())
     {
@@ -504,41 +527,6 @@ void MkTextDocument::identifyFormatData(QTextBlock &block)
             }
         }
         block.setUserData(formatData);
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Basic inline Markdown images: ![alternative text](destination)
-// ---------------------------------------------------------------------------
-void MkTextDocument::parseMarkdownImages(
-    const QString &text, FormatData *formatData,
-    const QVector<QPair<int, int>> &protectedRanges)
-{
-    // TODO: implement the full CommonMark destination grammar, including
-    // escaped parentheses, nested parentheses, optional titles, and escaped
-    // image markers. This conservative form supports common URL/path values.
-    static const QRegularExpression imageRegex(
-        QStringLiteral("!\\[([^\\]]*)\\]\\(([^\\s)]+)\\)"));
-
-    auto isInsideCodeSpan = [&protectedRanges](int pos) {
-        for (const auto &range : protectedRanges) {
-            if (pos >= range.first && pos <= range.second)
-                return true;
-        }
-        return false;
-    };
-
-    auto matches = imageRegex.globalMatch(text);
-    while (matches.hasNext()) {
-        const QRegularExpressionMatch match = matches.next();
-        if (isInsideCodeSpan(match.capturedStart()))
-            continue;
-
-        const int start = match.capturedStart();
-        const int end = match.capturedEnd() - 1;
-        const QString altText = match.captured(1);
-        const QString destination = match.captured(2);
-        formatData->addImageFormat(start, end, destination, altText);
     }
 }
 
