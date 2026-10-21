@@ -64,7 +64,7 @@ TEST_CASE("MkTextDocument blockquote supports indentation and empty quotes",
     MkEdit edit;
     SelectRange range;
 
-    doc.setPlainText("   > indented quote\\n>");
+    doc.setPlainText("   > indented quote\n>");
     doc.setMarkdownHandle(true);
     edit.setDocument(&doc);
 
