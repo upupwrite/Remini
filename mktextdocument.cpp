@@ -1,6 +1,7 @@
 #include "mktextdocument.h"
 
 #include <QChar>
+#include <QColor>
 #include <QTextBlockFormat>
 #include <QTextImageFormat>
 
@@ -666,8 +667,8 @@ void MkTextDocument::identifyFormatData(QTextBlock &block)
 
     int index1 = 0;
     // CommonMark blockquote markers are valid after up to three leading
-    // spaces and must be followed by whitespace or end-of-line. This is a
-    // single-block parser; lazy continuation paragraphs are tracked as TODO.
+    // spaces and must be followed by whitespace or end-of-line. TODO: support
+    // nested quote depth and CommonMark lazy continuation paragraphs.
     int quoteIndent = 0;
     while (quoteIndent < text.size() && quoteIndent < 3 &&
            text.at(quoteIndent) == QLatin1Char(' '))
