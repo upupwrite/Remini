@@ -1435,6 +1435,8 @@ void MkTextDocument::applyMkFormat(QTextBlock &block,
     int start = span.getStart();
     int end = span.getEnd();
     QTextCharFormat *format = nullptr;
+    // Keep the quote format alive until the character-format merge below.
+    QTextCharFormat quoteFormat;
     int headingLevel = 0;
 
     switch (status)
@@ -1489,7 +1491,6 @@ void MkTextDocument::applyMkFormat(QTextBlock &block,
         break;
     case FragmentData::BLOCKQUOTE:
     {
-        QTextCharFormat quoteFormat;
         quoteFormat.setForeground(QColor(QStringLiteral("#65727C")));
         quoteFormat.setFontItalic(true);
 
