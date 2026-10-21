@@ -208,6 +208,16 @@ int FormatData::getCalculatedCursorPos(const int posInBlock)
     return posInBlock + addedCharacters;
 }
 
+void FormatData::addBlockQuoteFormat(const int markerEnd,
+                                       const int textEnd)
+{
+    // Keep a fragment even for a marker-only line (">") so block styling is
+    // applied, while masking only the quote marker and its optional spacing.
+    formats.append(new FragmentData(0, qMax(0, textEnd),
+                                   FragmentData::BLOCKQUOTE));
+    addMaskRange(0, markerEnd);
+}
+
 void FormatData::addImageFormat(const int start, const int end,
                                 const QString &url, const QString &altText)
 {
