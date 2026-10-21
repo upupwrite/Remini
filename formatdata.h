@@ -66,6 +66,7 @@ public:
         // ===== FIX: inline code span =====
         CODE_SPAN,
         IMAGE,
+        BLOCKQUOTE,
     };
     FragmentData(const int start, const int end, const FormatSymbol status)
     {
@@ -95,6 +96,7 @@ public:
                    const QString *linkTitle = nullptr);
     void addImageFormat(const int start, const int end, const QString &url,
                         const QString &altText);
+    void addBlockQuoteFormat(const int markerEnd, const int textEnd);
     QString getImageUrl(int start) const;
     QString getImageAltText(int start) const;
 
