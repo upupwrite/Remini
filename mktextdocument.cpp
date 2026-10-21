@@ -1557,6 +1557,13 @@ void MkTextDocument::applyMkFormat(QTextBlock &block,
     const int endPoint =
         block.position() + qMin(end + 1, block.length() - 1);
 
+    // Empty blocks (for example a marker-only blockquote after its `>` is
+    // hidden) have no character range to format. Avoid asking Qt to merge a
+    // character format into a zero-length selection; the block-level quote
+    // styling above has already been applied.
+    if (endPoint <= startPoint)
+        return;
+
     QTextCursor cursor(this);
     cursor.setPosition(startPoint);
     cursor.setPosition(endPoint, QTextCursor::KeepAnchor);
