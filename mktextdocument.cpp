@@ -1427,10 +1427,13 @@ void MkTextDocument::resetTextBlockFormat(QTextBlock block)
     }
 }
 
-void MkTextDocument::applyMkFormat(QTextBlock &block, int start, int end,
+void MkTextDocument::applyMkFormat(QTextBlock &block,
+                                   const BlockSupport &span,
                                    FragmentData::FormatSymbol status,
                                    FormatCollection &formatCollection)
 {
+    const int start = span.getStart();
+    int end = span.getEnd();
     QTextCharFormat *format = nullptr;
     int headingLevel = 0;
 
@@ -2045,7 +2048,7 @@ void MkTextDocument::hideMKSymbolsFromPreviousSelectedBlocks(
                              formatData->formats_begin();
                          it < formatData->formats_end(); it++)
                     {
-                        applyMkFormat(block, (*it)->getStart(), (*it)->getEnd(),
+                        applyMkFormat(block, *(*it),
                                       (*it)->getStatus(), formatCollection);
                     }
                 }
@@ -2147,8 +2150,7 @@ void MkTextDocument::showMKSymbolsFromCurrentSelectedBlocks(
                          it < newData->formats_end(); it++)
                     {
                         if ((*it)->getStatus() != FragmentData::IMAGE)
-                            applyMkFormat(block, (*it)->getStart(),
-                                          (*it)->getEnd(), (*it)->getStatus(),
+                            applyMkFormat(block, *(*it), (*it)->getStatus(),
                                           formatCollection);
                     }
 
@@ -2158,8 +2160,7 @@ void MkTextDocument::showMKSymbolsFromCurrentSelectedBlocks(
                          it != newData->formats_rend(); ++it)
                     {
                         if ((*it)->getStatus() == FragmentData::IMAGE)
-                            applyMkFormat(block, (*it)->getStart(),
-                                          (*it)->getEnd(), (*it)->getStatus(),
+                            applyMkFormat(block, *(*it), (*it)->getStatus(),
                                           formatCollection);
                     }
 
