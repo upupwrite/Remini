@@ -1435,7 +1435,7 @@ void MkTextDocument::applyMkFormat(QTextBlock &block,
     int start = span.getStart();
     int end = span.getEnd();
     QTextCharFormat *format = nullptr;
-    // Keep the quote format alive until the character-format merge below.
+    // Keep the quote format alive across the switch to avoid a dangling pointer.
     QTextCharFormat quoteFormat;
     int headingLevel = 0;
 
