@@ -1432,7 +1432,7 @@ void MkTextDocument::applyMkFormat(QTextBlock &block,
                                    FragmentData::FormatSymbol status,
                                    FormatCollection &formatCollection)
 {
-    const int start = span.getStart();
+    int start = span.getStart();
     int end = span.getEnd();
     QTextCharFormat *format = nullptr;
     int headingLevel = 0;
