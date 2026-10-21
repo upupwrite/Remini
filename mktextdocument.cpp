@@ -665,6 +665,27 @@ void MkTextDocument::identifyFormatData(QTextBlock &block)
     formatData->setMaskSize(block.text().size());
 
     int index1 = 0;
+    // CommonMark blockquote markers are valid after up to three leading
+    // spaces and must be followed by whitespace or end-of-line. This is a
+    // single-block parser; lazy continuation paragraphs are tracked as TODO.
+    int quoteIndent = 0;
+    while (quoteIndent < text.size() && quoteIndent < 3 &&
+           text.at(quoteIndent) == QLatin1Char(' '))
+        ++quoteIndent;
+    if (quoteIndent < text.size() &&
+        text.at(quoteIndent) == QLatin1Char('>') &&
+        (quoteIndent + 1 == text.size() ||
+         text.at(quoteIndent + 1).isSpace()))
+    {
+        int quoteContentStart = quoteIndent + 1;
+        if (quoteContentStart < text.size() &&
+            (text.at(quoteContentStart) == QLatin1Char(' ') ||
+             text.at(quoteContentStart) == QLatin1Char('\\t')))
+            ++quoteContentStart;
+        formatData->addBlockQuoteFormat(quoteContentStart - 1,
+                                        text.size() - 1);
+    }
+
     insertHeadingData(text, index1, formatData);
 
     // Inline code spans first, so the emphasis parser can skip their
@@ -1389,7 +1410,8 @@ void MkTextDocument::resetTextBlockFormat(QTextBlock block)
                 status == FragmentData::HEADING3 ||
                 status == FragmentData::HEADING4 ||
                 status == FragmentData::HEADING5 ||
-                status == FragmentData::HEADING6)
+                status == FragmentData::HEADING6 ||
+                status == FragmentData::BLOCKQUOTE)
             {
                 isHeading = true;
                 break;
@@ -1461,6 +1483,22 @@ void MkTextDocument::applyMkFormat(QTextBlock &block, int start, int end,
     case FragmentData::CODE_SPAN:
         format = formatCollection.getCodeSpan();
         break;
+    case FragmentData::BLOCKQUOTE:
+    {
+        QTextCharFormat quoteFormat;
+        quoteFormat.setForeground(QColor(QStringLiteral("#65727C")));
+        quoteFormat.setFontItalic(true);
+
+        QTextBlockFormat blockFormat = block.blockFormat();
+        blockFormat.setLeftMargin(18);
+        blockFormat.setBackground(QColor(90, 120, 150, 20));
+        QTextCursor blockCursor(block);
+        blockCursor.setBlockFormat(blockFormat);
+        format = &quoteFormat;
+        start = 0;
+        end = block.length() - 1;
+        break;
+    }
     case FragmentData::IMAGE:
     {
         // Replace the complete Markdown image expression with a QText image
