@@ -305,7 +305,7 @@ private:
                             int rightMargin = 0, int topMargin = 0,
                             int bottomMargin = 0);
     void resetTextBlockFormat(QTextBlock block);
-    void applyMkFormat(QTextBlock &block, int start, int end,
+    void applyMkFormat(QTextBlock &block, const BlockSupport &span,
                        FragmentData::FormatSymbol status,
                        FormatCollection &formatCollection);
     void applyCheckBoxLinkEffect(FormatData *data, QTextBlock &block,
