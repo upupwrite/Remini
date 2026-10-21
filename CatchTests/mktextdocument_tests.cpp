@@ -37,6 +37,66 @@ TEST_CASE("MkTextDocument simple text", "[MkTextDocument]")
     REQUIRE("abc" == text);
 }
 
+TEST_CASE("MkTextDocument blockquote hides marker and styles block",
+          "[MkTextDocument]")
+{
+    MkTextDocument doc;
+    MkEdit edit;
+    SelectRange range;
+
+    doc.setPlainText("> quoted text");
+    doc.setMarkdownHandle(true);
+    edit.setDocument(&doc);
+
+    range.hasSelection = false;
+    range.currentBlockNo = 1;  // out of range keeps block 0 rendered
+    doc.cursorPosChangedHandle(&range);
+
+    REQUIRE(doc.begin().text() == "quoted text");
+    REQUIRE(doc.begin().blockFormat().leftMargin() == Approx(18.0));
+    REQUIRE(doc.getRawDocument()->toPlainText() == "> quoted text");
+}
+
+TEST_CASE("MkTextDocument blockquote supports indentation and empty quotes",
+          "[MkTextDocument]")
+{
+    MkTextDocument doc;
+    MkEdit edit;
+    SelectRange range;
+
+    doc.setPlainText("   > indented quote\\n>");
+    doc.setMarkdownHandle(true);
+    edit.setDocument(&doc);
+
+    range.hasSelection = false;
+    range.currentBlockNo = 2;  // keep both blocks rendered
+    doc.cursorPosChangedHandle(&range);
+
+    REQUIRE(doc.begin().text() == "indented quote");
+    REQUIRE(doc.begin().blockFormat().leftMargin() == Approx(18.0));
+    REQUIRE(doc.begin().next().text().isEmpty());
+    REQUIRE(doc.begin().next().blockFormat().leftMargin() == Approx(18.0));
+}
+
+TEST_CASE("MkTextDocument blockquote marker requires whitespace",
+          "[MkTextDocument]")
+{
+    MkTextDocument doc;
+    MkEdit edit;
+    SelectRange range;
+
+    doc.setPlainText(">not a quote");
+    doc.setMarkdownHandle(true);
+    edit.setDocument(&doc);
+
+    range.hasSelection = false;
+    range.currentBlockNo = 1;
+    doc.cursorPosChangedHandle(&range);
+
+    REQUIRE(doc.begin().text() == ">not a quote");
+    REQUIRE(doc.begin().blockFormat().leftMargin() == Approx(0.0));
+}
+
 TEST_CASE("MkTextDocument bold text", "[MkTextDocument]")
 {
     MkTextDocument doc;
