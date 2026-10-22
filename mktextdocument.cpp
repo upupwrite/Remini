@@ -1,4 +1,5 @@
 #include "mktextdocument.h"
+#include "blockrenderer.h"
 
 #include <QChar>
 #include <QColor>
@@ -1524,10 +1525,9 @@ void MkTextDocument::applyMkFormat(QTextBlock &block,
         // QTextDocument can render registered/local resources, but remote image
         // fetching needs an explicit resource provider and failure handling.
         QTextCursor imageCursor(this);
-        imageCursor.setPosition(block.position() + start);
-        imageCursor.setPosition(
-            block.position() + qMin(end + 1, block.length() - 1),
-            QTextCursor::KeepAnchor);
+        const BlockRenderRange imageRange(start, end);
+        if (!BlockRenderer::selectRange(imageCursor, block, imageRange))
+            return;
         imageCursor.insertImage(imageFormat);
         return;
     }
@@ -1551,24 +1551,10 @@ void MkTextDocument::applyMkFormat(QTextBlock &block,
         blockCursor.setBlockFormat(blockFormat);
     }
 
-    // FragmentData ranges use inclusive character indexes, while QTextCursor
-    // selections use an exclusive end position. Convert the end index once,
-    // and clamp it to the end of the block's text (before the paragraph mark).
-    const int startPoint = block.position() + start;
-    const int endPoint =
-        block.position() + qMin(end + 1, block.length() - 1);
-
-    // Empty blocks (for example a marker-only blockquote after its `>` is
-    // hidden) have no character range to format. Avoid asking Qt to merge a
-    // character format into a zero-length selection; the block-level quote
-    // styling above has already been applied.
-    if (endPoint <= startPoint)
-        return;
-
-    QTextCursor cursor(this);
-    cursor.setPosition(startPoint);
-    cursor.setPosition(endPoint, QTextCursor::KeepAnchor);
-    cursor.mergeCharFormat(*format);
+    // The shared renderer owns inclusive-to-exclusive conversion, bounds
+    // checking, and empty-block handling for all character-format spans.
+    const BlockRenderRange renderRange(start, end);
+    BlockRenderer::applyCharacterFormat(this, block, renderRange, *format);
 }
 
 void MkTextDocument::applyCheckBoxLinkEffect(FormatData *data,
