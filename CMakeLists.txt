@@ -25,6 +25,10 @@ set(SETTINGS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/settings)
 set(PLATFORM_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/platform)
 set(WIDGETS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/widgets)
 
+# Set this before targets are created; CMake copies it into each target's
+# AUTOUIC_SEARCH_PATHS property when the target is initialized.
+set(CMAKE_AUTOUIC_SEARCH_PATHS ${APP_DIR} ${SETTINGS_DIR})
+
 set(PROJECT_SOURCES
     ${APP_DIR}/main.cpp
     ${APP_DIR}/mainwindow.cpp
@@ -74,18 +78,6 @@ set(PROJECT_SOURCES
     resources/icons.qrc
 )
 
-# Keep include paths explicit so modules can include their public headers
-# without depending on the caller's working directory.
-target_include_directories(Remini PRIVATE
-    ${APP_DIR}
-    ${MARKDOWN_DIR}
-    ${NAVIGATION_DIR}
-    ${SEARCH_DIR}
-    ${SETTINGS_DIR}
-    ${PLATFORM_DIR}
-    ${WIDGETS_DIR}
-)
-
 if(WIN32)
     list(APPEND PROJECT_SOURCES ${PLATFORM_DIR}/iwindowapi.h)
 endif()
@@ -98,13 +90,24 @@ else()
     add_executable(Remini ${PROJECT_SOURCES})
 endif()
 
+# Include the src root to preserve existing module-qualified includes such as
+# "settings/settingsdialog.h", plus each module for concise local includes.
+target_include_directories(Remini PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${APP_DIR}
+    ${MARKDOWN_DIR}
+    ${NAVIGATION_DIR}
+    ${SEARCH_DIR}
+    ${SETTINGS_DIR}
+    ${PLATFORM_DIR}
+    ${WIDGETS_DIR}
+)
+
 target_link_libraries(Remini PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_libraries(Remini PRIVATE X11::X11)
 endif()
-
-set(CMAKE_AUTOUIC_SEARCH_PATHS ${APP_DIR} ${SETTINGS_DIR})
 
 enable_testing()
 add_subdirectory(CatchTests)
