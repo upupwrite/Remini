@@ -12,6 +12,8 @@ Remini is an ongoing attempt to create a simple, lightweight real-time Markdown 
 https://github.com/AngryFender/Remini/assets/29480834/2fc6bc0e-da17-424a-8036-dc9708bac8fe
 
 
+See [docs/architecture.md](docs/architecture.md) for the source layout and the responsibilities of the main rendering, UI, navigation, and settings functions.
+
 ## Features
 
 - [x]  **Lexer from scratch**
