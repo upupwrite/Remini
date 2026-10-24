@@ -1,0 +1,13 @@
+# .clangd
+CompileFlags:
+  Add:
+    - "-xc++"
+    - "-std=c++17"
+    - "-fPIC"
+  Remove:
+    - "-W*"
+
+If:
+  PathMatch: .*\.(h)$
+CompileFlags:
+  Add: "-xc++"
