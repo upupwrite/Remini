@@ -42,7 +42,9 @@ Layout and ownership rules: [../../docs/architecture.md](../../docs/architecture
    `BlockRenderer`.
 3. Keep `mask.size()` equal to the *source* block length.
 4. After rendering a block, `rawDocument` must still round-trip the file
-   content (except for the documented image/mask interaction).
+   content exactly. Inline images collapse to one object character, so use
+   `FormatData::collapsedCharsBefore()` / `imageSpans()` instead of assuming
+   rendered offsets equal source offsets.
 5. Add a regression test for the valid case **and** the nearest invalid case.
 
 ## Tests

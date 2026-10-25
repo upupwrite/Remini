@@ -182,7 +182,10 @@ Per-symbol mask rules (from `FormatData::addFormat`):
 | `](<url>)` | — | the entire URL part |
 | `` `code` `` | the code text | the backtick runs |
 | blockquote `>` | whole block | leading spaces and all markers |
-| image `![alt](url)` | whole expression | *(none — the expression is replaced)* |
+| image `![alt](url)` | whole expression | none — the expression is replaced by one object character |
+| escape `\*` | — | the backslash only |
+| autolink `<https://…>` | the URL text | the angle brackets |
+| plain link `](url)` | — | the whole `(url)` part |
 
 ### 4.4 Link and image metadata
 
@@ -216,22 +219,33 @@ matters, because later stages must know about earlier ones:
    and registers the fragment. Result: nesting depth and mask range.
 2. **ATX heading** — `insertHeadingData()` handles `#` … `######`, and also
    consumes the optional closing hash sequence.
-3. **Inline code spans** — `parseInlineCodeSpans()` runs *before* emphasis so
-   that `` `**not bold**` `` stays literal. It returns the content ranges it
-   claimed.
-4. **Emphasis** — `parseEmphasis()` runs a CommonMark delimiter stack, skipping
-   the ranges protected in step 3.
-5. **Links and checkboxes** — a single left-to-right scan
+3. **Inline code spans** — `parseInlineCodeSpans()` runs *before* everything
+   else so that `` `**not bold**` `` stays literal. It returns the content
+   ranges it claimed; those ranges become the first protected ranges.
+4. **Backslash escapes** — `maskEscapedCharacters()` hides the marker backslash
+   and protects the escaped character.
+5. **Plain links** — `parsePlainLinks()` resolves `[title](url)`. Only the
+   brackets and the destination are protected, so emphasis inside the title
+   still works.
+6. **Autolinks** — `parseAutoLinks()` resolves `<scheme://…>`.
+7. **Emphasis** — `parseEmphasis()` runs a CommonMark delimiter stack, skipping
+   every protected range collected so far.
+8. **Links (angle form) and checkboxes** — a single left-to-right scan
    (`composeSymbolCombination`) looks at 3-character windows for
    `- [`, `x] `, ` ] `, `](<`, `(<`, `>)` and at single characters for `[`,
-   `]`, `(`, `)`, `<`, `>`.
-6. **Images** — `parseImages()` scans the whole line and skips matches that
+   `]`, `(`, `)`, `<`, `>`. Protected ranges are jumped over wholesale.
+9. **Images** — `parseImages()` scans the whole line and skips matches that
    start inside a code span from step 3.
-7. **Hidden fragments** — `addHiddenFormat()` is called for link titles and for
-   checkbox glyph positions, converting source offsets to *rendered* offsets.
+10. **Hidden fragments** — `addHiddenFormat()` is called for link titles and for
+    checkbox glyph positions, converting source offsets to *rendered* offsets
+    (mask bits and collapsed images are both subtracted).
 
 > Fragments are appended in source order except for images, which are rendered
 > in reverse (see §8.2).
+
+`FormatData` is attached to the block when it has fragments **or** when the mask
+hides at least one character — a line such as `\*x\*` needs masking without any
+fragment.
 
 ---
 
@@ -423,12 +437,49 @@ ambiguity (`[microsoft](<file:///C:\Program Files (x86)\Microsoft>)`).
 | --- | --- |
 | `[youtube](<www.youtube.com>)` | `youtube` |
 | `[](<www.google.com>)` | *(empty)* |
-| `[t](u)` | unchanged — plain-parenthesis links are not recognised |
+| `[t](https://example.com)` | `t` (plain-parenthesis form) |
+| `[my t](a/b.html)` | `my t` |
+
+Two forms are supported:
+
+- **Angle-bracket form** `[title](<destination>)` — handled by the marker scan.
+  The only form that allows spaces in the destination without escaping, and the
+  form produced when pasting a URL.
+- **Plain form** `[title](destination)` — handled by `parsePlainLinks()` before
+  the marker scan. Nested parentheses are balanced (`[x](a(b))`). An optional
+  `"title"` is not interpreted; it stays part of the destination.
+
+Emphasis and checkboxes inside the title still work (`[**b**](u)` → `b`),
+because only the brackets and the destination are protected from the scanners.
 
 Rendered style: underlined, coloured `rgb(50,118,254)`. Clicking the title opens
 the URL with `QDesktopServices::openUrl` (`pushLinkHandle`).
 
-### 7.5 Checkboxes
+### 7.5 Autolinks
+
+`<https://example.com/x>` renders as `https://example.com/x`: the angle brackets
+are hidden and the URL text becomes the clickable title
+(`FormatData::addAutoLinkFormat`). A destination is accepted only when it
+contains `://` or starts with `mailto:`; `<not a link>` is left alone.
+
+### 7.6 Backslash escapes
+
+A backslash before a punctuation character hides the backslash and prevents the
+character from acting as a marker
+(`MarkdownParser::maskEscapedCharacters`).
+
+| Source | Rendered |
+| --- | --- |
+| `\*not italic\*` | `*not italic*` |
+| `\[t\](u)` | `[t](u)` (not a link) |
+| `\!\[a\](p.png)` | `![a](p.png)` (not an image) |
+| `\\*x*` | `\` then emphasised `x` |
+
+Escaping is supported for the delimiters that the scanners would otherwise
+consume: emphasis/strikethrough characters, link brackets, image openers, and
+`>` markers. Other constructs (for example a heading hash) are not escapable yet.
+
+### 7.7 Checkboxes
 
 Handled by the 3-character window scan: `- [` opens, `x] ` / ` ] ` closes. The
 group must be exactly five characters wide. See §6.5 for the rendered result and
@@ -442,16 +493,21 @@ group must be exactly five characters wide. See §6.5 for the rendered result an
 
 `MkTextDocument::hideMKSymbolsFromPreviousSelectedBlocks()`:
 
-1. Apply every fragment through `MarkdownRenderer::applyMkFormat()` — but only
-   if `FormatData::isFormatted()` is `false` (avoid double formatting).
-2. Guard: if `block.text().size() != mask.size()`, **skip** mask deletion.
-   This protects blocks whose text length no longer matches the parse (for
-   example a block containing an image, see §8.3).
-3. Delete masked characters **backwards from the end of the block**, moving the
-   cursor left over unmasked ones. Working backwards keeps earlier offsets
-   valid.
-4. Replace checkbox characters and register click targets
-   (`applyCheckBoxLinkEffect`).
+1. Decide which frame the block is in. Inline images collapse a multi-character
+   expression into one object character, so the text is either the untouched
+   source line (`length == mask.size()`) or a line where images are already
+   collapsed (`length == mask.size() - totalCollapsedChars()`). Anything else
+   means the block does not match the parse and is left alone.
+2. Apply every fragment except `IMAGE` through
+   `MarkdownRenderer::applyMkFormat()` — but only if `FormatData::isFormatted()`
+   is `false` (avoid double formatting). Images are deferred to step 4 because
+   inserting them first would invalidate the source offsets.
+3. Delete masked characters **backwards from the end of the block**, mapping
+   each source offset to its current text offset. Working backwards keeps
+   earlier offsets valid.
+4. If images were not collapsed yet, insert them right-to-left
+   (`MarkdownRenderer::insertImages`), then replace checkbox characters and
+   register click targets (`applyCheckBoxLinkEffect`).
 5. Mark the data hidden so the operation is not repeated.
 
 ### 8.2 Showing (block gained the cursor)
@@ -469,22 +525,34 @@ group must be exactly five characters wide. See §6.5 for the rendered result an
 6. If the block was hidden before, remap the cursor with
    `FormatData::getCalculatedCursorPos()` so the caret keeps its logical place.
 
-### 8.3 Known interaction: images disable masking in their block
+### 8.3 Images collapse to one character
 
-Because step 5 replaces a multi-character expression with a single object
-character, the block's text length no longer equals `mask.size()`. The guard in
-§8.1 therefore skips mask deletion for that block.
+An inline image replaces its whole Markdown expression with a single object
+character (`U+FFFC`). Every offset after it therefore shifts left by
+`expressionLength - 1`. Two helpers keep the bookkeeping consistent:
+
+| Helper | Meaning |
+| --- | --- |
+| `FormatData::collapsedCharsBefore(pos)` | characters that images before `pos` removed |
+| `FormatData::totalCollapsedChars()` | total shrink of the rendered line |
+| `FormatData::imageSpans()` | inclusive source spans of every image |
+
+They are used by
+
+- the hide path (§8.1), to accept both the source frame and the collapsed
+  frame and to delete the right characters,
+- `addHiddenFormat()`, so checkbox/link hit areas after an image still line up,
+- `getCalculatedCursorPos()`, so the caret survives a hide/show round-trip, and
+- `pushCheckBoxHandle()`, so clicking a checkbox after an image rewrites the
+  correct slice of the raw line.
 
 Verified behaviour:
 
 ```
 source:   **bold** ![a](x.png)
-rendered: **bold** ￼        ← bold markers stay visible
+rendered: bold ￼              ← markers hidden, image rendered
+raw:      **bold** ![a](x.png) ← untouched
 ```
-
-So an inline image and other hidden syntax do not yet coexist correctly in one
-block. Markers around the image remain visible; the image itself renders
-correctly. This is a known limitation (see §15).
 
 ### 8.4 Disabling Markdown
 
@@ -676,12 +744,15 @@ Legend: ✅ fully supported · ⚠️ partial / with caveats · ❌ not supporte
 | Unordered list | `- x` | ⚠️ | no bullet rendering; Enter continues |
 | Ordered list | `1. x` | ⚠️ | no auto-numbering on render; Enter increments |
 | Task list | `- [ ] x`, `- [x] x` | ✅ | clickable ☐ / ☑ |
-| Link | `[t](<url>)` | ✅ | angle brackets required |
-| Autolink | `<https://…>` | ❌ | |
-| Image | `![alt](url)` | ⚠️ | renders; blocks masking in the same line |
+| Link (angle form) | `[t](<url>)` | ✅ | needed for spaces in the destination |
+| Link (plain form) | `[t](url)` | ✅ | balanced parentheses supported |
+| Link title attribute | `[t](url "title")` | ❌ | the quoted text stays part of the destination |
+| Autolink | `<https://…>`, `<mailto:…>` | ✅ | angle brackets hidden |
+| Image | `![alt](url)`, `![alt](<path with spaces>)` | ✅ | local paths and `file://`; remote URLs are not fetched |
+| Image with title | `![a](p.png "t")` | ✅ | title is parsed but unused |
 | Inline HTML | `<b>x</b>` | ❌ | shown literally |
 | Tables | GFM tables | ❌ | |
-| Escapes | `\*`, `\[` | ⚠️ | honoured when scanning images; not for other constructs |
+| Escapes | `\*`, `\[`, `\!`, `\>` | ✅ | only for scanner delimiters; `\#` etc. stay literal |
 | Emoji | `:smile:` | ❌ | |
 
 ---
@@ -730,21 +801,24 @@ Legend: ✅ fully supported · ⚠️ partial / with caveats · ❌ not supporte
 
 ## 15. Known limitations
 
-1. **Images disable masking in their own block** (§8.3). `**bold** ![img](x)`
-   keeps its asterisks visible.
-2. **Plain-parenthesis links** `[t](u)` are not recognised; use `[t](<u>)`.
-3. **Remote images** are not fetched asynchronously. `QTextDocument` can only
-   render local/registered resources; HTTP(S) destinations need a resource
-   provider.
-4. **Nested blockquotes** are styled by depth but there is no lazy continuation
-   paragraph handling (a `>` line followed by a plain line is two blocks).
-5. **No setext headings, no tables, no autolinks, no inline HTML, no escapes**
-   for constructs other than images.
-6. **Line-scoped parsing only.** A construct cannot span two lines (emphasis,
-   links, code spans are all per block). Blockquotes and code blocks are handled
-   specially at the block level.
-7. `MkEdit` keeps `qDebug()` tracing in `preUndoSetup` / `postUndoSetup` /
-   `dumpEditState`; useful when debugging, noisy in release logs.
+1. **Remote images are not fetched.** Only resources `QTextDocument` can resolve
+   locally (filesystem paths, `file://`, registered resources) render. An
+   `http(s)` destination needs an asynchronous resource provider and failure
+   handling; nothing is downloaded today.
+2. **No lazy blockquote continuation.** A `>` line followed by a plain line is
+   two separate blocks; the second is not treated as part of the quote.
+3. **No setext headings, tables, inline HTML, or emoji.** A `title` followed by
+   `===` is plain text, and `---` is a horizontal rule.
+4. **Link title attributes** (`[t](url "title")`) are not interpreted; the quoted
+   text becomes part of the destination.
+5. **Parsing is line-scoped.** Emphasis, links, code spans, and images cannot
+   span two blocks. Blockquotes and fenced code blocks are the only constructs
+   handled across blocks, and only because they are detected at block level.
+6. **Escapes are selective.** A backslash protects emphasis characters, link
+   brackets, image openers, and `>` markers. Other markers (for example `#`) are
+   not escapable yet.
+7. **Lists render as plain text.** Bullets and numbers are not drawn specially;
+   only Enter-continuation differs from plain paragraphs.
 
 ---
 

@@ -1510,3 +1510,272 @@ TEST_CASE("MkTextDocument keeps the correct image after deleting an earlier imag
     REQUIRE(doc.getRawDocument()->toPlainText() ==
             " middle ![second](images/second.png)");
 }
+
+// ============================================================================
+// Images and symbol masking coexist
+// ============================================================================
+
+TEST_CASE("MkTextDocument hides markers in a block that also contains an image",
+          "[MkTextDocument][regression]")
+{
+    MkTextDocument doc;
+    MkEdit edit;
+    SelectRange range;
+
+    doc.setPlainText("**bold** ![a](x.png)");
+    doc.setMarkdownHandle(true);
+    edit.setDocument(&doc);
+
+    range.hasSelection = false;
+    range.currentBlockNo = 99;  // out of range: everything stays rendered
+    doc.cursorPosChangedHandle(&range);
+
+    const QString text = doc.begin().text();
+    REQUIRE_FALSE(text.contains("**"));
+    REQUIRE(text.startsWith("bold"));
+    REQUIRE(text.count(QChar::ObjectReplacementCharacter) == 1);
+    REQUIRE(doc.getRawDocument()->toPlainText() == "**bold** ![a](x.png)");
+}
+
+TEST_CASE("MkTextDocument hides markers around a leading image",
+          "[MkTextDocument][regression]")
+{
+    MkTextDocument doc;
+    MkEdit edit;
+    SelectRange range;
+
+    doc.setPlainText("![a](x.png) *tail*");
+    doc.setMarkdownHandle(true);
+    edit.setDocument(&doc);
+
+    range.hasSelection = false;
+    range.currentBlockNo = 99;
+    doc.cursorPosChangedHandle(&range);
+
+    const QString text = doc.begin().text();
+    REQUIRE(text.count(QChar::ObjectReplacementCharacter) == 1);
+    REQUIRE_FALSE(text.contains("*"));
+    REQUIRE(text.endsWith("tail"));
+}
+
+TEST_CASE("MkTextDocument renders plain parenthesis links",
+          "[MkTextDocument][regression]")
+{
+    MkTextDocument doc;
+    MkEdit edit;
+    SelectRange range;
+
+    doc.setPlainText("[title](https://example.com/a(b))");
+    doc.setMarkdownHandle(true);
+    edit.setDocument(&doc);
+
+    range.hasSelection = false;
+    range.currentBlockNo = 99;
+    doc.cursorPosChangedHandle(&range);
+
+    REQUIRE(doc.begin().text() == "title");
+    REQUIRE(doc.getRawDocument()->toPlainText() ==
+            "[title](https://example.com/a(b))");
+}
+
+TEST_CASE("MkTextDocument keeps emphasis inside a plain link title",
+          "[MkTextDocument][regression]")
+{
+    MkTextDocument doc;
+    MkEdit edit;
+    SelectRange range;
+
+    doc.setPlainText("[**bold**](https://example.com)");
+    doc.setMarkdownHandle(true);
+    edit.setDocument(&doc);
+
+    range.hasSelection = false;
+    range.currentBlockNo = 99;
+    doc.cursorPosChangedHandle(&range);
+
+    REQUIRE(doc.begin().text() == "bold");
+}
+
+TEST_CASE("MkTextDocument renders autolinks", "[MkTextDocument][regression]")
+{
+    MkTextDocument doc;
+    MkEdit edit;
+    SelectRange range;
+
+    doc.setPlainText("see <https://example.com/x> now");
+    doc.setMarkdownHandle(true);
+    edit.setDocument(&doc);
+
+    range.hasSelection = false;
+    range.currentBlockNo = 99;
+    doc.cursorPosChangedHandle(&range);
+
+    REQUIRE(doc.begin().text() == "see https://example.com/x now");
+    REQUIRE(doc.getRawDocument()->toPlainText() ==
+            "see <https://example.com/x> now");
+}
+
+TEST_CASE("MkTextDocument ignores non-URI angle brackets",
+          "[MkTextDocument]")
+{
+    MkTextDocument doc;
+    MkEdit edit;
+    SelectRange range;
+
+    doc.setPlainText("<not a link>");
+    doc.setMarkdownHandle(true);
+    edit.setDocument(&doc);
+
+    range.hasSelection = false;
+    range.currentBlockNo = 99;
+    doc.cursorPosChangedHandle(&range);
+
+    REQUIRE(doc.begin().text() == "<not a link>");
+}
+
+TEST_CASE("MkTextDocument honours backslash escapes",
+          "[MkTextDocument][regression]")
+{
+    SECTION("escaped emphasis")
+    {
+        MkTextDocument doc;
+        MkEdit edit;
+        SelectRange range;
+
+        doc.setPlainText("\\*not italic\\*");
+        doc.setMarkdownHandle(true);
+        edit.setDocument(&doc);
+
+        range.hasSelection = false;
+        range.currentBlockNo = 99;
+        doc.cursorPosChangedHandle(&range);
+
+        REQUIRE(doc.begin().text() == "*not italic*");
+    }
+
+    SECTION("escaped link")
+    {
+        MkTextDocument doc;
+        MkEdit edit;
+        SelectRange range;
+
+        doc.setPlainText("\\[t\\](u)");
+        doc.setMarkdownHandle(true);
+        edit.setDocument(&doc);
+
+        range.hasSelection = false;
+        range.currentBlockNo = 99;
+        doc.cursorPosChangedHandle(&range);
+
+        REQUIRE(doc.begin().text() == "[t](u)");
+    }
+}
+
+// ============================================================================
+// Rendered <-> source position mapping
+// ============================================================================
+
+TEST_CASE("FormatData maps rendered positions back to source",
+          "[MkTextDocument][FormatData]")
+{
+    MkTextDocument doc;
+    doc.setPlainText("**ab**");
+
+    FormatData *data = dynamic_cast<FormatData *>(doc.begin().userData());
+    REQUIRE(data != nullptr);
+
+    // Rendered "ab": position 0 -> source 2, position 2 (end) -> source 6.
+    REQUIRE(data->getCalculatedCursorPos(0) == 2);
+    REQUIRE(data->getCalculatedCursorPos(1) == 3);
+    REQUIRE(data->getCalculatedCursorPos(2) == 6);
+}
+
+TEST_CASE("FormatData accounts for collapsed image characters",
+          "[MkTextDocument][FormatData][regression]")
+{
+    MkTextDocument doc;
+    MkEdit edit;
+    SelectRange range;
+
+    doc.setPlainText("**a** ![i](p.png) b");
+    doc.setMarkdownHandle(true);
+    edit.setDocument(&doc);
+
+    FormatData *data = dynamic_cast<FormatData *>(doc.begin().userData());
+    REQUIRE(data != nullptr);
+    REQUIRE(data->imageSpans().size() == 1);
+    REQUIRE(data->totalCollapsedChars() > 0);
+
+    range.hasSelection = false;
+    range.currentBlockNo = 99;
+    doc.cursorPosChangedHandle(&range);
+
+    // The image expression collapses to one object character. Mapping that
+    // rendered position back must point at the start of the expression.
+    const QString text = doc.begin().text();
+    const int renderedImageStart = text.indexOf(QChar::ObjectReplacementCharacter);
+    REQUIRE(renderedImageStart >= 0);
+    REQUIRE(data->getCalculatedCursorPos(renderedImageStart) ==
+            data->imageSpans().first().first);
+
+    // A rendered position after the image maps past the whole expression.
+    REQUIRE(data->getCalculatedCursorPos(renderedImageStart + 2) >
+            data->imageSpans().first().second);
+}
+
+TEST_CASE("MkTextDocument registers link hit areas after an image",
+          "[MkTextDocument][regression]")
+{
+    MkTextDocument doc;
+    MkEdit edit;
+    SelectRange range;
+
+    doc.setPlainText("![i](p.png) [title](<https://x.dev>)");
+    doc.setMarkdownHandle(true);
+    edit.setDocument(&doc);
+
+    range.hasSelection = false;
+    range.currentBlockNo = 99;
+    doc.cursorPosChangedHandle(&range);
+
+    const QString text = doc.begin().text();
+    REQUIRE(text.endsWith("title"));
+
+    bool found = false;
+    for (auto it = doc.linkPosBegin(); it != doc.linkPosEnd(); ++it)
+    {
+        if (std::get<1>(*it) == text.indexOf("title"))
+        {
+            const QString *title = std::get<3>(*it);
+            REQUIRE(title != nullptr);
+            REQUIRE(*title == "title");
+            found = true;
+        }
+    }
+    REQUIRE(found);
+}
+
+TEST_CASE("MkTextDocument toggles a checkbox that follows an image",
+          "[MkTextDocument][regression]")
+{
+    MkTextDocument doc;
+    MkEdit edit;
+    SelectRange range;
+
+    doc.setPlainText("![i](p.png) - [ ] task");
+    doc.setMarkdownHandle(true);
+    edit.setDocument(&doc);
+
+    range.hasSelection = false;
+    range.currentBlockNo = 99;
+    doc.cursorPosChangedHandle(&range);
+
+    const QString text = doc.begin().text();
+    const int checkPos = text.indexOf(QChar(0x2610));  // ☐
+    REQUIRE(checkPos >= 0);
+
+    doc.pushCheckBoxHandle(doc.begin().position() + checkPos);
+
+    REQUIRE(doc.getRawDocument()->toPlainText() ==
+            "![i](p.png) - [x] task");
+}

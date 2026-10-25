@@ -25,6 +25,14 @@ public:
                               FragmentData::FormatSymbol status,
                               FormatCollection &formatCollection);
 
+    // Insert the block's inline images into a line whose masked characters
+    // have already been deleted. Every image still occupies its full Markdown
+    // expression at this point, so the expression is replaced by the image
+    // object. Applied right-to-left so an insertion cannot shift the offsets
+    // of an earlier image.
+    static void insertImages(QTextDocument *document, QTextBlock &block,
+                             FormatData *data);
+
     static void applyCheckBoxLinkEffect(
         FormatData *data, QTextBlock &block,
         QVector<QPair<int, int>> &checkMarkPositions,

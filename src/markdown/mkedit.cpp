@@ -1,26 +1,11 @@
 #include "mkedit.h"
 
-#include <QDebug>
 #include <QElapsedTimer>
 #include <QInputMethodEvent>
 #include <QSettings>
 
 #include "blockdata.h"
 #include "linedata.h"
-
-// ---------------------------------------------------------------------------
-// Debug helper: dump the current editable state at a given checkpoint.
-// ---------------------------------------------------------------------------
-static void dumpEditState(const char *where, const QTextEdit *w)
-{
-    qDebug() << "[" << where << "]"
-             << "isReadOnly =" << w->isReadOnly()
-             << "isEnabled =" << w->isEnabled()
-             << "focusPolicy =" << w->focusPolicy()
-             << "hasFocus =" << w->hasFocus() << "inputMethodEnabled ="
-             << w->testAttribute(Qt::WA_InputMethodEnabled)
-             << "textInteractionFlags =" << w->textInteractionFlags();
-}
 
 // ---------------------------------------------------------------------------
 // Clamp a document position to the valid range [0, characterCount - 1].
@@ -39,8 +24,6 @@ static int clampDocPos(const QTextDocument *doc, int pos)
 
 MkEdit::MkEdit(QWidget *parent) : QTextEdit(parent)
 {
-    qDebug() << "[MkEdit::ctor] enter";
-
     fileSaveTimer.setInterval(FILE_SAVE_TIMEOUT);
     regexUrl.setPattern(
         "(https?|ftp|file)://"
@@ -96,7 +79,6 @@ MkEdit::MkEdit(QWidget *parent) : QTextEdit(parent)
     this->setUndoRedoEnabled(false);
     preUndoSetup();
 
-    dumpEditState("MkEdit::ctor exit", this);
 }
 
 void MkEdit::paintEvent(QPaintEvent *e)
@@ -826,25 +808,12 @@ void MkEdit::preUndoSetup()
                     ->findBlockByNumber(this->textCursor().blockNumber())
                     .text();
 
-    qDebug() << "[preUndoSetup] editType =" << undoSnapshot.editType
-             << "oldText.len =" << undoSnapshot.oldText.length()
-             << "selStartBlock ="
-             << undoSnapshot.selectRange.selectionFirstStartBlock
-             << "selEndBlock =" << undoSnapshot.selectRange.selectionEndBlock
-             << "curBlockNo =" << undoSnapshot.selectRange.currentBlockNo
-             << "curPos =" << undoSnapshot.selectRange.currentposInBlock;
 }
 
 void MkEdit::postUndoSetup()
 {
     undoSnapshot.blockNo = this->textCursor().blockNumber();
     undoSnapshot.posInBlock = this->textCursor().positionInBlock();
-
-    qDebug() << "[postUndoSetup] editType =" << undoSnapshot.editType
-             << "undoRedoSkip =" << undoRedoSkip
-             << "oldText.len =" << undoSnapshot.oldText.length()
-             << "blockNo =" << undoSnapshot.blockNo
-             << "posInBlock =" << undoSnapshot.posInBlock;
 
     if (!undoRedoSkip)
     {

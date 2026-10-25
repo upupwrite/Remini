@@ -12,6 +12,27 @@
 #include <QTextDocument>
 #include <QTextImageFormat>
 
+namespace {
+
+// Builds the replacement object for one inline image. Returns an empty format
+// (empty name) when the destination is missing so callers can bail out.
+QTextImageFormat makeImageFormat(FormatData *data, int imageStart)
+{
+    QTextImageFormat imageFormat;
+    if (!data)
+        return imageFormat;
+
+    const QString destination = data->getImageUrl(imageStart);
+    if (destination.isEmpty())
+        return imageFormat;
+
+    imageFormat.setName(destination);
+    imageFormat.setToolTip(data->getImageAltText(imageStart));
+    return imageFormat;
+}
+
+}  // namespace
+
 void MarkdownRenderer::setCodeBlockMargin(QTextBlock &block, int leftMargin,
                                           int rightMargin, int topMargin,
                                           int bottomMargin)
@@ -177,17 +198,10 @@ void MarkdownRenderer::applyMkFormat(QTextDocument *document,
         if (!data)
             return;
 
-        const QString destination = data->getImageUrl(start);
-        if (destination.isEmpty())
+        const QTextImageFormat imageFormat = makeImageFormat(data, start);
+        if (imageFormat.name().isEmpty())
             return;
 
-        QTextImageFormat imageFormat;
-        imageFormat.setName(destination);
-        imageFormat.setToolTip(data->getImageAltText(start));
-
-        // TODO: provide asynchronous network loading for HTTP(S) destinations.
-        // QTextDocument can render registered/local resources, but remote image
-        // fetching needs an explicit resource provider and failure handling.
         QTextCursor imageCursor(document);
         const BlockRenderRange imageRange(start, end);
         if (!BlockRenderer::selectRange(imageCursor, block, imageRange))
@@ -379,5 +393,54 @@ void MarkdownRenderer::showHideCodeBlock(QTextDocument *document,
                                    fontSize);
             }
         }
+    }
+}
+
+void MarkdownRenderer::insertImages(QTextDocument *document, QTextBlock &block,
+                                    FormatData *data)
+{
+    if (!document || !data || !block.isValid())
+        return;
+
+    const QVector<QPair<int, int>> spans = data->imageSpans();
+    if (spans.isEmpty())
+        return;
+
+    const QBitArray &mask = data->getMask();
+
+    // Walk the images from the end of the line towards the start. The block
+    // text currently holds the source line with masked characters removed but
+    // the image expressions still intact, so an image starts at
+    // (source start - masked characters before it).
+    for (int k = spans.size() - 1; k >= 0; --k)
+    {
+        const int sourceStart = spans.at(k).first;
+        const int sourceEnd = spans.at(k).second;
+
+        const QTextImageFormat imageFormat =
+            makeImageFormat(data, sourceStart);
+        if (imageFormat.name().isEmpty())
+            continue;
+
+        int maskedBefore = 0;
+        for (int i = 0; i < sourceStart && i < mask.size(); ++i)
+        {
+            if (mask.testBit(i))
+                ++maskedBefore;
+        }
+
+        const int textStart = sourceStart - maskedBefore;
+        const int textLength = sourceEnd - sourceStart + 1;
+        const int textLimit = block.length() - 1;
+
+        if (textStart < 0 || textStart >= textLimit ||
+            textStart + textLength > textLimit)
+            continue;
+
+        QTextCursor cursor(document);
+        cursor.setPosition(block.position() + textStart);
+        cursor.setPosition(block.position() + textStart + textLength,
+                           QTextCursor::KeepAnchor);
+        cursor.insertImage(imageFormat);
     }
 }

@@ -29,6 +29,7 @@ https://github.com/AngryFender/Remini/assets/29480834/2fc6bc0e-da17-424a-8036-dc
 - [x]  Windows-level keyboard shortcuts
 - [x]  Blockquotes with nesting, auto-continued on `Enter`
 - [x]  Inline images (local paths and `file://` destinations)
+- [x]  Links, autolinks, and backslash escapes
 - [x]  Automated packages for Windows, Debian, and Arch Linux
 - [ ]  Themes, color schemes
 - [ ]  Tables
@@ -38,11 +39,12 @@ https://github.com/AngryFender/Remini/assets/29480834/2fc6bc0e-da17-424a-8036-dc
 
 Supported: ATX headings `#`–`######`, bold `**`/`__`, italic `*`/`_`,
 strikethrough `~~`, inline code, ```` ``` ```` fenced code blocks, nested
-blockquotes `>`, horizontal rules `---`, task lists `- [ ]`/`- [x]`, links
-`[title](<url>)`, and inline images `![alt](path)`.
+blockquotes `>`, horizontal rules `---`, task lists `- [ ]`/`- [x]`, links in
+both `[title](url)` and `[title](<url with spaces>)` form, autolinks
+`<https://…>`, backslash escapes `\*`, and inline images `![alt](path)`.
 
-Not supported: setext headings, tables, autolinks, inline HTML, and
-plain-parenthesis links `[t](u)` (use `[t](<u>)`). See
+Not supported: setext headings, tables, inline HTML, link title attributes
+(`[t](url "title")`), and remote (http/https) images. See
 [docs/markdown-parsing.md](docs/markdown-parsing.md#13-supported-syntax-matrix)
 for the full matrix, verified examples, and limitations.
 

@@ -84,6 +84,13 @@ void FormatData::addFormat(const int start, const int end,
             mask.setBit(x, true);
         return;
     }
+    else if (symbol == LINK_SYMBOL_URL_PLAIN_END)
+    {
+        // [title](url): hide the whole "(url)" part inclusive.
+        for (int x = qMax(0, start); x <= end && x < mask.size(); ++x)
+            mask.setBit(x, true);
+        return;
+    }
     // ===== FIX: inline code span =====
     // The caller (MkTextDocument::parseInlineCodeSpans) has already marked
     // the backticks in the mask. We only need to emit a formatting fragment
@@ -117,6 +124,8 @@ void FormatData::addFormat(const int start, const int end,
 }
 
 bool FormatData::isEmpty() const { return formats.empty(); }
+
+bool FormatData::hasMaskedCharacters() const { return mask.count(true) > 0; }
 
 bool FormatData::isHidden() const { return hidden; }
 
@@ -187,25 +196,78 @@ void FormatData::setOriginalText(const QString &originalText)
 
 int FormatData::getCalculatedCursorPos(const int posInBlock)
 {
-    if (posInBlock >= mask.count())
-        return posInBlock;
+    // Map a position in the rendered line back to the source line: masked
+    // characters are skipped, and an inline image occupies a single rendered
+    // character that stands for its whole Markdown expression.
+    const int sourceLength = mask.size();
+    int rendered = 0;
+    int source = 0;
 
-    int addedCharacters = 0;
-    int dynamicPosInBlock = posInBlock;
-
-    for (int i = 0; i <= dynamicPosInBlock; ++i)
+    while (source < sourceLength)
     {
-        if (dynamicPosInBlock >= mask.count())
-            break;
-
-        if (mask[i])
+        int imageEnd = -1;
+        for (auto *fragment : formats)
         {
-            ++addedCharacters;
-            ++dynamicPosInBlock;
+            if (fragment->getStatus() == FragmentData::IMAGE &&
+                fragment->getStart() == source)
+            {
+                imageEnd = fragment->getEnd();
+                break;
+            }
         }
+
+        if (imageEnd >= 0)
+        {
+            if (rendered == posInBlock)
+                return source;
+            ++rendered;
+            source = imageEnd + 1;
+            continue;
+        }
+
+        if (mask.testBit(source))
+        {
+            ++source;
+            continue;
+        }
+
+        if (rendered == posInBlock)
+            return source;
+
+        ++rendered;
+        ++source;
     }
 
-    return posInBlock + addedCharacters;
+    return sourceLength;
+}
+
+QVector<QPair<int, int>> FormatData::imageSpans() const
+{
+    QVector<QPair<int, int>> spans;
+    for (auto *fragment : formats)
+    {
+        if (fragment->getStatus() == FragmentData::IMAGE)
+            spans.append(qMakePair(fragment->getStart(), fragment->getEnd()));
+    }
+    return spans;
+}
+
+int FormatData::collapsedCharsBefore(const int sourcePos) const
+{
+    int collapsed = 0;
+    for (auto *fragment : formats)
+    {
+        if (fragment->getStatus() != FragmentData::IMAGE)
+            continue;
+        if (fragment->getEnd() < sourcePos)
+            collapsed += qMax(0, fragment->getEnd() - fragment->getStart());
+    }
+    return collapsed;
+}
+
+int FormatData::totalCollapsedChars() const
+{
+    return collapsedCharsBefore(mask.size());
 }
 
 void FormatData::addBlockQuoteFormat(const int markerEnd,
@@ -230,6 +292,22 @@ void FormatData::addImageFormat(const int start, const int end,
     imageAltTextMap.insert(start, altText);
 }
 
+void FormatData::addAutoLinkFormat(const int start, const int end,
+                                   const QString &url)
+{
+    // <https://example.com> - the angle brackets are hidden and the URL text
+    // itself becomes the clickable link title.
+    if (end <= start + 1)
+        return;
+
+    formats.append(new FragmentData(start + 1, end - 1,
+                                    FragmentData::LINK_TITLE));
+    linkUrlMap.insert(start + 1, new QString(url));
+    linkTitleMap.insert(start + 1, new QString(url));
+    mask.setBit(start, true);
+    mask.setBit(end, true);
+}
+
 QString FormatData::getImageUrl(int start) const
 {
     return imageUrlMap.value(start);
@@ -245,8 +323,6 @@ void FormatData::addHiddenFormat(const int start, const int end,
                                  const QString &linkUrl,
                                  const QString &linkTitle)
 {
-    int begin = 0;
-    int last = 0;
     int hiddenBits = 0;
 
     const int scanEnd = qMin(start, mask.count() - 1);
@@ -256,8 +332,12 @@ void FormatData::addHiddenFormat(const int start, const int end,
             ++hiddenBits;
     }
 
-    begin = start - hiddenBits;
-    last = end - hiddenBits;
+    // Inline images shorten the rendered line too, so every offset after one
+    // shifts left by (image length - 1).
+    const int imageShift = collapsedCharsBefore(start);
+
+    const int begin = start - hiddenBits - imageShift;
+    const int last = end - hiddenBits - imageShift;
 
     if (!linkUrl.isEmpty() && !linkTitle.isEmpty() &&
         status == FragmentData::LINK_TITLE)

@@ -18,20 +18,6 @@ bool isUnicodePunctuation(QChar c)
     return c.isPunct() || c.isSymbol();
 }
 
-// A delimiter run is "protected" if it sits entirely inside one of the ranges
-// returned by parseInlineCodeSpans(). Because code spans are delimited by
-// backticks, a delimiter run is either fully inside a range or fully outside -
-// there is no partial overlap.
-bool isProtectedPosition(int pos, const QVector<QPair<int, int>> &ranges)
-{
-    for (const auto &r : ranges)
-    {
-        if (pos >= r.first && pos <= r.second)
-            return true;
-    }
-    return false;
-}
-
 bool isMarkdownEscaped(const QString &text, int position)
 {
     int backslashes = 0;
@@ -41,6 +27,32 @@ bool isMarkdownEscaped(const QString &text, int position)
 }
 
 }  // namespace
+
+// A delimiter run is "protected" if it sits entirely inside one of the ranges
+// claimed by inline code spans, links, or escaped characters. Protected runs
+// are skipped by the emphasis and marker scanners.
+bool MarkdownParser::isProtectedPosition(
+    int pos, const QVector<QPair<int, int>> &ranges)
+{
+    for (const auto &r : ranges)
+    {
+        if (pos >= r.first && pos <= r.second)
+            return true;
+    }
+    return false;
+}
+
+int MarkdownParser::protectedRangeEndAt(
+    int pos, const QVector<QPair<int, int>> &ranges)
+{
+    int end = -1;
+    for (const auto &r : ranges)
+    {
+        if (pos >= r.first && pos <= r.second)
+            end = qMax(end, r.second);
+    }
+    return end;
+}
 
 // ---------------------------------------------------------------------------
 // Blockquote markers
@@ -75,6 +87,213 @@ QString MarkdownParser::blockQuotePrefix(const QString &text)
     if (contentStart < 0)
         return QString();
     return text.left(contentStart);
+}
+
+// ---------------------------------------------------------------------------
+// Backslash escapes
+// ---------------------------------------------------------------------------
+QVector<QPair<int, int>> MarkdownParser::maskEscapedCharacters(
+    const QString &text, FormatData *formatData)
+{
+    QVector<QPair<int, int>> escaped;
+    const int n = text.size();
+    int i = 0;
+    while (i < n - 1)
+    {
+        if (text.at(i) != QLatin1Char('\\'))
+        {
+            ++i;
+            continue;
+        }
+
+        // Count the whole backslash run so that `\\\\*` stays literal while
+        // `\\*` escapes the asterisk.
+        int runLength = 0;
+        while (i + runLength < n &&
+               text.at(i + runLength) == QLatin1Char('\\'))
+            ++runLength;
+
+        const int next = i + runLength;
+        const bool escapesPunctuation =
+            next < n && (text.at(next).isPunct() || text.at(next).isSymbol());
+
+        if (escapesPunctuation && (runLength % 2) == 1)
+        {
+            const int marker = next - 1;
+            formatData->addMaskRange(marker, marker);
+            escaped.append(qMakePair(next, next));
+        }
+
+        i = next;
+    }
+
+    return escaped;
+}
+
+// ---------------------------------------------------------------------------
+// Plain-parenthesis links: [title](url)
+// ---------------------------------------------------------------------------
+QVector<MarkdownLinkExpression> MarkdownParser::parsePlainLinks(
+    const QString &text, const QVector<QPair<int, int>> &protectedRanges,
+    FormatData *formatData)
+{
+    QVector<MarkdownLinkExpression> links;
+    const int n = text.size();
+    int i = 0;
+
+    while (i < n)
+    {
+        if (text.at(i) != QLatin1Char('[') || isMarkdownEscaped(text, i) ||
+            isProtectedPosition(i, protectedRanges))
+        {
+            ++i;
+            continue;
+        }
+
+        // An exclamation mark turns the expression into an image, which is
+        // handled by parseImages().
+        if (i > 0 && text.at(i - 1) == QLatin1Char('!'))
+        {
+            ++i;
+            continue;
+        }
+
+        int depth = 0;
+        int titleEnd = -1;
+        for (int cursor = i + 1; cursor < n; ++cursor)
+        {
+            if (isMarkdownEscaped(text, cursor))
+                continue;
+            const QChar c = text.at(cursor);
+            if (c == QLatin1Char('['))
+                ++depth;
+            else if (c == QLatin1Char(']'))
+            {
+                if (depth == 0)
+                {
+                    titleEnd = cursor;
+                    break;
+                }
+                --depth;
+            }
+        }
+
+        if (titleEnd < 0 || titleEnd + 1 >= n ||
+            text.at(titleEnd + 1) != QLatin1Char('('))
+        {
+            ++i;
+            continue;
+        }
+
+        const int urlStart = titleEnd + 1;
+        const int destinationStart = urlStart + 1;
+
+        // The angle-bracket form `[title](<url>)` is handled by the marker
+        // scan so that it keeps supporting spaces and parentheses.
+        if (destinationStart < n &&
+            text.at(destinationStart) == QLatin1Char('<'))
+        {
+            ++i;
+            continue;
+        }
+
+        int parenDepth = 0;
+        int urlEnd = -1;
+        for (int cursor = destinationStart; cursor < n; ++cursor)
+        {
+            if (isMarkdownEscaped(text, cursor))
+                continue;
+            const QChar c = text.at(cursor);
+            if (c == QLatin1Char('('))
+                ++parenDepth;
+            else if (c == QLatin1Char(')'))
+            {
+                if (parenDepth == 0)
+                {
+                    urlEnd = cursor;
+                    break;
+                }
+                --parenDepth;
+            }
+        }
+
+        if (urlEnd < 0)
+        {
+            ++i;
+            continue;
+        }
+
+        MarkdownLinkExpression link;
+        link.titleStart = i;
+        link.titleEnd = titleEnd;
+        link.urlStart = urlStart;
+        link.urlEnd = urlEnd;
+        link.title = text.mid(i + 1, titleEnd - i - 1);
+        link.url = text.mid(destinationStart, urlEnd - destinationStart);
+
+        formatData->addFormat(link.titleStart, link.titleEnd,
+                              QStringLiteral(LINK_SYMBOL_TITLE_END), &link.url,
+                              &link.title);
+        formatData->addFormat(link.urlStart, link.urlEnd,
+                              QStringLiteral(LINK_SYMBOL_URL_PLAIN_END),
+                              nullptr, nullptr);
+
+        links.append(link);
+        i = urlEnd + 1;
+    }
+
+    return links;
+}
+
+// ---------------------------------------------------------------------------
+// Autolinks: <https://example.com>
+// ---------------------------------------------------------------------------
+void MarkdownParser::parseAutoLinks(const QString &text, FormatData *formatData)
+{
+    const int n = text.size();
+    int i = 0;
+
+    while (i < n)
+    {
+        if (text.at(i) != QLatin1Char('<') || isMarkdownEscaped(text, i))
+        {
+            ++i;
+            continue;
+        }
+
+        int close = -1;
+        for (int cursor = i + 1; cursor < n; ++cursor)
+        {
+            const QChar c = text.at(cursor);
+            if (c.isSpace() || c == QLatin1Char('<'))
+                break;
+            if (c == QLatin1Char('>') && !isMarkdownEscaped(text, cursor))
+            {
+                close = cursor;
+                break;
+            }
+        }
+
+        if (close < 0)
+        {
+            ++i;
+            continue;
+        }
+
+        const QString destination = text.mid(i + 1, close - i - 1);
+        const bool looksLikeUri =
+            destination.contains(QStringLiteral("://")) ||
+            destination.startsWith(QStringLiteral("mailto:"));
+
+        if (!looksLikeUri)
+        {
+            ++i;
+            continue;
+        }
+
+        formatData->addAutoLinkFormat(i, close, destination);
+        i = close + 1;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -278,14 +497,37 @@ void MarkdownParser::identifyFormatData(QTextBlock &block)
 
     insertHeadingData(text, index1, formatData);
 
-    // Inline code spans first, so the emphasis parser can skip their
-    // content (`` `**literal**` `` must not become bold).
+    // Inline code spans first, so every later scanner can skip their content
+    // (`` `**literal**` `` must not become bold).
     const QVector<QPair<int, int>> codeSpanRanges =
         parseInlineCodeSpans(text, formatData);
 
+    QVector<QPair<int, int>> protectedRanges = codeSpanRanges;
+
+    // Hide the marker backslash of escaped punctuation and protect the escaped
+    // characters themselves from the scanners below.
+    const QVector<QPair<int, int>> escapedRanges =
+        maskEscapedCharacters(text, formatData);
+    protectedRanges += escapedRanges;
+
+    // Plain `[title](url)` links are resolved up front; the marker scan below
+    // only handles the angle-bracket form `[title](<url>)`.
+    const QVector<MarkdownLinkExpression> plainLinks =
+        parsePlainLinks(text, protectedRanges, formatData);
+    for (const auto &link : plainLinks)
+    {
+        // Protect the brackets and the destination only. The title text may
+        // still contain emphasis or checkboxes.
+        protectedRanges.append(qMakePair(link.titleStart, link.titleStart));
+        protectedRanges.append(qMakePair(link.titleEnd, link.urlEnd));
+    }
+
+    // <https://example.com> - hidden angle brackets, clickable URL text.
+    parseAutoLinks(text, formatData);
+
     // CommonMark delimiter-stack emphasis parser (replaces the old
     // three-character window heuristic for *, _, ~~).
-    parseEmphasis(text, codeSpanRanges, formatData);
+    parseEmphasis(text, protectedRanges, formatData);
 
     int index2 = index1 + 1;
     int index3 = index2 + 1;
@@ -293,6 +535,25 @@ void MarkdownParser::identifyFormatData(QTextBlock &block)
     int len = text.length();
     while (index1 < len)
     {
+        // Characters owned by a code span, a plain link, or an escape are not
+        // Markdown markers; jump over the whole range.
+        const int protectedEnd = protectedRangeEndAt(index1, protectedRanges);
+        if (protectedEnd >= index1)
+        {
+            index1 = protectedEnd + 1;
+            index2 = index1 + 1;
+            index3 = index2 + 1;
+            continue;
+        }
+
+        if (isMarkdownEscaped(text, index1))
+        {
+            ++index1;
+            index2 = index1 + 1;
+            index3 = index2 + 1;
+            continue;
+        }
+
         composeSymbolCombination(len, text, index1, index2, index3, test);
 
         if (test != "")
@@ -374,7 +635,7 @@ void MarkdownParser::identifyFormatData(QTextBlock &block)
                                    match.url, match.alt);
     }
 
-    if (!formatData->isEmpty())
+    if (!formatData->isEmpty() || formatData->hasMaskedCharacters())
     {
         for (auto it = formatData->formats_begin();
              it != formatData->formats_end(); ++it)

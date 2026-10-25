@@ -2,6 +2,7 @@
 #define FORMATDATA_H
 
 #include <QBitArray>
+#include <QPair>
 #include <QTextBlockUserData>
 #include <QVector>
 #include "blocksupport.h"
@@ -25,6 +26,9 @@
 #define LINK_SYMBOL_MID "](<"
 #define LINK_SYMBOL_URL_START "(<"
 #define LINK_SYMBOL_URL_END ">)"
+// Plain-parenthesis links: [title](url). The URL part is masked from the
+// opening '(' through the closing ')'.
+#define LINK_SYMBOL_URL_PLAIN_END ")"
 
 // ===== FIX: inline code span =====
 // Internal sentinel used to route an inline code span through addFormat().
@@ -96,6 +100,7 @@ public:
                    const QString *linkTitle = nullptr);
     void addImageFormat(const int start, const int end, const QString &url,
                         const QString &altText);
+    void addAutoLinkFormat(const int start, const int end, const QString &url);
     void addBlockQuoteFormat(const int markerEnd, const int textEnd,
                              const int depth = 1);
     int getBlockQuoteDepth() const;
@@ -130,6 +135,9 @@ public:
     };
 
     bool isEmpty() const;
+    // True when at least one source character is hidden. A line may need to be
+    // attached even without fragments (for example a lone escaped character).
+    bool hasMaskedCharacters() const;
     bool isHidden() const;
     bool isFormatted() const;
     int getFormatCounts() const;
@@ -158,6 +166,17 @@ public:
     void setOriginalText(const QString &newOriginalText);
 
     int getCalculatedCursorPos(const int posInBlock);
+
+    // Number of characters inline images have already removed from the
+    // rendered line before `sourcePos`. One image collapses
+    // (length - 1) source characters into a single object character.
+    int collapsedCharsBefore(const int sourcePos) const;
+
+    // Total number of source characters consumed by inline images.
+    int totalCollapsedChars() const;
+
+    // Inclusive source spans of every inline image, in source order.
+    QVector<QPair<int, int>> imageSpans() const;
 
 private:
     QVector<FragmentData *> formats;

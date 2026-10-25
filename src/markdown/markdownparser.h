@@ -19,6 +19,17 @@ struct MarkdownImageExpression
     QString alt;
 };
 
+// Result of scanning one `[title](url)` link expression.
+struct MarkdownLinkExpression
+{
+    int titleStart = -1;
+    int titleEnd = -1;  // inclusive, index of ']'
+    int urlStart = -1;  // inclusive, index of '('
+    int urlEnd = -1;    // inclusive, index of ')'
+    QString url;
+    QString title;
+};
+
 // Stateless-at-call-time Markdown parser. It turns block text into
 // FormatData fragments (and, for images, their metadata) without mutating the
 // rendered QTextDocument. The tiny per-pass location state lives inside the
@@ -60,6 +71,31 @@ private:
     // the line does not start a valid blockquote marker. Also reports the
     // nesting depth (number of '>' markers).
     static int blockQuoteMarkerEnd(const QString &text, int &depth);
+
+    // Plain-parenthesis links `[title](url)`. The angle-bracket form
+    // `[title](<url>)` is handled by the marker scan in
+    // identifyFormatData(); these are collected separately and protected from
+    // the marker scan.
+    QVector<MarkdownLinkExpression>
+    parsePlainLinks(const QString &text,
+                    const QVector<QPair<int, int>> &protectedRanges,
+                    FormatData *formatData);
+
+    // `<https://example.com>` autolinks.
+    void parseAutoLinks(const QString &text, FormatData *formatData);
+
+    // Hide the backslash of a backslash-escaped punctuation character so that
+    // `\*` renders as `*` instead of starting emphasis. Returns the positions
+    // of the escaped characters, which must be protected from the emphasis and
+    // marker scanners.
+    QVector<QPair<int, int>> maskEscapedCharacters(const QString &text,
+                                                   FormatData *formatData);
+
+    static bool isProtectedPosition(int pos,
+                                    const QVector<QPair<int, int>> &ranges);
+    static int protectedRangeEndAt(int pos,
+                                   const QVector<QPair<int, int>> &ranges);
+
     void insertHeadingData(const QString &text, int &index1,
                            FormatData *formatData);
     QVector<QPair<int, int>> parseInlineCodeSpans(const QString &text,

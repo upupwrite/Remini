@@ -825,32 +825,82 @@ void MkTextDocument::hideMKSymbolsFromPreviousSelectedBlocks(
             {
                 formatData->setHidden(true);
 
+                const QBitArray &mask = formatData->getMask();
+                const int sourceLength = mask.size();
+                if (sourceLength == 0)
+                    continue;
+
+                // Inline images replace a multi-character expression with one
+                // object character. The block may therefore hold either the
+                // untouched source line or a line where those expressions are
+                // already collapsed; accept both and reject anything else.
+                const int imageCollapse = formatData->totalCollapsedChars();
+                const int textLength = block.text().size();
+                const bool imagesCollapsed =
+                    imageCollapse > 0 &&
+                    textLength == sourceLength - imageCollapse;
+                const bool sourceFrame = textLength == sourceLength;
+
+                if (!imagesCollapsed && !sourceFrame)
+                    continue;
+
                 if (!formatData->isFormatted())
                 {
                     for (QVector<FragmentData *>::Iterator it =
                              formatData->formats_begin();
                          it < formatData->formats_end(); it++)
                     {
+                        // Images are inserted after masking so that they do
+                        // not invalidate the remaining source offsets.
+                        if ((*it)->getStatus() == FragmentData::IMAGE)
+                            continue;
+
                         MarkdownRenderer::applyMkFormat(this, block, *(*it),
-                                      (*it)->getStatus(), formatCollection);
+                                                       (*it)->getStatus(),
+                                                       formatCollection);
                     }
                 }
 
-                const QBitArray &mask(formatData->getMask());
-                if (block.text().size() != mask.size())
-                    continue;
+                // Map a source offset to the current text offset. Going from
+                // the end towards the start keeps every earlier offset valid
+                // while characters are deleted.
+                const QVector<QPair<int, int>> imageSpans =
+                    formatData->imageSpans();
+                auto textPositionFor = [&](int sourcePos)
+                {
+                    int shift = 0;
+                    if (imagesCollapsed)
+                    {
+                        for (const auto &span : imageSpans)
+                        {
+                            if (span.second < sourcePos)
+                                shift += qMax(0, span.second - span.first);
+                        }
+                    }
+                    return sourcePos - shift;
+                };
 
                 QTextCursor cursor(block);
-                cursor.movePosition(QTextCursor::EndOfBlock);
-                for (int index = mask.size() - 1; index >= 0; --index)
+                for (int index = sourceLength - 1; index >= 0; --index)
                 {
-                    if (mask[index])
-                        cursor.deletePreviousChar();
-                    else
-                        cursor.movePosition(QTextCursor::PreviousCharacter);
+                    if (!mask.testBit(index))
+                        continue;
+
+                    const int textPos = textPositionFor(index);
+                    if (textPos < 0 || textPos >= block.length() - 1)
+                        continue;
+
+                    cursor.setPosition(block.position() + textPos);
+                    cursor.movePosition(QTextCursor::NextCharacter,
+                                        QTextCursor::KeepAnchor);
+                    cursor.removeSelectedText();
                 }
 
-                MarkdownRenderer::applyCheckBoxLinkEffect(formatData, block, checkMarkPositions, linkPositions);
+                if (!imagesCollapsed)
+                    MarkdownRenderer::insertImages(this, block, formatData);
+
+                MarkdownRenderer::applyCheckBoxLinkEffect(
+                    formatData, block, checkMarkPositions, linkPositions);
             }
         }
     }
@@ -980,16 +1030,13 @@ void MkTextDocument::pushCheckBoxHandle(const int position)
     if (!formatData)
         return;
 
-    int renderedPosInBlock = position - block.position();
-    int rawPosInBlock = renderedPosInBlock;
-    const QBitArray &mask = formatData->getMask();
-    for (int x = 0; x <= rawPosInBlock; ++x)
-    {
-        if (mask[x])
-            ++rawPosInBlock;
-    }
+    // Map the clicked rendered offset back to the source line. This accounts
+    // for hidden markers and for inline images that collapsed to one character.
+    const int renderedPosInBlock = position - block.position();
+    const int rawPosInBlock =
+        formatData->getCalculatedCursorPos(renderedPosInBlock);
 
-    int startOfCheckBoxInBlock = rawPosInBlock - 5;
+    const int startOfCheckBoxInBlock = qMax(0, rawPosInBlock - 5);
     QString rawText = this->rawDocument.findBlockByNumber(blockNo).text();
     QTextCursor cursor(this);
     cursor.setPosition(position);
