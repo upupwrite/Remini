@@ -21,7 +21,44 @@ set(CMAKE_AUTOUIC_SEARCH_PATHS ${APP_DIR} ${SETTINGS_DIR})
 
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets Gui Test)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Gui Test)
-find_package(Catch2 3 REQUIRED)
+
+# ---------------------------------------------------------------------------
+# Catch2 v3 dependency.
+#
+# Prefer a Catch2 v3 installation that CMake can already find (system package,
+# vcpkg, CMAKE_PREFIX_PATH, ...). If none is available, fetch a pinned release
+# automatically so a fresh clone can configure and build the tests without any
+# manual setup step.
+#
+# Note: find_package() is intentionally NOT REQUIRED here, so that the fallback
+# below can run. A missing Catch2 that cannot be downloaded still fails loudly
+# through FetchContent.
+# ---------------------------------------------------------------------------
+set(REMINI_CATCH2_TAG v3.7.1)
+
+find_package(Catch2 3 QUIET)
+
+if(NOT Catch2_FOUND)
+    message(STATUS "Catch2 v3 not found; fetching ${REMINI_CATCH2_TAG}")
+
+    include(FetchContent)
+
+    # Keep Catch2's own tests, docs, and extras out of the build.
+    set(CATCH_BUILD_TESTING OFF CACHE BOOL "" FORCE)
+    set(CATCH_INSTALL_DOCS OFF CACHE BOOL "" FORCE)
+    set(CATCH_INSTALL_EXTRAS OFF CACHE BOOL "" FORCE)
+    set(CATCH_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+
+    FetchContent_Declare(Catch2
+        GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+        GIT_TAG ${REMINI_CATCH2_TAG}
+        GIT_SHALLOW TRUE
+        GIT_PROGRESS TRUE
+    )
+    FetchContent_MakeAvailable(Catch2)
+else()
+    message(STATUS "Using installed Catch2 ${Catch2_VERSION}")
+endif()
 
 add_executable(${PROJECT_NAME}
     main.cpp
