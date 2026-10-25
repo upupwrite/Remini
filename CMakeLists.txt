@@ -45,6 +45,8 @@ set(PROJECT_SOURCES
     ${MARKDOWN_DIR}/mkedit.h
     ${MARKDOWN_DIR}/highlighter.cpp
     ${MARKDOWN_DIR}/highlighter.h
+    ${MARKDOWN_DIR}/markdownparser.cpp
+    ${MARKDOWN_DIR}/markdownparser.h
     ${MARKDOWN_DIR}/mktextdocument.cpp
     ${MARKDOWN_DIR}/mktextdocument.h
     ${MARKDOWN_DIR}/blockdata.cpp

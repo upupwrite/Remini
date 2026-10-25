@@ -24,6 +24,7 @@
 
 #include "edittypes.h"
 #include "formatcollection.h"
+#include "markdownparser.h"
 #include "selectrange.h"
 
 class MkTextDocument : public QTextDocument
@@ -105,18 +106,6 @@ private:
         QTextBlock end;
     };
 
-    struct FormatLocation
-    {
-        int start = -1;
-        int end = -1;
-
-        void reset()
-        {
-            start = -1;
-            end = -1;
-        }
-    };
-
     QTextDocument rawDocument;
 
     QString filePath;
@@ -125,9 +114,7 @@ private:
     int characterNo;
     SelectRange selectRange;
 
-    FormatLocation locCheck;
-    FormatLocation locLink;
-    FormatLocation locLinkTitle;
+    MarkdownParser parser;
 
     QRegularExpression regexCodeBlock;
     QRegularExpression regexHorizontalLine;
@@ -147,44 +134,10 @@ private:
     SelectRange undoSelectRange;
     SelectRange redoSelectRange;
 
-    void resetFormatLocation();
     void identifyUserData();
     void identifyUserData(QTextBlock &block);
     void formatAllLines(const QTextDocument &original,
                         MkTextDocument &formatted);
-
-    void identifyFormatData(QTextBlock &block);
-    void insertHeadingData(const QString &text, int &index1,
-                           FormatData *formatData);
-
-    // Detect backtick-delimited inline code spans (`` `code` ``) inside a
-    // single block.  Backticks are hidden via FormatData::addMaskRange() and
-    // a CODE_SPAN fragment is registered for the content.  Returns the list
-    // of [contentStart, contentEnd] pairs (inclusive) so that the emphasis
-    // parser can skip those ranges.
-    QVector<QPair<int, int>>
-    parseInlineCodeSpans(const QString &text, FormatData *formatData);
-
-    // CommonMark delimiter-stack emphasis parser.  Handles * and _ (strong
-    // and emphasis) plus GFM ~~ (strikethrough).  Delimiters within the
-    // supplied protected ranges (inline code spans) are ignored.
-    void parseEmphasis(const QString &text,
-                       const QVector<QPair<int, int>> &protectedRanges,
-                       FormatData *formatData);
-
-    void insertFormatCheckBoxData(FormatLocation &loc, int &index1, int &index2,
-                                  int &index3, FormatData *formatData,
-                                  const QString &test);
-    void insertFormatLinkData(FormatLocation &locTitle, FormatLocation &locLink,
-                              int &index1, int &index2, int &index3,
-                              FormatData *formatData, const QString &test,
-                              const QString *linkUrl, const QString *linkTitle);
-    void incrementIndexes(int &index1, int &index2, int &index3,
-                          const int size = 1);
-    void convertCharacterToCheckboxSymbol(const QChar &single, QString &text);
-    bool convertCharacterToLinkSymbol(const QChar &single, QString &text);
-    void composeSymbolCombination(int length, const QString &text, int &index1,
-                                  int &index2, int &index3, QString &result);
 
     void setCodeBlockMargin(QTextBlock &block, int leftMargin = 0,
                             int rightMargin = 0, int topMargin = 0,
