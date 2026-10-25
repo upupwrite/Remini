@@ -41,37 +41,34 @@ jobs:
             libgl1-mesa-dev \
             libglu1-mesa-dev \
             qt6-base-dev \
-            qt6-base-dev-tools \
-            qt6-tools-dev \
-            qt6-tools-dev-tools \
-            libqt6svg6-dev
+            qt6-base-dev-tools
 
       # -------------------------------------------------------------------
-      # Install the Catch2 single-header.
-      #
-      # The test sources all use `#include <catch2/catch.hpp>`, and Linux
-      # filesystems are case-sensitive, so:
-      #   * the directory MUST be named `catch2` (lowercase), and
-      #   * CATCH_INCLUDE_DIR MUST point at the PARENT of `catch2/`
-      #     (i.e. the repo root), because the compiler forms the full path
-      #     as  <CATCH_INCLUDE_DIR> + "/catch2/catch.hpp".
-      #
-      # Placing it at the repo root also works implicitly because
-      # CatchTests/CMakeLists.txt already adds ${CMAKE_SOURCE_DIR} to the
-      # include path; setting CATCH_INCLUDE_DIR makes it explicit.
+      # Tests use Catch2 v3 (find_package(Catch2 3) + Catch2::Catch2). Build
+      # a pinned Catch2 v3 release from source and expose it through
+      # CMAKE_PREFIX_PATH so the version does not depend on the distro package.
       # -------------------------------------------------------------------
-      - name: Install Catch2 single header
+      - name: Install Catch2 v3
         run: |
-          mkdir -p catch2
-          curl -fL -o catch2/catch.hpp \
-            https://github.com/catchorg/Catch2/releases/download/v2.13.10/catch.hpp
-          echo "CATCH_INCLUDE_DIR=${GITHUB_WORKSPACE}" >> "$GITHUB_ENV"
+          catch_root="$RUNNER_TEMP/catch2"
+          catch_prefix="$RUNNER_TEMP/catch2-install"
+          git clone --depth 1 --branch v3.7.1 \
+            https://github.com/catchorg/Catch2.git "$catch_root"
+          cmake -S "$catch_root" -B "$catch_root/build" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$catch_prefix" \
+            -DCATCH_BUILD_TESTING=OFF \
+            -DCATCH_INSTALL_DOCS=OFF \
+            -DCATCH_INSTALL_EXTRAS=OFF
+          cmake --build "$catch_root/build" --target install
+          echo "CATCH2_PREFIX=$catch_prefix" >> "$GITHUB_ENV"
 
       - name: Configure (CMake)
         run: |
           cmake -S . -B build \
             -G Ninja \
-            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DCMAKE_PREFIX_PATH="$CATCH2_PREFIX"
 
       # Ninja is a single-config generator; do NOT pass --config here.
       # CMAKE_BUILD_TYPE was already provided at configure time.

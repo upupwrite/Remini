@@ -117,9 +117,14 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_libraries(Remini PRIVATE X11::X11)
 endif()
 
-enable_testing()
-add_subdirectory(CatchTests)
-add_test(NAME CatchTests COMMAND CatchTests)
+# Tests are optional so packaging/CI jobs can skip the Catch2 dependency.
+# include(CTest) defines the standard BUILD_TESTING option (default ON).
+include(CTest)
+
+if(BUILD_TESTING)
+    add_subdirectory(CatchTests)
+    add_test(NAME CatchTests COMMAND CatchTests)
+endif()
 
 set_target_properties(Remini PROPERTIES
     MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}

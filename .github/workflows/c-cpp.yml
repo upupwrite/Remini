@@ -36,15 +36,26 @@ jobs:
     - name: Checkout Repo
       uses: actions/checkout@v4
 
-    - name: Download catch.hpp and setup Environment Variable
+    # ---------------------------------------------------------------------
+    # The tests now use Catch2 v3 (find_package(Catch2 3) + Catch2::Catch2).
+    # Install Catch2 v3 from source into a throwaway prefix and expose it via
+    # CMAKE_PREFIX_PATH. The old v2 single-header download is no longer used.
+    # ---------------------------------------------------------------------
+    - name: Install Catch2 v3
       shell: pwsh
       run: |
-        New-Item -ItemType Directory -Force -Path catch2 | Out-Null
-        Invoke-WebRequest `
-          -Uri "https://github.com/catchorg/Catch2/releases/download/v2.13.10/catch.hpp" `
-          -OutFile catch2/catch.hpp
-        echo "CATCH_INCLUDE_DIR=$env:GITHUB_WORKSPACE" >> $env:GITHUB_ENV
-        cd ..
+        $catchRoot = "$env:RUNNER_TEMP\catch2"
+        $catchPrefix = "$env:RUNNER_TEMP\catch2-install"
+        git clone --depth 1 --branch v3.7.1 `
+          https://github.com/catchorg/Catch2.git $catchRoot
+        cmake -S $catchRoot -B "$catchRoot\build" `
+          -DCMAKE_BUILD_TYPE=Release `
+          -DCMAKE_INSTALL_PREFIX=$catchPrefix `
+          -DCATCH_BUILD_TESTING=OFF `
+          -DCATCH_INSTALL_DOCS=OFF `
+          -DCATCH_INSTALL_EXTRAS=OFF
+        cmake --build "$catchRoot\build" --config Release --target install
+        echo "CATCH2_PREFIX=$catchPrefix" >> $env:GITHUB_ENV
 
     - name: Install Qt
       uses: jurplel/install-qt-action@v3
@@ -63,7 +74,9 @@ jobs:
     - name: Configure CMake
       shell: pwsh
       run: |
-        cmake -S . -B Build -DCMAKE_BUILD_TYPE=Release -DQt6_DIR="$env:QT_DIR"
+        cmake -S . -B Build -DCMAKE_BUILD_TYPE=Release `
+          -DQt6_DIR="$env:QT_DIR" `
+          -DCMAKE_PREFIX_PATH="$env:CATCH2_PREFIX"
 
     - name: Build the Qt project with CMake
       run: cmake --build Build --config Release
