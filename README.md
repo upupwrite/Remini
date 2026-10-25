@@ -32,7 +32,7 @@ https://github.com/AngryFender/Remini/assets/29480834/2fc6bc0e-da17-424a-8036-dc
 - [x]  Links, autolinks, and backslash escapes
 - [x]  Automated packages for Windows, Debian, and Arch Linux
 - [ ]  Themes, color schemes
-- [ ]  Tables
+- [x]  Tables (GFM pipe tables, rows added on `Enter`)
 - [ ]  Emoji library
 
 ### Markdown support at a glance
@@ -41,9 +41,10 @@ Supported: ATX headings `#`–`######`, bold `**`/`__`, italic `*`/`_`,
 strikethrough `~~`, inline code, ```` ``` ```` fenced code blocks, nested
 blockquotes `>`, horizontal rules `---`, task lists `- [ ]`/`- [x]`, links in
 both `[title](url)` and `[title](<url with spaces>)` form, autolinks
-`<https://…>`, backslash escapes `\*`, and inline images `![alt](path)`.
+`<https://…>`, backslash escapes `\*`, inline images `![alt](path)`, and GFM
+pipe tables (aligned columns, drawn grid).
 
-Not supported: setext headings, tables, inline HTML, link title attributes
+Not supported: setext headings, inline HTML, link title attributes
 (`[t](url "title")`), and remote (http/https) images. See
 [docs/markdown-parsing.md](docs/markdown-parsing.md#13-supported-syntax-matrix)
 for the full matrix, verified examples, and limitations.

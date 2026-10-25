@@ -10,6 +10,7 @@
 #include "blockdata.h"
 #include "formatcollection.h"
 #include "formatdata.h"
+#include "tabledata.h"
 
 class QTextDocument;
 
@@ -47,6 +48,16 @@ public:
         QTextBlock &block,
         QVector<QPair<int, int>> &checkMarkPositions,
         QVector<std::tuple<int, int, int, const QString *>> &linkPositions);
+
+    // Apply the rendered look of one table row: shared tab stops, a bold
+    // header, and a collapsed delimiter row (the header separator is drawn by
+    // the editor).
+    static void applyTableRowFormat(QTextDocument *document, QTextBlock &block,
+                                    TableData *table,
+                                    FormatCollection &formatCollection);
+
+    // Restore a table row to plain text while it is being edited.
+    static void resetTableRowFormat(QTextBlock &block);
 
     static void setCodeBlockMargin(QTextBlock &block, int leftMargin = 0,
                                    int rightMargin = 0, int topMargin = 0,

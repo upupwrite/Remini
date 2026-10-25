@@ -187,6 +187,25 @@ void FormatData::addMaskRange(const int start, const int end)
         mask.setBit(x, true);
 }
 
+void FormatData::addCharacterReplacement(const int pos,
+                                         const QChar &replacement)
+{
+    if (pos < 0 || pos >= mask.size())
+        return;
+    mask.setBit(pos, true);
+    characterReplacements.insert(pos, replacement);
+}
+
+bool FormatData::hasCharacterReplacement(const int pos) const
+{
+    return characterReplacements.contains(pos);
+}
+
+QChar FormatData::characterReplacementAt(const int pos) const
+{
+    return characterReplacements.value(pos, QChar());
+}
+
 QString FormatData::getOriginalText() const { return originalText; }
 
 void FormatData::setOriginalText(const QString &originalText)

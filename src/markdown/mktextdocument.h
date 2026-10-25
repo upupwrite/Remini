@@ -28,6 +28,7 @@
 #include "markdownparser.h"
 #include "markdownrenderer.h"
 #include "selectrange.h"
+#include "tabledata.h"
 
 class MkTextDocument : public QTextDocument
 {
@@ -141,6 +142,9 @@ private:
 
     void identifyUserData();
     void identifyUserData(QTextBlock &block);
+
+    // Pixel offsets of the column stops shared by every row of a table.
+    QVector<qreal> tableTabStops(const QVector<int> &columnWidths);
     void formatAllLines(const QTextDocument &original,
                         MkTextDocument &formatted);
 

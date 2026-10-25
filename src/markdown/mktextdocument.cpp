@@ -247,6 +247,11 @@ void MkTextDocument::removeAllMkDataHandle(int blockNo)
     this->clear();
     QTextDocument::setPlainText(sourceMarkdown);
     rawDocument.setPlainText(sourceMarkdown);
+
+    // The document now literally holds the source text, so re-classify the
+    // blocks. Structural edits (Enter, paste) read this user data to decide
+    // whether to continue a table row, quote, or list.
+    identifyUserData();
 }
 
 void MkTextDocument::applyAllMkDataHandle(int blockNumber)
@@ -283,7 +288,24 @@ void MkTextDocument::applyMkSingleBlockHandle(int blockNumber)
     QTextBlockUserData *data = block.userData();
 
     BlockData *blockData = dynamic_cast<BlockData *>(data);
-    if (!blockData)
+    if (blockData)
+        return;
+
+    // A table row keeps its table layout (column stops, row kind) across
+    // re-parses; only the inline fragments and the mask are rebuilt.
+    if (auto *table = dynamic_cast<TableData *>(data))
+    {
+        TableData *fresh = table->cloneLayout();
+        const int textLength = block.text().size();
+        fresh->setMaskSize(textLength);
+        block.setUserData(fresh);
+
+        if (fresh->getRowKind() == TableData::Delimiter)
+            fresh->addMaskRange(0, textLength - 1);
+        else
+            parser.identifyFormatData(block, fresh);
+    }
+    else
     {
         block.setUserData(nullptr);
 
@@ -295,12 +317,12 @@ void MkTextDocument::applyMkSingleBlockHandle(int blockNumber)
             block.setUserData(lineData);
         }
         parser.identifyFormatData(block);
-
-        this->selectRange.hideBlocks.erase(blockNumber);
-        hideMKSymbolsFromPreviousSelectedBlocks(&this->selectRange);
-        this->selectRange.showBlocks.insert(blockNumber);
-        showMKSymbolsFromCurrentSelectedBlocks(&this->selectRange);
     }
+
+    this->selectRange.hideBlocks.erase(blockNumber);
+    hideMKSymbolsFromPreviousSelectedBlocks(&this->selectRange);
+    this->selectRange.showBlocks.insert(blockNumber);
+    showMKSymbolsFromCurrentSelectedBlocks(&this->selectRange);
 }
 
 void MkTextDocument::identifyUserData()
@@ -363,8 +385,80 @@ void MkTextDocument::identifyUserData()
             continue;
         }
 
+        // A table is a run of blocks: header row, delimiter row, body rows.
+        // Detect it from the header block, attach one TableData per row, then
+        // skip over the rest of the run.
+        const TableInfo tableInfo =
+            MarkdownParser::detectTable(*this, block.blockNumber());
+        if (tableInfo.valid)
+        {
+            const QVector<qreal> tabStops =
+                tableTabStops(tableInfo.columnWidths);
+            for (int rowNo = tableInfo.headerBlock;
+                 rowNo <= tableInfo.lastBlock; ++rowNo)
+            {
+                QTextBlock row = this->findBlockByNumber(rowNo);
+                if (!row.isValid())
+                    continue;
+
+                TableData::RowKind kind = TableData::Body;
+                if (rowNo == tableInfo.headerBlock)
+                    kind = TableData::Header;
+                else if (rowNo == tableInfo.delimiterBlock)
+                    kind = TableData::Delimiter;
+
+                auto *table = new TableData(kind);
+                table->setColumnCount(tableInfo.columnCount);
+                table->setAlignments(tableInfo.alignments);
+                table->setColumnWidths(tableInfo.columnWidths);
+                table->setTabStops(tabStops);
+                table->setTableRange(tableInfo.headerBlock,
+                                     tableInfo.lastBlock);
+                row.setUserData(table);
+
+                if (kind == TableData::Delimiter)
+                {
+                    // The delimiter row carries no visible text.
+                    table->setMaskSize(row.text().size());
+                    table->addMaskRange(0, row.text().size() - 1);
+                    continue;
+                }
+
+                parser.identifyFormatData(row, table);
+            }
+
+            block = this->findBlockByNumber(tableInfo.lastBlock);
+            continue;
+        }
+
         parser.identifyFormatData(block);
     }
+}
+
+QVector<qreal> MkTextDocument::tableTabStops(const QVector<int> &columnWidths)
+{
+    // Convert the widest cell of every column into a pixel offset. The extra
+    // padding keeps text from touching the drawn column separators.
+    const QFontMetricsF metrics(this->defaultFont());
+    const qreal spaceWidth =
+        qMax<qreal>(1.0, metrics.horizontalAdvance(QLatin1Char(' ')));
+    const qreal padding = 8.0;
+
+    QVector<qreal> stops;
+    stops.reserve(columnWidths.size() + 1);
+
+    // The first stop is the left border; every following stop is a column
+    // separator, and the cell text of column i starts at stops[i].
+    qreal x = 0.0;
+    stops.append(x);
+    for (const int width : columnWidths)
+    {
+        const int characters = qMax(2, width) + 3;
+        x += characters * spaceWidth + padding / 4.0;
+        stops.append(x);
+    }
+
+    return stops;
 }
 
 void MkTextDocument::identifyUserData(QTextBlock &block)
@@ -893,11 +987,24 @@ void MkTextDocument::hideMKSymbolsFromPreviousSelectedBlocks(
                     cursor.setPosition(block.position() + textPos);
                     cursor.movePosition(QTextCursor::NextCharacter,
                                         QTextCursor::KeepAnchor);
-                    cursor.removeSelectedText();
+
+                    // Table rows replace '|' with a tab. The replacement is a
+                    // single character, so every later offset stays valid.
+                    if (formatData->hasCharacterReplacement(index))
+                        cursor.insertText(QString(
+                            formatData->characterReplacementAt(index)));
+                    else
+                        cursor.removeSelectedText();
                 }
 
                 if (!imagesCollapsed)
                     MarkdownRenderer::insertImages(this, block, formatData);
+
+                if (auto *table = dynamic_cast<TableData *>(formatData))
+                {
+                    MarkdownRenderer::applyTableRowFormat(
+                        this, block, table, formatCollection);
+                }
 
                 MarkdownRenderer::applyCheckBoxLinkEffect(
                     formatData, block, checkMarkPositions, linkPositions);
@@ -1215,6 +1322,26 @@ void MkTextDocument::numberListDetect(int blockNumber, int &newCursorPosition,
     QTextCursor cursor(this->findBlockByNumber(blockNumber));
     QTextBlock currentBlock = this->findBlockByNumber(blockNumber - 1);
     QString lineText = currentBlock.text();
+
+    // Table continuation: pressing Enter inside a table starts a new row with
+    // the same number of columns. Ctrl+Enter skips this and leaves the table.
+    if (continueQuote)
+    {
+        if (auto *table =
+                dynamic_cast<TableData *>(currentBlock.userData()))
+        {
+            const int columns = qMax(1, table->getColumnCount());
+            QString row = QStringLiteral("|");
+            for (int column = 0; column < columns; ++column)
+                row += QStringLiteral("   |");
+
+            cursor.insertText(row);
+            // Put the caret in the first cell, right after "| ".
+            cursor.setPosition(cursor.block().position() + 2);
+            newCursorPosition = 2;
+            return;
+        }
+    }
 
     // Blockquote continuation: reuse the exact leading ">" marker(s) so
     // pressing Enter keeps the quote (and its nesting) going.

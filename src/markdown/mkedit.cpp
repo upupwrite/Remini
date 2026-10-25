@@ -130,26 +130,84 @@ void MkEdit::paintEvent(QPaintEvent *e)
                     }
                 }
             }
-            else
+            else if (auto *lineData = dynamic_cast<LineData *>(data))
             {
-                LineData *lineData = dynamic_cast<LineData *>(data);
-                if (lineData)
-                {
-                    int lineX1 = this->x();
-                    int lineY1 =
-                        block.layout()->position().y() + fontSize - scrollPos;
-                    int lineX2 = this->x() + widthCodeBlock;
+                int lineX1 = this->x();
+                int lineY1 =
+                    block.layout()->position().y() + fontSize - scrollPos;
+                int lineX2 = this->x() + widthCodeBlock;
 
-                    painter.save();
-                    painter.setPen(whitePen);
-                    painter.drawLine(lineX1, lineY1, lineX2, lineY1);
-                    painter.restore();
-                }
+                painter.save();
+                painter.setPen(whitePen);
+                painter.drawLine(lineX1, lineY1, lineX2, lineY1);
+                painter.restore();
+            }
+            else if (auto *table = dynamic_cast<TableData *>(data))
+            {
+                // Draw the table grid once, from the header row, so every
+                // separator spans the whole table.
+                if (table->getRowKind() == TableData::Header)
+                    paintTable(&painter, table, scrollPos, fontSize);
             }
         }
         block = block.next();
     }
     QTextEdit::paintEvent(e);
+}
+
+void MkEdit::paintTable(QPainter *painter, TableData *table, int scrollPos,
+                        int fontSize)
+{
+    if (!table)
+        return;
+
+    const QVector<qreal> &stops = table->getTabStops();
+    if (stops.isEmpty())
+        return;
+
+    QTextBlock first =
+        this->document()->findBlockByNumber(table->getTableStartBlock());
+    QTextBlock last =
+        this->document()->findBlockByNumber(table->getTableEndBlock());
+    if (!first.isValid() || !last.isValid())
+        return;
+
+    QAbstractTextDocumentLayout *layout = this->document()->documentLayout();
+    const qreal top = layout->blockBoundingRect(first).top();
+    const qreal bottom = layout->blockBoundingRect(last).bottom();
+
+    const qreal left = first.layout()->position().x();
+    const qreal right = left + widthCodeBlock;
+
+    painter->save();
+    painter->setPen(whitePen);
+
+    // Horizontal borders: above the header, below it, and below the table.
+    painter->drawLine(QPointF(left, top - scrollPos),
+                      QPointF(right, top - scrollPos));
+    painter->drawLine(QPointF(left, bottom - scrollPos),
+                      QPointF(right, bottom - scrollPos));
+
+    // Header separator sits on the collapsed delimiter row.
+    QTextBlock delimiter =
+        this->document()->findBlockByNumber(table->getTableStartBlock() + 1);
+    if (delimiter.isValid())
+    {
+        const qreal separator = layout->blockBoundingRect(delimiter).top();
+        painter->drawLine(QPointF(left, separator - scrollPos),
+                          QPointF(right, separator - scrollPos));
+    }
+
+    // Vertical separators at every column stop.
+    for (const qreal stop : stops)
+    {
+        const qreal x = left + stop;
+        painter->drawLine(QPointF(x, top - scrollPos),
+                          QPointF(x, bottom - scrollPos));
+    }
+
+    painter->restore();
+    Q_UNUSED(fontSize);
 }
 
 void MkEdit::resizeEvent(QResizeEvent *event)

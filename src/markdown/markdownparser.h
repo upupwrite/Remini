@@ -4,10 +4,28 @@
 #include <QChar>
 #include <QPair>
 #include <QString>
+#include <QStringList>
 #include <QTextBlock>
+#include <QTextDocument>
 #include <QVector>
+#include <Qt>
 
 class FormatData;
+class TableData;
+
+// Description of one GFM pipe table found in a document.
+struct TableInfo
+{
+    bool valid = false;
+    int headerBlock = -1;
+    int delimiterBlock = -1;
+    int lastBlock = -1;
+    int columnCount = 0;
+    QVector<int> columnWidths;
+    QVector<Qt::Alignment> alignments;
+};
+
+
 
 // Result of scanning one inline Markdown image expression.
 struct MarkdownImageExpression
@@ -47,7 +65,29 @@ public:
 
     // Parse one block and attach a FormatData user-data object when the block
     // actually contains Markdown. Empty results leave userData untouched.
-    void identifyFormatData(QTextBlock &block);
+    //
+    // When `existing` is supplied the caller keeps ownership and the parse is
+    // written into it; this is how a table row reuses its TableData.
+    void identifyFormatData(QTextBlock &block, FormatData *existing = nullptr);
+
+    // --- Tables ------------------------------------------------------------
+    // A GFM pipe table is a header row, a delimiter row, and zero or more body
+    // rows. Detection works on plain text so the document can classify blocks
+    // before it parses them.
+    static bool isTableDelimiterRow(const QString &text);
+    static bool isTableRow(const QString &text);
+
+    // Cell text of a row, split on unescaped '|'. Outer pipes are optional and
+    // surrounding spaces are trimmed from every cell.
+    static QStringList tableCells(const QString &text);
+
+    // Column alignments declared by a delimiter row.
+    static QVector<Qt::Alignment> tableAlignments(const QString &delimiterText);
+
+    // Inspect the document starting at `blockNumber`. Returns a valid TableInfo
+    // when a header/delimiter pair starts there.
+    static TableInfo detectTable(const QTextDocument &document,
+                                 const int blockNumber);
 
 private:
     struct FormatLocation

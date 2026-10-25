@@ -1838,3 +1838,159 @@ TEST_CASE("MkTextDocument keeps code spans working next to escapes",
 
     REQUIRE(doc.begin().text() == "* a*b*");
 }
+
+// ============================================================================
+// GFM pipe tables
+// ============================================================================
+
+TEST_CASE("MkTextDocument detects table rows", "[MkTextDocument][Table]")
+{
+    MkTextDocument doc;
+    doc.setPlainText("| a | b |\n| --- | --- |\n| 1 | 2 |");
+
+    auto kindOf = [&doc](int blockNo)
+    {
+        QTextBlock block = doc.findBlockByNumber(blockNo);
+        auto *table = dynamic_cast<TableData *>(block.userData());
+        return table ? table->getRowKind() : TableData::Body;
+    };
+
+    REQUIRE(kindOf(0) == TableData::Header);
+    REQUIRE(kindOf(1) == TableData::Delimiter);
+    REQUIRE(kindOf(2) == TableData::Body);
+
+    auto *header =
+        dynamic_cast<TableData *>(doc.findBlockByNumber(0).userData());
+    REQUIRE(header != nullptr);
+    REQUIRE(header->getColumnCount() == 2);
+    REQUIRE(header->getTableStartBlock() == 0);
+    REQUIRE(header->getTableEndBlock() == 2);
+    REQUIRE(header->getTabStops().size() == 3);
+}
+
+TEST_CASE("MkTextDocument renders table rows as tab separated cells",
+          "[MkTextDocument][Table]")
+{
+    MkTextDocument doc;
+    MkEdit edit;
+    SelectRange range;
+
+    doc.setPlainText("| name | qty |\n| --- | --- |\n| tea | 2 |");
+    doc.setMarkdownHandle(true);
+    edit.setDocument(&doc);
+
+    range.hasSelection = false;
+    range.currentBlockNo = 99;
+    doc.cursorPosChangedHandle(&range);
+
+    const QTextBlock header = doc.begin();
+    const QTextBlock delimiter = header.next();
+    const QTextBlock body = delimiter.next();
+
+    REQUIRE_FALSE(header.text().contains(QLatin1Char('|')));
+    REQUIRE(header.text().contains(QLatin1Char('\t')));
+    REQUIRE(header.text().contains(QStringLiteral("name")));
+
+    // The delimiter row keeps no visible text.
+    REQUIRE(delimiter.text().isEmpty());
+
+    REQUIRE_FALSE(body.text().contains(QLatin1Char('|')));
+    REQUIRE(body.text().contains(QLatin1Char('\t')));
+    REQUIRE(body.text().contains(QStringLiteral("tea")));
+
+    // The raw document is untouched.
+    REQUIRE(doc.getRawDocument()->toPlainText() ==
+            "| name | qty |\n| --- | --- |\n| tea | 2 |");
+}
+
+TEST_CASE("MkTextDocument shares tab stops between table rows",
+          "[MkTextDocument][Table]")
+{
+    MkTextDocument doc;
+    MkEdit edit;
+    SelectRange range;
+
+    doc.setPlainText("| a | b |\n| --- | --- |\n| longer cell | 2 |");
+    doc.setMarkdownHandle(true);
+    edit.setDocument(&doc);
+
+    range.hasSelection = false;
+    range.currentBlockNo = 99;
+    doc.cursorPosChangedHandle(&range);
+
+    auto positions = [&doc](int blockNo)
+    {
+        QStringList values;
+        for (const auto &tab :
+             doc.findBlockByNumber(blockNo).blockFormat().tabPositions())
+            values << QString::number(tab.position, 'f', 1);
+        return values;
+    };
+
+    REQUIRE(positions(0) == positions(1));
+    REQUIRE(positions(1) == positions(2));
+    REQUIRE(positions(0).size() == 3);
+}
+
+TEST_CASE("MkTextDocument parses table column alignment",
+          "[MkTextDocument][Table]")
+{
+    MkTextDocument doc;
+    doc.setPlainText("| l | c | r |\n| :-- | :-: | --: |\n| 1 | 2 | 3 |");
+
+    auto *delimiter =
+        dynamic_cast<TableData *>(doc.findBlockByNumber(1).userData());
+    REQUIRE(delimiter != nullptr);
+    REQUIRE(delimiter->getAlignment(0) == Qt::AlignLeft);
+    REQUIRE(delimiter->getAlignment(1) == Qt::AlignHCenter);
+    REQUIRE(delimiter->getAlignment(2) == Qt::AlignRight);
+}
+
+TEST_CASE("MkTextDocument requires a delimiter row to start a table",
+          "[MkTextDocument][Table]")
+{
+    SECTION("pipes alone are not a table")
+    {
+        MkTextDocument doc;
+        doc.setPlainText("a | b\nc | d");
+        REQUIRE(dynamic_cast<TableData *>(doc.begin().userData()) == nullptr);
+    }
+
+    SECTION("delimiter row needs a header with the same width")
+    {
+        MkTextDocument doc;
+        doc.setPlainText("| a | b |\n| --- |");
+        REQUIRE(dynamic_cast<TableData *>(doc.begin().userData()) == nullptr);
+    }
+}
+
+TEST_CASE("MkTextDocument keeps table rows after a single-row edit",
+          "[MkTextDocument][Table]")
+{
+    MkTextDocument doc;
+    MkEdit edit;
+    SelectRange range;
+
+    doc.setPlainText("| a | b |\n| --- | --- |\n| 1 | 2 |");
+    doc.setMarkdownHandle(true);
+    edit.setDocument(&doc);
+
+    range.hasSelection = false;
+    range.currentBlockNo = 99;
+    doc.cursorPosChangedHandle(&range);
+
+    // Edit the body row through the rendered document and sync the raw line.
+    QTextCursor cursor(&doc);
+    cursor.setPosition(doc.findBlockByNumber(2).position());
+    cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
+    cursor.insertText(QStringLiteral("\tupdated\t9\t"));
+    doc.saveSingleRawBlockHandler(2);
+    doc.applyMkSingleBlockHandle(2);
+
+    auto *body =
+        dynamic_cast<TableData *>(doc.findBlockByNumber(2).userData());
+    REQUIRE(body != nullptr);
+    REQUIRE(body->getRowKind() == TableData::Body);
+    REQUIRE(body->getColumnCount() == 2);
+    REQUIRE(body->getTabStops().size() == 3);
+}

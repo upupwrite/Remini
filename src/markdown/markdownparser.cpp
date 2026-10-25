@@ -1,6 +1,7 @@
 #include "markdownparser.h"
 
 #include "formatdata.h"
+#include "tabledata.h"
 
 #include <QtGlobal>
 
@@ -499,13 +500,196 @@ QVector<MarkdownImageExpression> MarkdownParser::parseImages(const QString &text
     return images;
 }
 
+
+// ---------------------------------------------------------------------------
+// GFM pipe tables
+// ---------------------------------------------------------------------------
+namespace {
+
+// Split a row on unescaped pipes. Outer pipes are optional.
+QStringList splitRow(const QString &text)
+{
+    QStringList cells;
+    QString current;
+    const int n = text.size();
+
+    for (int i = 0; i < n; ++i)
+    {
+        const QChar c = text.at(i);
+        if (c == QLatin1Char('\\') && i + 1 < n)
+        {
+            current.append(c);
+            current.append(text.at(i + 1));
+            ++i;
+            continue;
+        }
+        if (c == QLatin1Char('|'))
+        {
+            cells.append(current);
+            current.clear();
+            continue;
+        }
+        current.append(c);
+    }
+    cells.append(current);
+
+    // A leading pipe produces an empty first cell and a trailing pipe an empty
+    // last cell; drop those.
+    if (!cells.isEmpty() && cells.first().trimmed().isEmpty() &&
+        text.trimmed().startsWith(QLatin1Char('|')))
+        cells.removeFirst();
+    if (!cells.isEmpty() && cells.last().trimmed().isEmpty() &&
+        text.trimmed().endsWith(QLatin1Char('|')))
+        cells.removeLast();
+
+    return cells;
+}
+
+bool isDelimiterCell(const QString &cell)
+{
+    const QString trimmed = cell.trimmed();
+    if (trimmed.isEmpty())
+        return false;
+
+    int i = 0;
+    if (trimmed.at(i) == QLatin1Char(':'))
+        ++i;
+    int dashes = 0;
+    while (i < trimmed.size() && trimmed.at(i) == QLatin1Char('-'))
+    {
+        ++dashes;
+        ++i;
+    }
+    if (i < trimmed.size() && trimmed.at(i) == QLatin1Char(':'))
+        ++i;
+
+    return dashes >= 1 && i == trimmed.size();
+}
+
+}  // namespace
+
+bool MarkdownParser::isTableDelimiterRow(const QString &text)
+{
+    const QString trimmed = text.trimmed();
+    if (!trimmed.contains(QLatin1Char('-')))
+        return false;
+
+    const QStringList cells = splitRow(trimmed);
+    if (cells.isEmpty())
+        return false;
+
+    for (const QString &cell : cells)
+    {
+        if (!isDelimiterCell(cell))
+            return false;
+    }
+    return true;
+}
+
+bool MarkdownParser::isTableRow(const QString &text)
+{
+    const QString trimmed = text.trimmed();
+    if (trimmed.isEmpty())
+        return false;
+
+    // A pipe must appear outside an escaped position.
+    for (int i = 0; i < trimmed.size(); ++i)
+    {
+        if (trimmed.at(i) == QLatin1Char('|') &&
+            !isMarkdownEscaped(trimmed, i))
+            return true;
+    }
+    return false;
+}
+
+QStringList MarkdownParser::tableCells(const QString &text)
+{
+    QStringList cells = splitRow(text);
+    for (QString &cell : cells)
+        cell = cell.trimmed();
+    return cells;
+}
+
+QVector<Qt::Alignment> MarkdownParser::tableAlignments(
+    const QString &delimiterText)
+{
+    QVector<Qt::Alignment> alignments;
+    const QStringList cells = tableCells(delimiterText);
+
+    for (const QString &cell : cells)
+    {
+        const QString trimmed = cell.trimmed();
+        const bool left = trimmed.startsWith(QLatin1Char(':'));
+        const bool right = trimmed.endsWith(QLatin1Char(':'));
+
+        if (left && right)
+            alignments.append(Qt::AlignHCenter);
+        else if (right)
+            alignments.append(Qt::AlignRight);
+        else
+            alignments.append(Qt::AlignLeft);
+    }
+
+    return alignments;
+}
+
+TableInfo MarkdownParser::detectTable(const QTextDocument &document,
+                                      const int blockNumber)
+{
+    TableInfo info;
+
+    const QTextBlock header = document.findBlockByNumber(blockNumber);
+    if (!header.isValid() || !isTableRow(header.text()))
+        return info;
+
+    const QTextBlock delimiter = header.next();
+    if (!delimiter.isValid() || !isTableDelimiterRow(delimiter.text()))
+        return info;
+
+    const QStringList headerCells = tableCells(header.text());
+    const QStringList delimiterCells = tableCells(delimiter.text());
+    if (headerCells.isEmpty() || headerCells.size() != delimiterCells.size())
+        return info;
+
+    info.valid = true;
+    info.headerBlock = header.blockNumber();
+    info.delimiterBlock = delimiter.blockNumber();
+    info.columnCount = headerCells.size();
+    info.alignments = tableAlignments(delimiter.text());
+
+    info.columnWidths = QVector<int>(info.columnCount, 0);
+    auto trackWidths = [&info](const QStringList &cells)
+    {
+        const int count = qMin(cells.size(), info.columnCount);
+        for (int i = 0; i < count; ++i)
+            info.columnWidths[i] = qMax(info.columnWidths.at(i),
+                                        cells.at(i).size());
+    };
+    trackWidths(headerCells);
+
+    int last = delimiter.blockNumber();
+    for (QTextBlock row = delimiter.next(); row.isValid(); row = row.next())
+    {
+        // The table ends at the first blank line or non-row block.
+        if (!isTableRow(row.text()))
+            break;
+        // A delimiter row cannot appear twice in a row for the same table.
+        last = row.blockNumber();
+        trackWidths(tableCells(row.text()));
+    }
+
+    info.lastBlock = last;
+    return info;
+}
+
 // ---------------------------------------------------------------------------
 // Per-block Markdown detection
 // ---------------------------------------------------------------------------
-void MarkdownParser::identifyFormatData(QTextBlock &block)
+void MarkdownParser::identifyFormatData(QTextBlock &block,
+                                        FormatData *existing)
 {
     resetFormatLocation();
-    FormatData *formatData = new FormatData;
+    FormatData *formatData = existing ? existing : new FormatData;
     QString text(block.text());
     QString textLink = text;
     QString test;
@@ -664,6 +848,35 @@ void MarkdownParser::identifyFormatData(QTextBlock &block)
                                    match.url, match.alt);
     }
 
+    // Table rows: turn every unescaped pipe outside a code span into a tab so
+    // all rows of the table line up on the shared tab stops, and hide the
+    // spaces the user typed around the pipes.
+    if (auto *table = dynamic_cast<TableData *>(formatData))
+    {
+        for (int i = 0; i < text.size(); ++i)
+        {
+            if (text.at(i) != QLatin1Char('|') || isMarkdownEscaped(text, i) ||
+                isProtectedPosition(i, codeSpanRanges))
+                continue;
+
+            formatData->addCharacterReplacement(i, QLatin1Char('\t'));
+
+            int left = i - 1;
+            while (left >= 0 && text.at(left) == QLatin1Char(' '))
+            {
+                formatData->addMaskRange(left, left);
+                --left;
+            }
+            int right = i + 1;
+            while (right < text.size() && text.at(right) == QLatin1Char(' '))
+            {
+                formatData->addMaskRange(right, right);
+                ++right;
+            }
+        }
+        Q_UNUSED(table);
+    }
+
     if (!formatData->isEmpty() || formatData->hasMaskedCharacters())
     {
         for (auto it = formatData->formats_begin();
@@ -690,7 +903,8 @@ void MarkdownParser::identifyFormatData(QTextBlock &block)
                     QString(), QString());
             }
         }
-        block.setUserData(formatData);
+        if (existing == nullptr)
+            block.setUserData(formatData);
     }
 }
 

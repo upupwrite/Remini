@@ -71,6 +71,12 @@ void MarkdownRenderer::setCodeBlockMargin(QTextBlock &block, int leftMargin,
 void MarkdownRenderer::resetTextBlockFormat(QTextBlock block)
 {
     QTextCursor cursor(block);
+
+    // Table rows carry tab stops and a collapsed delimiter height that must not
+    // leak into the editable (raw) view.
+    if (dynamic_cast<TableData *>(block.userData()))
+        cursor.setBlockFormat(QTextBlockFormat());
+
     QTextCharFormat format;
     cursor.setPosition(block.position());
     cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
@@ -443,4 +449,70 @@ void MarkdownRenderer::insertImages(QTextDocument *document, QTextBlock &block,
                            QTextCursor::KeepAnchor);
         cursor.insertImage(imageFormat);
     }
+}
+
+// ---------------------------------------------------------------------------
+// Tables
+// ---------------------------------------------------------------------------
+void MarkdownRenderer::applyTableRowFormat(QTextDocument *document,
+                                           QTextBlock &block,
+                                           TableData *table,
+                                           FormatCollection &formatCollection)
+{
+    Q_UNUSED(document);
+    Q_UNUSED(formatCollection);
+
+    if (!table || !block.isValid())
+        return;
+
+    QTextCursor cursor(block);
+    QTextBlockFormat blockFormat = cursor.blockFormat();
+
+    // Shared tab stops make every row line up in the same columns.
+    const QVector<qreal> &stops = table->getTabStops();
+    QList<QTextOption::Tab> tabs;
+    tabs.reserve(stops.size());
+    for (const qreal stop : stops)
+        tabs.append(QTextOption::Tab(stop, QTextOption::LeftTab));
+    blockFormat.setTabPositions(tabs);
+
+    blockFormat.setLeftMargin(0);
+    blockFormat.setRightMargin(0);
+
+    if (table->getRowKind() == TableData::Delimiter)
+    {
+        // The delimiter row only carries the header separator line, so keep it
+        // as a thin strip instead of an empty text line.
+        blockFormat.setTopMargin(0);
+        blockFormat.setBottomMargin(0);
+        blockFormat.setLineHeight(2, QTextBlockFormat::FixedHeight);
+        cursor.setBlockFormat(blockFormat);
+        return;
+    }
+
+    blockFormat.setTopMargin(table->getRowKind() == TableData::Header ? 4 : 0);
+    blockFormat.setBottomMargin(table->getRowKind() == TableData::Header ? 2 : 0);
+    cursor.setBlockFormat(blockFormat);
+
+    if (table->getRowKind() != TableData::Header)
+        return;
+
+    // Bold header row. Cells are separated by tabs, so a single format over the
+    // whole line is enough.
+    QTextCursor headerCursor(document);
+    headerCursor.setPosition(block.position());
+    headerCursor.setPosition(block.position() + qMax(0, block.length() - 1),
+                             QTextCursor::KeepAnchor);
+    QTextCharFormat headerFormat;
+    headerFormat.setFontWeight(QFont::DemiBold);
+    headerCursor.mergeCharFormat(headerFormat);
+}
+
+void MarkdownRenderer::resetTableRowFormat(QTextBlock &block)
+{
+    if (!block.isValid())
+        return;
+
+    QTextCursor cursor(block);
+    cursor.setBlockFormat(QTextBlockFormat());
 }

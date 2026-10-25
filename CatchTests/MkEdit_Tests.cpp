@@ -2622,3 +2622,79 @@ TEST_CASE("MkEdit pressing Ctrl+Enter breaks a blockquote", "[MkEdit]")
     REQUIRE(edit.textCursor().blockNumber() == 1);
     REQUIRE(edit.textCursor().positionInBlock() == 0);
 }
+
+TEST_CASE("MkEdit pressing Enter inside a table adds a row", "[MkEdit][Table]")
+{
+    MkTextDocument doc;
+    MkEdit edit;
+
+    doc.setPlainText("| a | b |\n| --- | --- |\n| 1 | 2 |");
+    doc.setMarkdownHandle(true);
+    edit.setDocument(&doc);
+
+    QObject::connect(&edit, &MkEdit::cursorPosChanged, &doc,
+                     &MkTextDocument::cursorPosChangedHandle);
+    QObject::connect(&edit, &MkEdit::removeAllMkData, &doc,
+                     &MkTextDocument::removeAllMkDataHandle);
+    QObject::connect(&edit, &MkEdit::applyAllMkData, &doc,
+                     &MkTextDocument::applyAllMkDataHandle);
+    QObject::connect(&edit, &MkEdit::saveRawDocument, &doc,
+                     &MkTextDocument::saveRawDocumentHandler);
+    QObject::connect(&edit, &MkEdit::enterKeyPressed, &doc,
+                     &MkTextDocument::enterKeyPressedHandle);
+
+    // Put the caret at the end of the last body row.
+    QTextCursor cursor = edit.textCursor();
+    cursor.setPosition(1);
+    edit.setTextCursor(cursor);
+    cursor.setPosition(doc.lastBlock().position() + doc.lastBlock().length() - 1);
+    edit.setTextCursor(cursor);
+
+    QScopedPointer<QKeyEvent> enter(
+        new QKeyEvent(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier));
+    edit.keyPressEvent(enter.data());
+
+    const QString raw = doc.getRawDocument()->toPlainText();
+    INFO("raw=[" << raw.toStdString() << "]");
+    REQUIRE(raw.count('\n') == 3);
+    REQUIRE(raw.endsWith("\n|   |   |"));
+    REQUIRE(edit.textCursor().blockNumber() == 3);
+    REQUIRE(edit.textCursor().positionInBlock() == 2);
+}
+
+TEST_CASE("MkEdit Ctrl+Enter leaves a table", "[MkEdit][Table]")
+{
+    MkTextDocument doc;
+    MkEdit edit;
+
+    doc.setPlainText("| a | b |\n| --- | --- |\n| 1 | 2 |");
+    doc.setMarkdownHandle(true);
+    edit.setDocument(&doc);
+
+    QObject::connect(&edit, &MkEdit::cursorPosChanged, &doc,
+                     &MkTextDocument::cursorPosChangedHandle);
+    QObject::connect(&edit, &MkEdit::removeAllMkData, &doc,
+                     &MkTextDocument::removeAllMkDataHandle);
+    QObject::connect(&edit, &MkEdit::applyAllMkData, &doc,
+                     &MkTextDocument::applyAllMkDataHandle);
+    QObject::connect(&edit, &MkEdit::saveRawDocument, &doc,
+                     &MkTextDocument::saveRawDocumentHandler);
+    QObject::connect(&edit, &MkEdit::enterKeyPressed, &doc,
+                     &MkTextDocument::enterKeyPressedHandle);
+
+    QTextCursor cursor = edit.textCursor();
+    cursor.setPosition(1);
+    edit.setTextCursor(cursor);
+    cursor.setPosition(doc.lastBlock().position() + doc.lastBlock().length() - 1);
+    edit.setTextCursor(cursor);
+
+    QScopedPointer<QKeyEvent> ctrlEnter(
+        new QKeyEvent(QEvent::KeyPress, Qt::Key_Return, Qt::ControlModifier));
+    edit.keyPressEvent(ctrlEnter.data());
+
+    const QString raw = doc.getRawDocument()->toPlainText();
+    REQUIRE(raw.count('\n') == 3);
+    REQUIRE(raw.endsWith("\n"));
+    REQUIRE_FALSE(raw.endsWith("|   |   |"));
+    REQUIRE(edit.textCursor().positionInBlock() == 0);
+}

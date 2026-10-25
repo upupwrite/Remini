@@ -156,6 +156,14 @@ public:
     void setMaskSize(const int size);
     const QBitArray &getMask() const;
 
+    // Replace a hidden source character with a different single character
+    // while rendering. Table rows use this to turn '|' into a tab so the cells
+    // line up on shared tab stops. The replacement is 1:1, so the rendered line
+    // keeps the mask/source length invariant.
+    void addCharacterReplacement(const int pos, const QChar &replacement);
+    bool hasCharacterReplacement(const int pos) const;
+    QChar characterReplacementAt(const int pos) const;
+
     // ===== FIX: helpers for external masking =====
     // Mark [start, end] inclusive as hidden characters. Used by the ATX
     // closing-sequence and inline code span parsers, which both need to
@@ -189,6 +197,7 @@ private:
     QMap<int, QString> imageUrlMap;
     QMap<int, QString> imageAltTextMap;
     QBitArray mask;
+    QMap<int, QChar> characterReplacements;
     QString originalText;
     int blockQuoteDepth;
     bool hidden;

@@ -88,6 +88,7 @@ Two entry points decide *which* block gets re-rendered:
 | Call | When | Scope |
 | --- | --- | --- |
 | `applyAllMkDataHandle(blockNo)` | Structure-changing edits (Enter, paste, multi-line delete) | Re-parse every block's user data, then re-render all of them |
+| `removeAllMkDataHandle(blockNo)` | Before a structural edit | Rebuilds the rendered document from the raw source, then re-classifies every block so Enter can continue a table/quote/list |
 | `applyMkSingleBlockHandle(blockNo)` | Single-block text edits | Re-parse and re-render one block |
 | `cursorPosChangedHandle(range)` | Cursor/selection moved | Hide the blocks the cursor left, show the block(s) it entered |
 
@@ -105,6 +106,9 @@ Every `QTextBlock` in the rendered document carries exactly one
 | `BlockData` | Part of a fenced code block (`start`, `content`, `end`), plus the fence's first/last block numbers and hidden state | `identifyUserData` |
 | `LineData` | A horizontal rule (`---`) | `identifyUserData` |
 | `FormatData` | Any block containing inline/block Markdown fragments | `MarkdownParser::identifyFormatData` |
+| `TableData` | One row of a GFM pipe table. Derives from `FormatData`, so all
+  fragment/mask machinery still applies, and adds row kind, column count,
+  alignments, shared tab stops and the table's block range | `identifyUserData` |
 
 A block with **no** user data has nothing to format (plain text) and is simply
 reset to default styling.
@@ -370,6 +374,96 @@ supports:
 Images are skipped when they start inside an inline code span. The rendered form
 is a real `QTextImageFormat` object, so the visible character count changes
 (see §8.3).
+
+### 6.7 GFM pipe tables
+
+Tables are a **multi-block** construct, so they follow the same pattern as
+fenced code blocks: detection happens in `MkTextDocument::identifyUserData()`,
+and each participating block gets a block-level user-data object.
+
+```
+| name | qty |     <- TableData::Header
+| :--- | --: |     <- TableData::Delimiter  (collapsed to a separator line)
+| tea  | 2   |     <- TableData::Body
+```
+
+**Detection** (`MarkdownParser::detectTable`):
+
+1. The current block must contain an unescaped `|` (`isTableRow`).
+2. The **next** block must be a delimiter row (`isTableDelimiterRow`): every
+   cell must consist of hyphens with optional leading/trailing colons.
+3. Header and delimiter must declare the **same number of cells**.
+4. Following blocks belong to the table while they contain an unescaped `|`;
+   the first blank or non-row block ends it.
+
+If any rule fails there is no table: `a | b` followed by `c | d` stays plain
+text, and a mismatched delimiter row makes both blocks plain text.
+
+**Per-row data** (`TableData`, `src/markdown/tabledata.h`):
+
+| Field | Meaning |
+| --- | --- |
+| `RowKind` | `Header`, `Delimiter`, or `Body` |
+| `columnCount` | cells declared by the header |
+| `alignments` | `Qt::AlignLeft` / `AlignHCenter` / `AlignRight` from the delimiter row |
+| `columnWidths` | widest cell text per column, in characters |
+| `tabStops` | shared pixel offsets, computed by `MkTextDocument::tableTabStops` |
+| `tableStartBlock` / `tableEndBlock` | span of the whole table |
+
+**Rendering**
+
+The pipes are hidden and replaced — one-for-one — by a tab character
+(`FormatData::addCharacterReplacement`), and the spaces the user typed around
+them are masked. Because the replacement is exactly one character, the
+mask/source length invariant still holds and the hide loop needs no special
+case beyond "replace instead of delete".
+
+All rows share the same tab stops, so cell text starts at the same x position in
+every row even though the rows are separate blocks:
+
+```
+source:     | name | qty |          rendered:  	name	qty	
+            | --- | --- |                     (collapsed to a 2 px strip)
+            | tea  | 2   |                     	tea	2	
+```
+
+`MarkdownRenderer::applyTableRowFormat` sets:
+
+- the tab stops on every row,
+- zero left/right margins,
+- a 2 px fixed line height for the delimiter row so it reads as a thin
+  separator instead of an empty line,
+- bold weight on the header row.
+
+`MkEdit::paintEvent()` → `paintTable()` draws the grid: a border above the
+header, the header separator on the delimiter row, a border below the table, and
+one vertical line per tab stop.
+
+The pipe inside a code span is **not** converted, because the table masking step
+skips protected ranges: `` | `x|y` | `` keeps its literal pipe.
+
+Only the brackets are replaced in the rendered view; `rawDocument` always keeps
+the original pipes, so saving and reopening round-trips exactly.
+
+**Editing**
+
+| Gesture | Behaviour |
+| --- | --- |
+| `Enter` in a table row | Inserts an empty row with the same column count (`\|   \|   \|`) and puts the caret in the first cell |
+| `Ctrl+Enter` | Leaves the table with a plain paragraph break |
+| Editing a cell | The row is shown as raw Markdown; on leaving the row it is re-rendered into columns |
+
+Re-parsing a single row reuses the existing table layout
+(`TableData::cloneLayout()`), so the column widths and tab stops stay stable
+while typing.
+
+**Limitations**
+
+- Cell text is left-aligned inside its column; the parsed `alignments` are
+  stored but the tab-stop layout cannot right-align or centre yet.
+- Column widths are measured in characters using the document font, so a zoom
+  or font change needs a re-parse to re-measure.
+- Inline HTML and nested tables are not supported.
 
 ---
 
@@ -757,7 +851,7 @@ Legend: ✅ fully supported · ⚠️ partial / with caveats · ❌ not supporte
 | Image | `![alt](url)`, `![alt](<path with spaces>)` | ✅ | local paths and `file://`; remote URLs are not fetched |
 | Image with title | `![a](p.png "t")` | ✅ | title is parsed but unused |
 | Inline HTML | `<b>x</b>` | ❌ | shown literally |
-| Tables | GFM tables | ❌ | |
+| Table | `| a | b |` + `| --- | --- |` | ✅ | columns, aligned tab stops, drawn grid, Enter adds a row |
 | Escapes | `\*`, `\[`, `\!`, `\>` | ✅ | only for scanner delimiters; `\#` etc. stay literal |
 | Emoji | `:smile:` | ❌ | |
 
@@ -813,8 +907,8 @@ Legend: ✅ fully supported · ⚠️ partial / with caveats · ❌ not supporte
    handling; nothing is downloaded today.
 2. **No lazy blockquote continuation.** A `>` line followed by a plain line is
    two separate blocks; the second is not treated as part of the quote.
-3. **No setext headings, tables, inline HTML, or emoji.** A `title` followed by
-   `===` is plain text, and `---` is a horizontal rule.
+3. **No setext headings, inline HTML, or emoji.** A `title` followed by `===` is
+   plain text, and `---` is a horizontal rule.
 4. **Link title attributes** (`[t](url "title")`) are stripped from the
    destination but the quoted text is discarded rather than stored as a tooltip.
 5. **Parsing is line-scoped.** Emphasis, links, code spans, and images cannot
@@ -822,6 +916,10 @@ Legend: ✅ fully supported · ⚠️ partial / with caveats · ❌ not supporte
    handled across blocks, and only because they are detected at block level.
 6. **Lists render as plain text.** Bullets and numbers are not drawn specially;
    only Enter-continuation differs from plain paragraphs.
+7. **Table cells are left-aligned.** Column separators and widths are honoured,
+   but the alignment markers (`:---`, `---:`, `:---:`) are only stored for now.
+8. **Table column widths are measured in characters** with the document font, so
+   changing the editor font or zoom needs a re-parse to re-measure.
 
 ---
 
@@ -832,8 +930,8 @@ document.
 
 | File | Covers |
 | --- | --- |
-| `mktextdocument_tests.cpp` | Parsing: headings, emphasis, code spans, links, checkboxes, blockquotes, images, raw round-trip, mask maths |
-| `MkEdit_Tests.cpp` | Editing: key handling, Enter/Ctrl+Enter, Tab, paste, undo/redo, caret placement, checkbox clicks |
+| `mktextdocument_tests.cpp` | Parsing: headings, emphasis, code spans, links, checkboxes, blockquotes, images, tables, raw round-trip, mask maths |
+| `MkEdit_Tests.cpp` | Editing: key handling, Enter/Ctrl+Enter (quote/list/table continuation), Tab, paste, undo/redo, caret placement, checkbox clicks |
 | `editcommand_tests.cpp` | `EditCommand` in isolation (no editor widget) |
 | `NavigationView_Tests.cpp` | File tree behaviour |
 | `RecentFilesDialog_Tests.cpp` | Recent-files dialog |
@@ -846,6 +944,9 @@ Useful filters:
 
 # editing behaviour
 ./build/CatchTests/CatchTests "[MkEdit]"
+
+# tables
+./build/CatchTests/CatchTests "[Table]"
 
 # one case by name
 ./build/CatchTests/CatchTests "MkTextDocument blockquote*"

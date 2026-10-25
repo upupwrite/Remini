@@ -72,6 +72,8 @@ add_executable(${PROJECT_NAME}
     ${MARKDOWN_DIR}/blocksupport.h
     ${MARKDOWN_DIR}/blockrenderer.h
     ${MARKDOWN_DIR}/editcommand.cpp
+    ${MARKDOWN_DIR}/tabledata.cpp
+    ${MARKDOWN_DIR}/tabledata.h
     ${MARKDOWN_DIR}/linedata.cpp
     ${MARKDOWN_DIR}/formatdata.cpp
     ${MARKDOWN_DIR}/mkedit.cpp

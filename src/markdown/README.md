@@ -17,6 +17,7 @@ Layout and ownership rules: [../../docs/architecture.md](../../docs/architecture
 | `blockrenderer.h` | `BlockRenderSupport` range validation and inclusive→exclusive conversion. The only place that does that conversion. |
 | `formatdata.{h,cpp}` | Per-block parse result: fragments, hidden-character mask, link/image metadata, blockquote depth. |
 | `blockdata.{h,cpp}` | User data for fenced code blocks (`start` / `content` / `end`). |
+| `tabledata.{h,cpp}` | Per-row user data for GFM pipe tables: row kind, column count, alignments, shared tab stops, table block range. Derives from `FormatData`. |
 | `linedata.{h,cpp}` | User data for horizontal rules. |
 | `blocksupport.h` | Common `getStart()` / `getEnd()` contract. |
 | `editcommand.{h,cpp}` | Undo/redo commands plus `EditSnapshot` / `EditRestore` value types. |
@@ -33,7 +34,9 @@ Layout and ownership rules: [../../docs/architecture.md](../../docs/architecture
 - The **raw** document (`MkTextDocument::rawDocument`) is the source of truth for
   saving.
 - The **mask** (`FormatData`) records which source characters are invisible, so
-  the parse can be replayed and cursor positions remapped.
+  the parse can be replayed and cursor positions remapped. A masked character
+  may also be *replaced* by another one while rendered (a table `|` becomes a
+  tab) as long as the replacement is exactly one character.
 
 ## Rules for changes
 
@@ -53,5 +56,6 @@ Layout and ownership rules: [../../docs/architecture.md](../../docs/architecture
 ./build/CatchTests/CatchTests "[MkTextDocument]"   # parsing
 ./build/CatchTests/CatchTests "[MkEdit]"           # editing
 ./build/CatchTests/CatchTests "[MarkdownParser]"   # parser helpers
+./build/CatchTests/CatchTests "[Table]"            # tables
 ./build/CatchTests/CatchTests "[EditCommand]"      # undo/redo in isolation
 ```

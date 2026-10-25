@@ -26,9 +26,12 @@ Related documents:
     orchestrates parsing, rendering, and raw/rendered sync but delegates the
     details to the helpers below.
   - `markdownparser.{h,cpp}` — stateless Markdown parsing (headings, emphasis,
-    inline code, links, checkboxes, blockquotes, images) into `FormatData`.
+    inline code, links, checkboxes, blockquotes, images, tables) into
+    `FormatData`, plus the table/host detection helpers used by the document.
   - `markdownrenderer.{h,cpp}` — stateless rendering primitives (character/
-    block formats, symbol hiding/revealing, code-block chrome).
+    block formats, symbol hiding/revealing, code-block chrome, table rows).
+  - `tabledata.{h,cpp}` — per-row table user data (row kind, columns, shared
+    tab stops); derives from `FormatData` so masking keeps working.
   - `editcommand.{h,cpp}` — undo/redo commands backed by `EditSnapshot` and
     `EditRestore` value types; no pointers back into the editor widget.
   - `edittypes.h` / `selectrange.h` / `formatcollection.h` — small shared

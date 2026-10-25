@@ -19,6 +19,7 @@
 
 #include "highlighter.h"
 #include "mktextdocument.h"
+#include "tabledata.h"
 #include "theme.h"
 
 #define FILE_SAVE_TIMEOUT 300
@@ -147,6 +148,9 @@ private:
     QRegularExpressionMatch matchCodeBlockRegex;
 
     QRect getVisibleRect();
+    // Draws the borders and column separators of one table.
+    void paintTable(QPainter *painter, TableData *table, int scrollPos,
+                    int fontSize);
     void clearMkEffects(EditType editType = EditType::singleEdit);
     void applyMkEffects(const int blockNumber);
 

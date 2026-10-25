@@ -11,8 +11,8 @@ Markdown-specific behaviour behind them is described in
 
 | Shortcut | Action |
 | --- | --- |
-| `Enter` / `Return` | New line. Continues a blockquote, list, or checkbox if the previous line starts one. |
-| `Ctrl+Enter` | Plain new line. **Does not** continue a `>` quote, list, or checkbox. |
+| `Enter` / `Return` | New line. Continues a blockquote, list, checkbox, or table row if the previous line starts one. |
+| `Ctrl+Enter` | Plain new line. **Does not** continue a `>` quote, list, checkbox, or table. |
 | `Tab` | Expands the word before the caret (`check`, `ch`, `uncheck`, `uch`, `link`, `lk`) or inserts four spaces. See below. |
 | ``` ` ``` (backtick) | Completes a ``` fence and places the caret inside the new code block. |
 | `Ctrl+D` | Duplicates the current line. |
@@ -49,8 +49,9 @@ Ctrl+Enter     →  > quoted text
                   ▮
 ```
 
-The same distinction applies to ordered lists (`Enter` increments the number)
-and task lists (`Enter` inserts the next empty checkbox).
+The same distinction applies to ordered lists (`Enter` increments the number),
+task lists (`Enter` inserts the next empty checkbox), and tables (`Enter` adds a
+row with the same number of columns, `Ctrl+Enter` leaves the table).
 
 ---
 
