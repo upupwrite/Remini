@@ -55,6 +55,8 @@ set(PROJECT_SOURCES
     ${MARKDOWN_DIR}/blockdata.h
     ${MARKDOWN_DIR}/blocksupport.h
     ${MARKDOWN_DIR}/blockrenderer.h
+    ${MARKDOWN_DIR}/editcommand.cpp
+    ${MARKDOWN_DIR}/editcommand.h
     ${MARKDOWN_DIR}/linedata.cpp
     ${MARKDOWN_DIR}/linedata.h
     ${MARKDOWN_DIR}/formatdata.cpp

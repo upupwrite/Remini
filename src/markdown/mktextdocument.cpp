@@ -1113,24 +1113,41 @@ void MkTextDocument::cursorUpdateHandle(const int blockNo,
     this->characterNo = characterNo;
 }
 
-void MkTextDocument::undoStackPush(QUndoCommand *edit) { undoStack.push(edit); }
-
-void MkTextDocument::undoStackUndo(bool &success)
+void MkTextDocument::undoStackPush(const EditSnapshot &snapshot)
 {
-    if (undoStack.canUndo())
-    {
-        undoStack.undo();
-        success = true;
-    }
+    undoStack.push(new EditCommand(this, snapshot));
 }
 
-void MkTextDocument::undoStackRedo(bool &success)
+void MkTextDocument::undoStackUndo(EditRestore &restore)
 {
-    if (undoStack.canRedo())
-    {
-        undoStack.redo();
-        success = true;
-    }
+    restore = EditRestore{};
+    if (!undoStack.canUndo())
+        return;
+
+    undoStack.undo();
+    // undo() decrements the current index, so the undone command sits at
+    // index() afterwards.
+    if (const auto *command =
+            dynamic_cast<const EditCommand *>(
+                undoStack.command(undoStack.index())))
+        restore = command->restore();
+    restore.success = true;
+}
+
+void MkTextDocument::undoStackRedo(EditRestore &restore)
+{
+    restore = EditRestore{};
+    if (!undoStack.canRedo())
+        return;
+
+    undoStack.redo();
+    // redo() increments the current index, so the redone command sits at
+    // index() - 1.
+    if (const auto *command =
+            dynamic_cast<const EditCommand *>(
+                undoStack.command(undoStack.index() - 1)))
+        restore = command->restore();
+    restore.success = true;
 }
 
 void MkTextDocument::numberListDetect(int blockNumber, int &newCursorPosition)
@@ -1203,118 +1220,6 @@ QString MkTextDocument::numberListGetNextNumber(const QString &text)
         return QString::number(number + 1) + ". ";
     }
     return "";
-}
-
-EditCommand::EditCommand(UndoData &data)
-{
-    this->view = data.view;
-    this->viewEditTypeStore = data.viewEditTypeStore;
-    this->doc = dynamic_cast<MkTextDocument *>(data.doc);
-    this->scrollValue = data.scrollValue;
-    isConstructorRedo = true;
-    this->undoSelectRange = data.oldSelectRange;
-    this->viewSelectRangeStore = data.viewSelectRangeStore;
-    this->blockNo = data.blockNo;
-    this->posInBlock = data.posInBlock;
-    this->editType = data.editType;
-    this->undoSelectRange.scrollValue = data.scrollValue;
-
-    switch (editType)
-    {
-    case undoRedo:
-        return;
-
-    case singleEdit:
-        this->undoText = data.oldBlock;
-        {
-            const QTextBlock viewBlock =
-                data.doc->findBlockByNumber(data.blockNo);
-            this->redoText = viewBlock.isValid()
-                                 ? viewBlock.text()
-                                 : QString();
-
-            // A rendered image is represented by U+FFFC in QTextBlock::text().
-            // In that case, use the raw Markdown snapshot so redo preserves
-            // the original ![alt](path) expression. For ordinary text edits,
-            // the view snapshot is necessary because some callers/tests may
-            // not have wired saveSingleRawBlock yet.
-            if (doc && this->redoText.contains(QChar::ObjectReplacementCharacter))
-            {
-                QTextBlock sourceBlock =
-                    doc->getRawDocument()->findBlockByNumber(data.blockNo);
-                if (sourceBlock.isValid())
-                    this->redoText = sourceBlock.text();
-            }
-        }
-        this->undoSelectRange.isCheckBox = false;
-        break;
-
-    case multiDelete:
-    case checkbox:
-    case enterPressed:
-    case multiEdit:
-        this->undoText = data.oldText;
-        this->redoText = (doc ? doc->getRawDocument()->toPlainText()
-                              : data.doc->toPlainText());
-        break;
-    }
-}
-
-void EditCommand::undo()
-{
-    switch (editType)
-    {
-    case undoRedo:
-        return;
-
-    case singleEdit:
-        doc->setUndoRedoText(undoSelectRange.currentBlockNo, this->undoText);
-        break;
-
-    case multiDelete:
-    case checkbox:
-    case enterPressed:
-    case multiEdit:
-        doc->setUndoRedoText(undoText);
-        break;
-    }
-
-    *viewEditTypeStore = editType;
-    *viewSelectRangeStore = undoSelectRange;
-}
-
-void EditCommand::redo()
-{
-    if (isConstructorRedo)
-    {
-        isConstructorRedo = false;
-        return;
-    }
-
-    switch (editType)
-    {
-    case undoRedo:
-        return;
-
-    case singleEdit:
-        doc->setUndoRedoText(this->blockNo, this->redoText);
-        break;
-
-    case multiDelete:
-    case checkbox:
-    case enterPressed:
-    case multiEdit:
-        doc->setUndoRedoText(redoText);
-        break;
-    }
-
-    *this->viewEditTypeStore = editType;
-
-    viewSelectRangeStore->hasSelection = false;
-    viewSelectRangeStore->currentBlockNo = this->blockNo;
-    viewSelectRangeStore->currentposInBlock = this->posInBlock;
-    viewSelectRangeStore->isCheckBox = this->undoSelectRange.isCheckBox;
-    viewSelectRangeStore->scrollValue = this->undoSelectRange.scrollValue;
 }
 
 void MkTextDocument::revealAllMkSymbols()

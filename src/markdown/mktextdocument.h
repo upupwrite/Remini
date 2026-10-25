@@ -22,6 +22,7 @@
 #include <QVector>
 #include <QtGlobal>
 
+#include "editcommand.h"
 #include "edittypes.h"
 #include "formatcollection.h"
 #include "markdownparser.h"
@@ -92,9 +93,9 @@ public slots:
     void setMarkdownHandle(bool state);
     void cursorUpdateHandle(const int blockNo, const int characterNo);
 
-    void undoStackPush(QUndoCommand *edit);
-    void undoStackUndo(bool &success);
-    void undoStackRedo(bool &success);
+    void undoStackPush(const EditSnapshot &snapshot);
+    void undoStackUndo(EditRestore &restore);
+    void undoStackRedo(EditRestore &restore);
 
 signals:
     void disconnectCursorPos(bool override = false);
@@ -149,49 +150,6 @@ private:
 
     void hideMKSymbolsFromPreviousSelectedBlocks(SelectRange *const range);
     void showMKSymbolsFromCurrentSelectedBlocks(SelectRange *const range);
-};
-
-struct UndoData
-{
-    QTextEdit *view;
-    EditType *viewEditTypeStore;
-    QTextDocument *doc;
-    QString text;
-    int blockNo;
-    int posInBlock;
-    QString oldText;
-    bool undoRedoSkip;
-    bool selectAll;
-    int scrollValue;
-    SelectRange oldSelectRange;
-    SelectRange *viewSelectRangeStore;
-    QString oldBlock;
-    QString newBlock;
-    EditType editType;
-};
-
-class EditCommand : public QUndoCommand
-{
-public:
-    EditCommand(UndoData &data);
-
-    void undo() override;
-    void redo() override;
-
-private:
-    QTextEdit *view;
-    EditType *viewEditTypeStore;
-    MkTextDocument *doc;
-    QString redoText;
-    QString undoText;
-    int blockNo;
-    int posInBlock;
-    int scrollValue;
-    EditType editType;
-
-    bool isConstructorRedo;
-    SelectRange undoSelectRange;
-    SelectRange *viewSelectRangeStore;
 };
 
 #endif  // MKTEXTDOCUMENT_H

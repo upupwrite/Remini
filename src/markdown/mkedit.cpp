@@ -52,8 +52,6 @@ MkEdit::MkEdit(QWidget *parent) : QTextEdit(parent)
     savedCharacterNumber = -1;
     isShiftKeyPressed = false;
     isDisconnectedViaHighPriority = false;
-    undoData.viewEditTypeStore = &undoRedoEditType;
-    undoData.viewSelectRangeStore = &undoRedoSelectRange;
 
     this->setFocusPolicy(Qt::StrongFocus);
     this->setAttribute(Qt::WA_InputMethodEnabled, true);
@@ -207,7 +205,7 @@ void MkEdit::wheelEvent(QWheelEvent *e)
 void MkEdit::keyPressEvent(QKeyEvent *event)
 {
     // -----------------------------------------------------------------------
-    // Flush any pending edit BEFORE we overwrite undoData.editType below.
+    // Flush any pending edit BEFORE we overwrite undoSnapshot.editType below.
     // -----------------------------------------------------------------------
     const bool isUndoRedoKey =
         (event->key() == Qt::Key_Z || event->key() == Qt::Key_Y) &&
@@ -217,7 +215,7 @@ void MkEdit::keyPressEvent(QKeyEvent *event)
     {
         fileSaveTimer.stop();
         updateRawDocument();
-        undoData.undoRedoSkip = false;
+        undoRedoSkip = false;
         postUndoSetup();
         emit fileSaveRaw();
     }
@@ -226,7 +224,7 @@ void MkEdit::keyPressEvent(QKeyEvent *event)
         std::bind(&MkEdit::disconnectSignals, this, std::placeholders::_1),
         std::bind(&MkEdit::connectSignals, this, std::placeholders::_1));
 
-    undoData.editType = singleEdit;
+    undoSnapshot.editType = singleEdit;
     switch (event->key())
     {
     case Qt::Key_L:
@@ -314,7 +312,7 @@ void MkEdit::keyPressEvent(QKeyEvent *event)
     case Qt::Key_Tab:
         if (event->modifiers() == Qt::NoModifier)
         {
-            clearMkEffects(undoData.editType);
+            clearMkEffects(undoSnapshot.editType);
             tabKeyPressed();
             fileSaveNow();
             return;
@@ -324,25 +322,25 @@ void MkEdit::keyPressEvent(QKeyEvent *event)
     case Qt::Key_Delete:
         if (textCursor().positionInBlock() ==
             (textCursor().block().length() - 1))
-            undoData.editType = multiEdit;
+            undoSnapshot.editType = multiEdit;
         break;
 
     case Qt::Key_Enter:
     case Qt::Key_Return:
-        undoData.editType = multiEdit;
+        undoSnapshot.editType = multiEdit;
         break;
 
     case Qt::Key_D:
         if (event->modifiers() & Qt::CTRL)
-            undoData.editType = multiEdit;
+            undoSnapshot.editType = multiEdit;
         break;
 
     case Qt::Key_Z:
     case Qt::Key_Y:
         if (event->modifiers() & Qt::CTRL)
         {
-            undoData.editType = undoRedo;
-            undoData.undoRedoSkip = true;
+            undoSnapshot.editType = undoRedo;
+            undoRedoSkip = true;
         }
         break;
 
@@ -350,19 +348,19 @@ void MkEdit::keyPressEvent(QKeyEvent *event)
     {
         QString blockText = this->textCursor().block().text();
         if (blockText.left(3) == "```")
-            undoData.editType = multiEdit;
+            undoSnapshot.editType = multiEdit;
         break;
     }
 
     case Qt::Key_QuoteLeft:
-        undoData.editType = multiEdit;
+        undoSnapshot.editType = multiEdit;
         break;
 
     default:
         break;
     }
 
-    if (textCursor().hasSelection() && undoData.editType != undoRedo)
+    if (textCursor().hasSelection() && undoSnapshot.editType != undoRedo)
     {
         const bool isDeletion = (event->key() == Qt::Key_Backspace ||
                                  event->key() == Qt::Key_Delete);
@@ -379,19 +377,19 @@ void MkEdit::keyPressEvent(QKeyEvent *event)
 
         if (!multiBlockSelection)
         {
-            undoData.editType = singleEdit;
+            undoSnapshot.editType = singleEdit;
         }
         else if (isDeletion)
         {
-            undoData.editType = multiDelete;
+            undoSnapshot.editType = multiDelete;
         }
         else
         {
-            undoData.editType = multiEdit;
+            undoSnapshot.editType = multiEdit;
         }
     }
 
-    clearMkEffects(undoData.editType);
+    clearMkEffects(undoSnapshot.editType);
     QTextEdit::keyPressEvent(event);
     selectRange.currentBlockNo = textCursor().blockNumber();
     selectRange.currentposInBlock = selectRange.arrowPosInBlock =
@@ -415,8 +413,8 @@ void MkEdit::keyPressEvent(QKeyEvent *event)
     case Qt::Key_Backspace:
         this->selectRange.currentBlockNo = textCursor().blockNumber();
         this->selectRange.currentposInBlock = textCursor().positionInBlock();
-        if (undoData.editType != EditType::singleEdit &&
-            undoData.editType != EditType::multiDelete)
+        if (undoSnapshot.editType != EditType::singleEdit &&
+            undoSnapshot.editType != EditType::multiDelete)
         {
             fileSaveNow();
             return;
@@ -435,20 +433,17 @@ void MkEdit::keyPressEvent(QKeyEvent *event)
     case Qt::Key_Z:
         if (event->modifiers() & Qt::CTRL)
         {
-            bool success = false;
-            emit undoStackUndoSignal(success);
-            if (success)
+            emit undoStackUndoSignal(undoRestore);
+            if (undoRestore.success)
             {
-                selectRange = undoRedoSelectRange;
+                selectRange = undoRestore.selectRange;
 
-                undoData.editType =
-                    (undoData.viewEditTypeStore ? *undoData.viewEditTypeStore
-                                                : multiEdit);
-                undoData.undoRedoSkip = true;
+                undoSnapshot.editType = undoRestore.editType;
+                undoRedoSkip = true;
                 fileSaveTimer.stop();
                 postUndoSetup();
                 emit fileSaveRaw();
-                applyMkEffects(undoRedoSelectRange.currentBlockNo);
+                applyMkEffects(undoRestore.selectRange.currentBlockNo);
                 showSelectionAfterUndo();
             }
             return;
@@ -458,20 +453,17 @@ void MkEdit::keyPressEvent(QKeyEvent *event)
     case Qt::Key_Y:
         if (event->modifiers() & Qt::CTRL)
         {
-            bool success = false;
-            emit undoStackRedoSignal(success);
-            if (success)
+            emit undoStackRedoSignal(undoRestore);
+            if (undoRestore.success)
             {
-                selectRange = undoRedoSelectRange;
+                selectRange = undoRestore.selectRange;
 
-                undoData.editType =
-                    (undoData.viewEditTypeStore ? *undoData.viewEditTypeStore
-                                                : multiEdit);
-                undoData.undoRedoSkip = true;
+                undoSnapshot.editType = undoRestore.editType;
+                undoRedoSkip = true;
                 fileSaveTimer.stop();
                 postUndoSetup();
                 emit fileSaveRaw();
-                applyMkEffects(undoRedoSelectRange.currentBlockNo);
+                applyMkEffects(undoRestore.selectRange.currentBlockNo);
                 showSelectionAfterRedo();
             }
             return;
@@ -512,18 +504,18 @@ void MkEdit::inputMethodEvent(QInputMethodEvent *event)
         std::bind(&MkEdit::disconnectSignals, this, std::placeholders::_1),
         std::bind(&MkEdit::connectSignals, this, std::placeholders::_1));
 
-    undoData.editType = singleEdit;
+    undoSnapshot.editType = singleEdit;
 
-    if (textCursor().hasSelection() && undoData.editType != undoRedo)
+    if (textCursor().hasSelection() && undoSnapshot.editType != undoRedo)
     {
         if (selectRange.selectionFirstStartBlock ==
             selectRange.selectionEndBlock)
-            undoData.editType = singleEdit;
+            undoSnapshot.editType = singleEdit;
         else
-            undoData.editType = multiEdit;
+            undoSnapshot.editType = multiEdit;
     }
 
-    clearMkEffects(undoData.editType);
+    clearMkEffects(undoSnapshot.editType);
 
     QTextEdit::inputMethodEvent(event);
 
@@ -540,17 +532,17 @@ void MkEdit::showSelectionAfterUndo()
     // Mark the "first calculation" as done BEFORE emitting, so that
     // postCursorPosChangedSignal() does not overwrite the start position
     // with the current cursor position (which would truncate the restored
-    // selection).  undoRedoSelectRange already holds the exact range that
+    // selection).  undoRestore.selectRange already holds the exact range that
     // was active when the undone edit was performed, so we must use it
     // verbatim.
     isCalcuatedForStartPos = true;
 
-    selectRange = undoRedoSelectRange;
+    selectRange = undoRestore.selectRange;
 
     emit cursorPosChanged(&selectRange, this->isReadOnly());
     postCursorPosChangedSignal();
 
-    this->verticalScrollBar()->setSliderPosition(undoData.scrollValue);
+    this->verticalScrollBar()->setSliderPosition(undoSnapshot.scrollValue);
     if (!isTextCursorVisible())
     {
         this->ensureCursorVisible();
@@ -564,7 +556,7 @@ void MkEdit::showSelectionAfterUndo()
 
 void MkEdit::showSelectionAfterRedo()
 {
-    SelectRange &range = undoRedoSelectRange;
+    SelectRange &range = undoRestore.selectRange;
 
     selectRange = range;
 
@@ -801,16 +793,13 @@ void MkEdit::tabKeyPressed()
 void MkEdit::preUndoSetup()
 {
     MkTextDocument *mkDoc = dynamic_cast<MkTextDocument *>(this->document());
-    undoData.oldText = (mkDoc ? mkDoc->getRawDocument()->toPlainText()
-                              : document()->toPlainText());
-    undoData.view = this;
-    undoData.doc = this->document();
-    undoData.undoRedoSkip = false;
-    undoData.selectAll = false;
-    undoData.oldSelectRange = this->selectRange;
-    undoData.oldSelectRange.hasSelection = this->textCursor().hasSelection();
-    undoData.oldSelectRange.currentBlockNo = this->textCursor().blockNumber();
-    undoData.oldSelectRange.currentposInBlock =
+    undoSnapshot.oldText = (mkDoc ? mkDoc->getRawDocument()->toPlainText()
+                                  : document()->toPlainText());
+    undoRedoSkip = false;
+    undoSnapshot.selectRange = this->selectRange;
+    undoSnapshot.selectRange.hasSelection = this->textCursor().hasSelection();
+    undoSnapshot.selectRange.currentBlockNo = this->textCursor().blockNumber();
+    undoSnapshot.selectRange.currentposInBlock =
         this->textCursor().positionInBlock();
     // Capture the source Markdown, not the rendered QTextBlock. Images are
     // represented as QTextImageFormat objects in the view, so block().text()
@@ -821,32 +810,32 @@ void MkEdit::preUndoSetup()
                   this->textCursor().blockNumber())
             : this->document()->findBlockByNumber(
                   this->textCursor().blockNumber());
-    undoData.oldBlock = sourceBlock.isValid() ? sourceBlock.text() : QString();
+    undoSnapshot.oldBlock = sourceBlock.isValid() ? sourceBlock.text()
+                                                  : QString();
 
-    qDebug() << "[preUndoSetup] editType =" << undoData.editType
-             << "oldText.len =" << undoData.oldText.length()
+    qDebug() << "[preUndoSetup] editType =" << undoSnapshot.editType
+             << "oldText.len =" << undoSnapshot.oldText.length()
              << "selStartBlock ="
-             << undoData.oldSelectRange.selectionFirstStartBlock
-             << "selEndBlock =" << undoData.oldSelectRange.selectionEndBlock
-             << "curBlockNo =" << undoData.oldSelectRange.currentBlockNo
-             << "curPos =" << undoData.oldSelectRange.currentposInBlock;
+             << undoSnapshot.selectRange.selectionFirstStartBlock
+             << "selEndBlock =" << undoSnapshot.selectRange.selectionEndBlock
+             << "curBlockNo =" << undoSnapshot.selectRange.currentBlockNo
+             << "curPos =" << undoSnapshot.selectRange.currentposInBlock;
 }
 
 void MkEdit::postUndoSetup()
 {
-    undoData.blockNo = this->textCursor().blockNumber();
-    undoData.posInBlock = this->textCursor().positionInBlock();
+    undoSnapshot.blockNo = this->textCursor().blockNumber();
+    undoSnapshot.posInBlock = this->textCursor().positionInBlock();
 
-    qDebug() << "[postUndoSetup] editType =" << undoData.editType
-             << "undoRedoSkip =" << undoData.undoRedoSkip
-             << "oldText.len =" << undoData.oldText.length()
-             << "blockNo =" << undoData.blockNo
-             << "posInBlock =" << undoData.posInBlock;
+    qDebug() << "[postUndoSetup] editType =" << undoSnapshot.editType
+             << "undoRedoSkip =" << undoRedoSkip
+             << "oldText.len =" << undoSnapshot.oldText.length()
+             << "blockNo =" << undoSnapshot.blockNo
+             << "posInBlock =" << undoSnapshot.posInBlock;
 
-    if (!undoData.undoRedoSkip)
+    if (!undoRedoSkip)
     {
-        EditCommand *edit = new EditCommand(undoData);
-        emit undoStackPushSignal(edit);
+        emit undoStackPushSignal(undoSnapshot);
     }
 }
 
@@ -860,7 +849,7 @@ QRect MkEdit::getVisibleRect()
 
 void MkEdit::clearMkEffects(EditType editType)
 {
-    undoData.scrollValue = this->verticalScrollBar()->sliderPosition();
+    undoSnapshot.scrollValue = this->verticalScrollBar()->sliderPosition();
     if (editType == undoRedo)
     {
         return;
@@ -913,7 +902,7 @@ void MkEdit::clearMkEffects(EditType editType)
 
 void MkEdit::applyMkEffects(const int blockNumber)
 {
-    switch (undoData.editType)
+    switch (undoSnapshot.editType)
     {
     case undoRedo:
         break;
@@ -942,7 +931,7 @@ void MkEdit::applyMkEffects(const int blockNumber)
     cursor.setPosition(newPosition);
     this->setTextCursor(cursor);
 
-    this->verticalScrollBar()->setSliderPosition(undoData.scrollValue);
+    this->verticalScrollBar()->setSliderPosition(undoSnapshot.scrollValue);
     if (!isTextCursorVisible())
     {
         this->ensureCursorVisible();
@@ -951,12 +940,12 @@ void MkEdit::applyMkEffects(const int blockNumber)
 
 void MkEdit::updateRawDocument()
 {
-    switch (undoData.editType)
+    switch (undoSnapshot.editType)
     {
     case EditType::undoRedo:
         break;
     case EditType::singleEdit:
-        if (undoData.oldSelectRange.currentBlockNo ==
+        if (undoSnapshot.selectRange.currentBlockNo ==
             this->textCursor().blockNumber())
         {
             emit saveSingleRawBlock(textCursor().blockNumber());
@@ -1028,8 +1017,8 @@ bool MkEdit::isMouseOnCheckBox(QMouseEvent *e)
         if (rect.contains(pointer))
         {
             disconnectSignals(true);
-            undoData.scrollValue = this->verticalScrollBar()->sliderPosition();
-            undoData.editType = EditType::checkbox;
+            undoSnapshot.scrollValue = this->verticalScrollBar()->sliderPosition();
+            undoSnapshot.editType = EditType::checkbox;
             preUndoSetup();
             emit pushCheckBox(checkPos);
             fileSaveWithScroll();
@@ -1208,8 +1197,8 @@ void MkEdit::insertFromMimeData(const QMimeData *source)
     QString text = source->text();
     matchCodeBlockRegex = regexCodeBlock.match(text);
 
-    undoData.scrollValue = this->verticalScrollBar()->sliderPosition();
-    undoData.editType = EditType::multiEdit;
+    undoSnapshot.scrollValue = this->verticalScrollBar()->sliderPosition();
+    undoSnapshot.editType = EditType::multiEdit;
     if (matchCodeBlockRegex.hasMatch())
     {
         emit removeAllMkData(cursor.blockNumber());
@@ -1290,7 +1279,7 @@ void MkEdit::insertFromMimeData(const QMimeData *source)
     cursor.setPosition(newPosition);
     this->setTextCursor(cursor);
 
-    this->verticalScrollBar()->setSliderPosition(undoData.scrollValue);
+    this->verticalScrollBar()->setSliderPosition(undoSnapshot.scrollValue);
     if (!isTextCursorVisible())
     {
         this->ensureCursorVisible();

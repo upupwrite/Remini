@@ -109,13 +109,13 @@ private:
     QPen whitePen;
     int savedCharacterNumber = -1;
 
-    UndoData undoData;
-    EditType undoRedoEditType;
+    EditSnapshot undoSnapshot;
+    bool undoRedoSkip = false;
 
     HighlightColor syntaxColor;
     QTimer fileSaveTimer;
     SelectRange selectRange;
-    SelectRange undoRedoSelectRange;
+    EditRestore undoRestore;
 
     bool isCalcuatedForStartPos = false;
     bool isCursorChangedHandleTriggered = false;
@@ -223,9 +223,9 @@ signals:
     void cursorUpdate(const int blockNo, const int characterPos);
     void checkIfCursorInBlock(bool &isBlock, QTextCursor &cursor);
 
-    void undoStackPushSignal(QUndoCommand *cmd);
-    void undoStackUndoSignal(bool &success);
-    void undoStackRedoSignal(bool &success);
+    void undoStackPushSignal(const EditSnapshot &snapshot);
+    void undoStackUndoSignal(EditRestore &restore);
+    void undoStackRedoSignal(EditRestore &restore);
     void undoStackClear();
     void escapeFocus(QWidget *view);
 };
