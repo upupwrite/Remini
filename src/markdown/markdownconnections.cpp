@@ -50,7 +50,7 @@ void connectMarkdownEditorToDocument(MkEdit &editor, MkTextDocument &document)
     QObject::connect(&editor, &MkEdit::undoStackRedoSignal, &document,
                      &MkTextDocument::undoStackRedo);
 
-    QObject::connect(&document, &MkTextDocument::connectCurosPos, &editor,
+    QObject::connect(&document, &MkTextDocument::connectCursorPos, &editor,
                      &MkEdit::connectSignals);
     QObject::connect(&document, &MkTextDocument::disconnectCursorPos, &editor,
                      &MkEdit::disconnectSignals);
@@ -102,7 +102,7 @@ void disconnectMarkdownEditorFromDocument(MkEdit &editor,
     QObject::disconnect(&editor, &MkEdit::undoStackRedoSignal, &document,
                         &MkTextDocument::undoStackRedo);
 
-    QObject::disconnect(&document, &MkTextDocument::connectCurosPos, &editor,
+    QObject::disconnect(&document, &MkTextDocument::connectCursorPos, &editor,
                         &MkEdit::connectSignals);
     QObject::disconnect(&document, &MkTextDocument::disconnectCursorPos,
                         &editor, &MkEdit::disconnectSignals);

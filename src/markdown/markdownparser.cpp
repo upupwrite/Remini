@@ -245,7 +245,7 @@ void MarkdownParser::identifyFormatData(QTextBlock &block)
         int quoteContentStart = quoteIndent + 1;
         if (quoteContentStart < text.size() &&
             (text.at(quoteContentStart) == QLatin1Char(' ') ||
-             text.at(quoteContentStart) == QLatin1Char('\\t')))
+             text.at(quoteContentStart) == QLatin1Char('\t')))
             ++quoteContentStart;
         formatData->addBlockQuoteFormat(quoteContentStart - 1,
                                         text.size() - 1);

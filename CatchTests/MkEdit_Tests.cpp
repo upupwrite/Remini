@@ -61,7 +61,7 @@ TEST_CASE(
 
     QObject::connect(&edit, &MkEdit::cursorPosChanged, &doc,
                      &MkTextDocument::cursorPosChangedHandle);
-    QObject::connect(&doc, &MkTextDocument::connectCurosPos, &edit,
+    QObject::connect(&doc, &MkTextDocument::connectCursorPos, &edit,
                      &MkEdit::connectSignals);
     QObject::connect(&doc, &MkTextDocument::disconnectCursorPos, &edit,
                      &MkEdit::disconnectSignals);
@@ -1348,7 +1348,7 @@ TEST_CASE(
 
     QObject::connect(&edit, &MkEdit::cursorPosChanged, &doc,
                      &MkTextDocument::cursorPosChangedHandle);
-    QObject::connect(&doc, &MkTextDocument::connectCurosPos, &edit,
+    QObject::connect(&doc, &MkTextDocument::connectCursorPos, &edit,
                      &MkEdit::connectSignals);
     QObject::connect(&doc, &MkTextDocument::disconnectCursorPos, &edit,
                      &MkEdit::disconnectSignals);

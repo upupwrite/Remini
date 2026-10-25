@@ -104,7 +104,7 @@ void ViewsHandler::initViews(Ui::MainWindow &ui)
     viewTextSearchEdit->setPlaceholderText(QStringLiteral("Search Texts..."));
 
     QList<int> sizes;
-    sizes << NAVIGATION_RATIO << EDITOR_RAIO;
+    sizes << NAVIGATION_RATIO << EDITOR_RATIO;
     ui.splitter->setSizes(sizes);
     ui.splitter->setCollapsible(1, false);
 

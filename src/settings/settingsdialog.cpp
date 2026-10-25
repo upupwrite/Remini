@@ -290,7 +290,7 @@ void SettingsDialog::saveSettingsHandler()
     settings.setValue("stretch", font.stretch());
     settings.setValue("weight", font.weight());
     // Store markdown / linewrap as booleans to keep the type consistent with
-    // the values written by MkEdit::diableMarkdown_internal().
+    // the values written by MkEdit::disableMarkdownInternal().
     settings.setValue("markdown", ui->cmb_mkState->currentIndex() != 0);
     settings.setValue("linewrap", ui->cmb_lineWrap->currentIndex() != 0);
     settings.setValue("vaultPath", ui->edit_vaultRootPath->text());

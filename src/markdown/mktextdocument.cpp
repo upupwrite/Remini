@@ -856,7 +856,7 @@ void MkTextDocument::hideMKSymbolsFromPreviousSelectedBlocks(
 
     foreach (int num, hiddenBlocks) range->hideBlocks.erase(num);
 
-    emit connectCurosPos();
+    emit connectCursorPos();
 }
 
 void MkTextDocument::showMKSymbolsFromCurrentSelectedBlocks(
@@ -966,7 +966,7 @@ void MkTextDocument::showMKSymbolsFromCurrentSelectedBlocks(
         return;
     }
 
-    emit connectCurosPos();
+    emit connectCursorPos();
 }
 
 void MkTextDocument::pushCheckBoxHandle(const int position)

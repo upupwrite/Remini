@@ -66,7 +66,8 @@ MkEdit::MkEdit(QWidget *parent) : QTextEdit(parent)
     deleteTextAction.setText("Delete        Del");
     selectAllAction.setText("Select All    Ctrl+A");
     selectBlockAction.setText("Copy Block");
-    //TODO:auto disable
+    // The action label is kept in sync by setMkState(); it always describes
+    // the state that activating the menu item will switch to.
     disableMarkdown.setText("Disable Markdown");
     lineWrapAction.setText("Disable line-wrap");
 
@@ -80,7 +81,7 @@ MkEdit::MkEdit(QWidget *parent) : QTextEdit(parent)
     connect(&selectBlockAction, &QAction::triggered, this,
             &MkEdit::selectBlock);
     connect(&disableMarkdown, &QAction::triggered, this,
-            &MkEdit::diableMarkdown_internal);
+            &MkEdit::disableMarkdownInternal);
     connect(&lineWrapAction, &QAction::triggered, this,
             &MkEdit::lineWrapHandler);
     connect(this, &MkEdit::customContextMenuRequested, this,
@@ -1490,7 +1491,7 @@ void MkEdit::setFont(const QFont &font)
 
 void MkEdit::fileSaveHandle() { fileSaveWithScroll(); }
 
-void MkEdit::diableMarkdown_internal()
+void MkEdit::disableMarkdownInternal()
 {
     QSettings settings("Remini", "Remini");
     bool markdownStatus = settings.value("markdown", true).toBool();

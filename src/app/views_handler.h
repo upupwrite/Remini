@@ -22,7 +22,7 @@
 #include "ui_mainwindow.h"
 
 #define NAVIGATION_RATIO 100
-#define EDITOR_RAIO 200
+#define EDITOR_RATIO 200
 
 class ViewsHandler : public QObject
 {

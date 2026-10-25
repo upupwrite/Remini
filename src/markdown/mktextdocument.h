@@ -101,7 +101,7 @@ public slots:
 
 signals:
     void disconnectCursorPos(bool override = false);
-    void connectCurosPos(bool override = false);
+    void connectCursorPos(bool override = false);
 
 private:
     struct CheckingBlock

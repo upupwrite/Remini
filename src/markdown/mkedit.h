@@ -184,7 +184,7 @@ public slots:
 
 private slots:
     void fileSaveHandle();
-    void diableMarkdown_internal();
+    void disableMarkdownInternal();
     void lineWrapHandler();
 
 signals:
