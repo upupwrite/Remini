@@ -1,0 +1,30 @@
+# Maintainer: Remini developers <upupwrite@outlook.com>
+
+pkgname=remini
+pkgver=__VERSION__
+pkgrel=1
+pkgdesc="Lightweight real-time Markdown renderer"
+arch=('x86_64')
+url="https://github.com/upupwrite/Remini"
+license=('GPL-3.0-only')
+depends=('qt6-base' 'libx11')
+makedepends=('cmake' 'ninja' 'git')
+source=("$pkgname-$pkgver.tar.gz::https://github.com/upupwrite/Remini/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+  cmake -S "$srcdir/Remini-$pkgver" -B build \
+    -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DBUILD_TESTING=OFF \
+    -DCMAKE_INSTALL_PREFIX=/usr
+  cmake --build build
+}
+
+package() {
+  install -Dm755 build/Remini "$pkgdir/usr/bin/Remini"
+  install -Dm644 "$srcdir/Remini-$pkgver/resources/application.png" \
+    "$pkgdir/usr/share/icons/hicolor/256x256/apps/remini.png"
+  install -Dm644 "$srcdir/Remini-$pkgver/packaging/linux/remini.desktop" \
+    "$pkgdir/usr/share/applications/remini.desktop"
+}

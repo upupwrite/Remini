@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Remini
+Comment=Lightweight real-time Markdown renderer
+Exec=Remini
+Icon=remini
+Terminal=false
+Categories=Utility;TextEditor;

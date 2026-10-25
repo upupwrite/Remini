@@ -1,0 +1,172 @@
+name: Package
+
+on:
+  push:
+    tags: ['v*']
+
+# Packaging jobs create/update GitHub Releases, so they need write access to
+# repository contents.
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    name: Windows (zip)
+    runs-on: windows-2022
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Packaging skips tests, so no Catch2 dependency is required here.
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v3
+        with:
+          aqtversion: '==3.1.*'
+          version: '6.5.0'
+          host: 'windows'
+          target: 'desktop'
+          arch: 'win64_msvc2019_64'
+          dir: '${{ github.workspace }}\Remini'
+          cache: 'true'
+          cache-key-prefix: 'install-qt-action'
+          setup-python: 'false'
+          tools: 'tools_cmake'
+
+      - name: Configure CMake
+        shell: pwsh
+        run: |
+          cmake -S . -B Build -DCMAKE_BUILD_TYPE=Release `
+            -DBUILD_TESTING=OFF `
+            -DQt6_DIR="${{ github.workspace }}\Remini\Qt\6.5.0\msvc2019_64"
+
+      - name: Build
+        run: cmake --build Build --config Release
+
+      - name: Deploy and archive
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}" -replace '^v', ''
+          $stage = "Remini-$version-win64"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item "Build\Release\Remini.exe" $stage
+          & "${{ github.workspace }}\Remini\Qt\6.5.0\msvc2019_64\bin\windeployqt.exe" `
+            --no-translations "$stage\Remini.exe"
+          Compress-Archive -Path "$stage" -DestinationPath "Remini-$version-win64.zip"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Remini-windows
+          path: Remini-*-win64.zip
+
+      - name: Attach to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Remini-*-win64.zip
+
+  debian:
+    name: Debian (.deb)
+    runs-on: ubuntu-latest
+    container:
+      image: debian:bookworm
+    steps:
+      - name: Install system dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            build-essential \
+            ca-certificates \
+            cmake \
+            git \
+            libgl1-mesa-dev \
+            libx11-dev \
+            libxkbcommon-dev \
+            ninja-build \
+            pkg-config \
+            qt6-base-dev \
+            qt6-base-dev-tools
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure CMake
+        run: |
+          cmake -S . -B build \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTING=OFF \
+            -DCMAKE_INSTALL_PREFIX=/usr
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Assemble .deb package
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          pkgdir="$RUNNER_TEMP/remini_${version}_amd64"
+          mkdir -p "$pkgdir/DEBIAN" \
+                   "$pkgdir/usr/bin" \
+                   "$pkgdir/usr/share/applications" \
+                   "$pkgdir/usr/share/icons/hicolor/256x256/apps"
+          cp build/Remini "$pkgdir/usr/bin/Remini"
+          cp packaging/linux/remini.desktop \
+             "$pkgdir/usr/share/applications/remini.desktop"
+          cp resources/application.png \
+             "$pkgdir/usr/share/icons/hicolor/256x256/apps/remini.png"
+          sed "s/__VERSION__/${version}/" packaging/debian/control \
+            > "$pkgdir/DEBIAN/control"
+          dpkg-deb --build --root-owner-group "$pkgdir" \
+            "Remini-${version}-amd64.deb"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Remini-debian
+          path: Remini-*-amd64.deb
+
+      - name: Attach to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Remini-*-amd64.deb
+
+  archlinux:
+    name: Arch Linux (.pkg.tar.zst)
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+    steps:
+      - name: Install build tools
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm \
+            base-devel \
+            cmake \
+            curl \
+            git \
+            libx11 \
+            ninja \
+            qt6-base \
+            sudo
+          useradd -m builder
+          echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build Arch package
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          sed -i "s/pkgver=__VERSION__/pkgver=${version}/" packaging/arch/PKGBUILD
+          chown -R builder:builder .
+          sudo -u builder bash -c 'cd packaging/arch && makepkg -f --noconfirm'
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Remini-archlinux
+          path: packaging/arch/*.pkg.tar.zst
+
+      - name: Attach to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: packaging/arch/*.pkg.tar.zst

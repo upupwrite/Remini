@@ -1,0 +1,12 @@
+Package: remini
+Version: __VERSION__
+Section: editors
+Priority: optional
+Architecture: amd64
+Maintainer: Remini developers <upupwrite@outlook.com>
+Depends: libqt6core6, libqt6gui6, libqt6widgets6, libx11-6, libxkbcommon0, libgl1, libegl1
+Homepage: https://github.com/upupwrite/Remini
+Description: Lightweight real-time Markdown renderer
+ Remini is a simple, lightweight real-time Markdown renderer built with Qt
+ Widgets. It renders Markdown in real time and hides formatting symbols while
+ editing.
