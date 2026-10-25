@@ -188,6 +188,17 @@ QString MkTextDocument::getFileName() const { return this->fileName; }
 
 QTextDocument *MkTextDocument::getRawDocument() { return &rawDocument; }
 
+QString MkTextDocument::rawText() const
+{
+    return rawDocument.toPlainText();
+}
+
+QString MkTextDocument::rawBlockText(int blockNo) const
+{
+    const QTextBlock block = rawDocument.findBlockByNumber(blockNo);
+    return block.isValid() ? block.text() : QString();
+}
+
 void MkTextDocument::cursorPosChangedHandle(SelectRange *const range,
                                             const bool readOnly)
 {

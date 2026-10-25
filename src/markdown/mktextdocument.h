@@ -68,6 +68,8 @@ public:
     QString getFilePath() const;
     QString getFileName() const;
     QTextDocument *getRawDocument();
+    QString rawText() const;
+    QString rawBlockText(int blockNo) const;
 
     void revealAllMkSymbols();
 

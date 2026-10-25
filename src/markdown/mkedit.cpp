@@ -793,7 +793,7 @@ void MkEdit::tabKeyPressed()
 void MkEdit::preUndoSetup()
 {
     MkTextDocument *mkDoc = dynamic_cast<MkTextDocument *>(this->document());
-    undoSnapshot.oldText = (mkDoc ? mkDoc->getRawDocument()->toPlainText()
+    undoSnapshot.oldText = (mkDoc ? mkDoc->rawText()
                                   : document()->toPlainText());
     undoRedoSkip = false;
     undoSnapshot.selectRange = this->selectRange;
@@ -804,14 +804,11 @@ void MkEdit::preUndoSetup()
     // Capture the source Markdown, not the rendered QTextBlock. Images are
     // represented as QTextImageFormat objects in the view, so block().text()
     // can contain an object-replacement character instead of ![alt](path).
-    QTextBlock sourceBlock =
-        mkDoc
-            ? mkDoc->getRawDocument()->findBlockByNumber(
-                  this->textCursor().blockNumber())
-            : this->document()->findBlockByNumber(
-                  this->textCursor().blockNumber());
-    undoSnapshot.oldBlock = sourceBlock.isValid() ? sourceBlock.text()
-                                                  : QString();
+    undoSnapshot.oldBlock =
+        mkDoc ? mkDoc->rawBlockText(this->textCursor().blockNumber())
+              : this->document()
+                    ->findBlockByNumber(this->textCursor().blockNumber())
+                    .text();
 
     qDebug() << "[preUndoSetup] editType =" << undoSnapshot.editType
              << "oldText.len =" << undoSnapshot.oldText.length()
@@ -1457,7 +1454,7 @@ QString MkEdit::rawPlainText() const
     {
         return QTextEdit::toPlainText();
     }
-    return mkDoc->getRawDocument()->toPlainText();
+    return mkDoc->rawText();
 }
 
 void MkEdit::setMkState(bool enable)

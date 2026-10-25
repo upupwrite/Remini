@@ -1,4 +1,5 @@
 #include "views_handler.h"
+#include "markdownconnections.h"
 
 #include <QAbstractButton>
 #include <QApplication>
@@ -294,172 +295,12 @@ void ViewsHandler::initConnection()
 
 void ViewsHandler::connectDocument()
 {
-    QObject::connect(viewText, &MkEdit::checkRightClockOnCodeBlock,
-                     currentDocument.data(),
-                     &MkTextDocument::checkRightClockOnCodeBlockHandle);
-
-    QObject::connect(viewText, &MkEdit::selectBlockCopy, currentDocument.data(),
-                     &MkTextDocument::selectBlockCopyHandle);
-
-    QObject::connect(viewText, &MkEdit::duplicateLine, currentDocument.data(),
-                     &MkTextDocument::duplicateLineHandle);
-
-    QObject::connect(viewText, &MkEdit::smartSelection, currentDocument.data(),
-                     &MkTextDocument::smartSelectionHandle);
-
-    QObject::connect(viewText, &MkEdit::cursorPosChanged,
-                     currentDocument.data(),
-                     &MkTextDocument::cursorPosChangedHandle);
-
-    QObject::connect(viewText, &MkEdit::enterKeyPressed, currentDocument.data(),
-                     &MkTextDocument::enterKeyPressedHandle);
-
-    QObject::connect(viewText, &MkEdit::quoteLeftKeyPressed,
-                     currentDocument.data(),
-                     &MkTextDocument::quoteLeftKeyPressedHandle);
-
-    QObject::connect(viewText, &MkEdit::removeAllMkData, currentDocument.data(),
-                     &MkTextDocument::removeAllMkDataHandle);
-
-    QObject::connect(viewText, &MkEdit::applyAllMkData, currentDocument.data(),
-                     &MkTextDocument::applyAllMkDataHandle);
-
-    QObject::connect(viewText, &MkEdit::applyMkSingleBlock,
-                     currentDocument.data(),
-                     &MkTextDocument::applyMkSingleBlockHandle);
-
-    QObject::connect(viewText, &MkEdit::saveSingleRawBlock,
-                     currentDocument.data(),
-                     &MkTextDocument::saveSingleRawBlockHandler);
-
-    QObject::connect(viewText, &MkEdit::saveEnterPressedRawBlock,
-                     currentDocument.data(),
-                     &MkTextDocument::saveEnterPressRawBlockHandler);
-
-    QObject::connect(viewText, &MkEdit::saveRawDocument, currentDocument.data(),
-                     &MkTextDocument::saveRawDocumentHandler);
-
-    QObject::connect(viewText, &MkEdit::setMarkdownStatus,
-                     currentDocument.data(),
-                     &MkTextDocument::setMarkdownHandle);
-
-    QObject::connect(viewText, &MkEdit::pushCheckBox, currentDocument.data(),
-                     &MkTextDocument::pushCheckBoxHandle);
-
-    QObject::connect(viewText, &MkEdit::pushLink, currentDocument.data(),
-                     &MkTextDocument::pushLinkHandle);
-
-    QObject::connect(viewText, &MkEdit::autoInsertSymbol,
-                     currentDocument.data(),
-                     &MkTextDocument::autoInsertSymbolHandle);
-
-    QObject::connect(viewText, &MkEdit::cursorUpdate, currentDocument.data(),
-                     &MkTextDocument::cursorUpdateHandle);
-
-    QObject::connect(viewText, &MkEdit::undoStackPushSignal,
-                     currentDocument.data(), &MkTextDocument::undoStackPush);
-
-    QObject::connect(viewText, &MkEdit::undoStackUndoSignal,
-                     currentDocument.data(), &MkTextDocument::undoStackUndo);
-
-    QObject::connect(viewText, &MkEdit::undoStackRedoSignal,
-                     currentDocument.data(), &MkTextDocument::undoStackRedo);
-
-    QObject::connect(currentDocument.data(), &MkTextDocument::connectCurosPos,
-                     viewText, &MkEdit::connectSignals);
-
-    QObject::connect(currentDocument.data(),
-                     &MkTextDocument::disconnectCursorPos, viewText,
-                     &MkEdit::disconnectSignals);
+    connectMarkdownEditorToDocument(*viewText, *currentDocument);
 }
 
 void ViewsHandler::disconnectDocument()
 {
-    QObject::disconnect(viewText, &MkEdit::checkRightClockOnCodeBlock,
-                        currentDocument.data(),
-                        &MkTextDocument::checkRightClockOnCodeBlockHandle);
-
-    QObject::disconnect(viewText, &MkEdit::selectBlockCopy,
-                        currentDocument.data(),
-                        &MkTextDocument::selectBlockCopyHandle);
-
-    QObject::disconnect(viewText, &MkEdit::duplicateLine,
-                        currentDocument.data(),
-                        &MkTextDocument::duplicateLineHandle);
-
-    QObject::disconnect(viewText, &MkEdit::smartSelection,
-                        currentDocument.data(),
-                        &MkTextDocument::smartSelectionHandle);
-
-    QObject::disconnect(viewText, &MkEdit::cursorPosChanged,
-                        currentDocument.data(),
-                        &MkTextDocument::cursorPosChangedHandle);
-
-    QObject::disconnect(viewText, &MkEdit::enterKeyPressed,
-                        currentDocument.data(),
-                        &MkTextDocument::enterKeyPressedHandle);
-
-    QObject::disconnect(viewText, &MkEdit::quoteLeftKeyPressed,
-                        currentDocument.data(),
-                        &MkTextDocument::quoteLeftKeyPressedHandle);
-
-    QObject::disconnect(viewText, &MkEdit::removeAllMkData,
-                        currentDocument.data(),
-                        &MkTextDocument::removeAllMkDataHandle);
-
-    QObject::disconnect(viewText, &MkEdit::saveSingleRawBlock,
-                        currentDocument.data(),
-                        &MkTextDocument::saveSingleRawBlockHandler);
-
-    QObject::disconnect(viewText, &MkEdit::saveEnterPressedRawBlock,
-                        currentDocument.data(),
-                        &MkTextDocument::saveEnterPressRawBlockHandler);
-
-    QObject::disconnect(viewText, &MkEdit::saveRawDocument,
-                        currentDocument.data(),
-                        &MkTextDocument::saveRawDocumentHandler);
-
-    QObject::disconnect(viewText, &MkEdit::applyAllMkData,
-                        currentDocument.data(),
-                        &MkTextDocument::applyAllMkDataHandle);
-
-    QObject::disconnect(viewText, &MkEdit::applyMkSingleBlock,
-                        currentDocument.data(),
-                        &MkTextDocument::applyMkSingleBlockHandle);
-
-    QObject::disconnect(viewText, &MkEdit::setMarkdownStatus,
-                        currentDocument.data(),
-                        &MkTextDocument::setMarkdownHandle);
-
-    QObject::disconnect(viewText, &MkEdit::pushCheckBox, currentDocument.data(),
-                        &MkTextDocument::pushCheckBoxHandle);
-
-    QObject::disconnect(viewText, &MkEdit::pushLink, currentDocument.data(),
-                        &MkTextDocument::pushLinkHandle);
-
-    QObject::disconnect(viewText, &MkEdit::autoInsertSymbol,
-                        currentDocument.data(),
-                        &MkTextDocument::autoInsertSymbolHandle);
-
-    QObject::disconnect(viewText, &MkEdit::cursorUpdate, currentDocument.data(),
-                        &MkTextDocument::cursorUpdateHandle);
-
-    QObject::disconnect(viewText, &MkEdit::undoStackPushSignal,
-                        currentDocument.data(), &MkTextDocument::undoStackPush);
-
-    QObject::disconnect(viewText, &MkEdit::undoStackUndoSignal,
-                        currentDocument.data(), &MkTextDocument::undoStackUndo);
-
-    QObject::disconnect(viewText, &MkEdit::undoStackRedoSignal,
-                        currentDocument.data(), &MkTextDocument::undoStackRedo);
-
-    QObject::disconnect(currentDocument.data(),
-                        &MkTextDocument::connectCurosPos, viewText,
-                        &MkEdit::connectSignals);
-
-    QObject::disconnect(currentDocument.data(),
-                        &MkTextDocument::disconnectCursorPos, viewText,
-                        &MkEdit::disconnectSignals);
+    disconnectMarkdownEditorFromDocument(*viewText, *currentDocument);
 }
 
 QString ViewsHandler::getFileContent(QFile &file)

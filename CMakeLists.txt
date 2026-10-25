@@ -45,6 +45,8 @@ set(PROJECT_SOURCES
     ${MARKDOWN_DIR}/mkedit.h
     ${MARKDOWN_DIR}/highlighter.cpp
     ${MARKDOWN_DIR}/highlighter.h
+    ${MARKDOWN_DIR}/markdownconnections.cpp
+    ${MARKDOWN_DIR}/markdownconnections.h
     ${MARKDOWN_DIR}/markdownparser.cpp
     ${MARKDOWN_DIR}/markdownparser.h
     ${MARKDOWN_DIR}/markdownrenderer.cpp
