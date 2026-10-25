@@ -79,7 +79,8 @@ public slots:
     void removeAllMkDataHandle(int blockNo);
     void applyAllMkDataHandle(int blockNumber);
     void applyMkSingleBlockHandle(int blockNumber);
-    void enterKeyPressedHandle(int blockNumber, int &newCursorPos);
+    void enterKeyPressedHandle(int blockNumber, int &newCursorPos,
+                               bool continueQuote);
     void quoteLeftKeyPressedHandle(int blockNumber, bool &success);
     void checkRightClockOnCodeBlockHandle(int blockNumber, bool &valid);
     void selectBlockCopyHandle(int blockNumber, int &startPos, int &endPos);
@@ -146,7 +147,8 @@ private:
     void autoCompleteCodeBlock(int blockNumber, bool &success);
     BlockData *checkValidCodeBlock(QTextBlock &block);
 
-    void numberListDetect(int blockNumber, int &newCursorPosition);
+    void numberListDetect(int blockNumber, int &newCursorPosition,
+                          bool continueQuote);
     int numberListGetSpaces(const QString &text);
     QString numberListGetNextNumber(const QString &text);
 

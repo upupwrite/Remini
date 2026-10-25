@@ -328,6 +328,20 @@ void MkEdit::keyPressEvent(QKeyEvent *event)
 
     case Qt::Key_Enter:
     case Qt::Key_Return:
+        if (event->modifiers() & Qt::CTRL)
+        {
+            // Ctrl+Enter inserts a plain paragraph break and deliberately
+            // skips the blockquote/list continuation handled by the
+            // enterKeyPressed signal.
+            undoSnapshot.editType = multiEdit;
+            clearMkEffects(undoSnapshot.editType);
+            this->textCursor().insertBlock();
+            selectRange.currentBlockNo = textCursor().blockNumber();
+            selectRange.currentposInBlock = selectRange.arrowPosInBlock =
+                textCursor().positionInBlock();
+            fileSaveNow();
+            return;
+        }
         undoSnapshot.editType = multiEdit;
         break;
 
@@ -401,7 +415,8 @@ void MkEdit::keyPressEvent(QKeyEvent *event)
     case Qt::Key_Enter:
     case Qt::Key_Return:
         emit enterKeyPressed(this->textCursor().blockNumber(),
-                             this->selectRange.currentposInBlock);
+                             this->selectRange.currentposInBlock,
+                             !(event->modifiers() & Qt::CTRL));
         // fallthrough
     case Qt::Key_Space:
         fileSaveNow();

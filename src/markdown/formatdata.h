@@ -96,7 +96,9 @@ public:
                    const QString *linkTitle = nullptr);
     void addImageFormat(const int start, const int end, const QString &url,
                         const QString &altText);
-    void addBlockQuoteFormat(const int markerEnd, const int textEnd);
+    void addBlockQuoteFormat(const int markerEnd, const int textEnd,
+                             const int depth = 1);
+    int getBlockQuoteDepth() const;
     QString getImageUrl(int start) const;
     QString getImageAltText(int start) const;
 
@@ -169,6 +171,7 @@ private:
     QMap<int, QString> imageAltTextMap;
     QBitArray mask;
     QString originalText;
+    int blockQuoteDepth;
     bool hidden;
     bool formatted;
     void addMaskBit(const int start, const QString &startSymbol, const int end,

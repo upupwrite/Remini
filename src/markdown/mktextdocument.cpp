@@ -478,9 +478,10 @@ BlockData *MkTextDocument::checkValidCodeBlock(QTextBlock &block)
     return nullptr;
 }
 
-void MkTextDocument::enterKeyPressedHandle(int blockNumber, int &newCursorPos)
+void MkTextDocument::enterKeyPressedHandle(int blockNumber, int &newCursorPos,
+                                           bool continueQuote)
 {
-    numberListDetect(blockNumber, newCursorPos);
+    numberListDetect(blockNumber, newCursorPos, continueQuote);
 }
 
 void MkTextDocument::quoteLeftKeyPressedHandle(int blockNumber, bool &success)
@@ -1161,11 +1162,25 @@ void MkTextDocument::undoStackRedo(EditRestore &restore)
     restore.success = true;
 }
 
-void MkTextDocument::numberListDetect(int blockNumber, int &newCursorPosition)
+void MkTextDocument::numberListDetect(int blockNumber, int &newCursorPosition,
+                                      bool continueQuote)
 {
     QTextCursor cursor(this->findBlockByNumber(blockNumber));
     QTextBlock currentBlock = this->findBlockByNumber(blockNumber - 1);
     QString lineText = currentBlock.text();
+
+    // Blockquote continuation: reuse the exact leading ">" marker(s) so
+    // pressing Enter keeps the quote (and its nesting) going.
+    if (continueQuote)
+    {
+        const QString quotePrefix = MarkdownParser::blockQuotePrefix(lineText);
+        if (!quotePrefix.isEmpty())
+        {
+            cursor.insertText(quotePrefix);
+            newCursorPosition = cursor.positionInBlock();
+            return;
+        }
+    }
 
     regexNumbering.setPattern("^( {0,}|\\s{2,})\\d+\\.\\s*.*$");
     QRegularExpressionMatch matchNumbering = regexNumbering.match(lineText);

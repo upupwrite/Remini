@@ -153,8 +153,14 @@ void MarkdownRenderer::applyMkFormat(QTextDocument *document,
         quoteFormat.setForeground(QColor(QStringLiteral("#65727C")));
         quoteFormat.setFontItalic(true);
 
+        // Nested quotes indent further; a marker-only line still reports a
+        // depth of one so it keeps the same visual treatment.
+        int quoteDepth = 1;
+        if (FormatData *data = dynamic_cast<FormatData *>(block.userData()))
+            quoteDepth = qMax(1, data->getBlockQuoteDepth());
+
         QTextBlockFormat blockFormat = block.blockFormat();
-        blockFormat.setLeftMargin(18);
+        blockFormat.setLeftMargin(18 * quoteDepth);
         blockFormat.setBackground(QColor(90, 120, 150, 20));
         QTextCursor blockCursor(block);
         blockCursor.setBlockFormat(blockFormat);

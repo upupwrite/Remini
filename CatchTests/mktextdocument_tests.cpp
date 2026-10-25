@@ -27,6 +27,7 @@
 #include <catch2/catch_all.hpp>
 
 #include "mkedit.h"
+#include "markdownparser.h"
 #include "mktextdocument.h"
 
 TEST_CASE("MkTextDocument simple text", "[MkTextDocument]")
@@ -78,7 +79,7 @@ TEST_CASE("MkTextDocument blockquote supports indentation and empty quotes",
     REQUIRE(doc.begin().next().blockFormat().leftMargin() == Catch::Approx(18.0));
 }
 
-TEST_CASE("MkTextDocument blockquote marker requires whitespace",
+TEST_CASE("MkTextDocument blockquote marker without trailing space",
           "[MkTextDocument]")
 {
     MkTextDocument doc;
@@ -93,8 +94,59 @@ TEST_CASE("MkTextDocument blockquote marker requires whitespace",
     range.currentBlockNo = 1;
     doc.cursorPosChangedHandle(&range);
 
-    REQUIRE(doc.begin().text() == ">not a quote");
-    REQUIRE(doc.begin().blockFormat().leftMargin() == Catch::Approx(0.0));
+    // A '>' marker needs no trailing space (CommonMark rule b).
+    REQUIRE(doc.begin().text() == "not a quote");
+    REQUIRE(doc.begin().blockFormat().leftMargin() == Catch::Approx(18.0));
+}
+
+TEST_CASE("MkTextDocument nested blockquote markers hide and indent",
+          "[MkTextDocument]")
+{
+    MkTextDocument doc;
+    MkEdit edit;
+    SelectRange range;
+
+    doc.setPlainText(">> nested");
+    doc.setMarkdownHandle(true);
+    edit.setDocument(&doc);
+
+    range.hasSelection = false;
+    range.currentBlockNo = 1;
+    doc.cursorPosChangedHandle(&range);
+
+    REQUIRE(doc.begin().text() == "nested");
+    REQUIRE(doc.begin().blockFormat().leftMargin() == Catch::Approx(36.0));
+    REQUIRE(doc.getRawDocument()->toPlainText() == ">> nested");
+}
+
+TEST_CASE("MkTextDocument spaced nested blockquote markers",
+          "[MkTextDocument]")
+{
+    MkTextDocument doc;
+    MkEdit edit;
+    SelectRange range;
+
+    doc.setPlainText("> > nested");
+    doc.setMarkdownHandle(true);
+    edit.setDocument(&doc);
+
+    range.hasSelection = false;
+    range.currentBlockNo = 1;
+    doc.cursorPosChangedHandle(&range);
+
+    REQUIRE(doc.begin().text() == "nested");
+    REQUIRE(doc.begin().blockFormat().leftMargin() == Catch::Approx(36.0));
+}
+
+TEST_CASE("MarkdownParser blockquote prefix extraction", "[MarkdownParser]")
+{
+    REQUIRE(MarkdownParser::blockQuotePrefix("> hello") == "> ");
+    REQUIRE(MarkdownParser::blockQuotePrefix(">hello") == ">");
+    REQUIRE(MarkdownParser::blockQuotePrefix(">>") == ">>");
+    REQUIRE(MarkdownParser::blockQuotePrefix("> > hello") == "> > ");
+    REQUIRE(MarkdownParser::blockQuotePrefix("   > hello") == "   > ");
+    REQUIRE(MarkdownParser::blockQuotePrefix("    > hello").isEmpty());
+    REQUIRE(MarkdownParser::blockQuotePrefix("hello").isEmpty());
 }
 
 TEST_CASE("MkTextDocument bold text", "[MkTextDocument]")

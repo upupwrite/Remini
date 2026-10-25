@@ -1,6 +1,6 @@
 #include "formatdata.h"
 
-FormatData::FormatData() : hidden(false), formatted(false) {}
+FormatData::FormatData() : hidden(false), formatted(false), blockQuoteDepth(0) {}
 
 FormatData::~FormatData()
 {
@@ -209,14 +209,18 @@ int FormatData::getCalculatedCursorPos(const int posInBlock)
 }
 
 void FormatData::addBlockQuoteFormat(const int markerEnd,
-                                       const int textEnd)
+                                     const int textEnd,
+                                     const int depth)
 {
+    blockQuoteDepth = depth;
     // Keep a fragment even for a marker-only line (">") so block styling is
-    // applied, while masking only the quote marker and its optional spacing.
+    // applied, while masking only the quote markers and their optional spacing.
     formats.append(new FragmentData(0, qMax(0, textEnd),
-                                   FragmentData::BLOCKQUOTE));
+                                    FragmentData::BLOCKQUOTE));
     addMaskRange(0, markerEnd);
 }
+
+int FormatData::getBlockQuoteDepth() const { return blockQuoteDepth; }
 
 void FormatData::addImageFormat(const int start, const int end,
                                 const QString &url, const QString &altText)

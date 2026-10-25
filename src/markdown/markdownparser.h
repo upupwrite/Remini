@@ -29,6 +29,11 @@ public:
     // Scan `text` for inline image expressions (![alt](url) / ![alt](<url>)).
     static QVector<MarkdownImageExpression> parseImages(const QString &text);
 
+    // Returns the exact blockquote marker prefix (e.g. "> ", "> > ") when
+    // `text` starts a blockquote, otherwise an empty string. Used by the
+    // editor to continue a quote on Enter.
+    static QString blockQuotePrefix(const QString &text);
+
     // Parse one block and attach a FormatData user-data object when the block
     // actually contains Markdown. Empty results leave userData untouched.
     void identifyFormatData(QTextBlock &block);
@@ -51,6 +56,10 @@ private:
     FormatLocation locLinkTitle;
 
     void resetFormatLocation();
+    // Returns the index just past the leading blockquote marker(s), or -1 if
+    // the line does not start a valid blockquote marker. Also reports the
+    // nesting depth (number of '>' markers).
+    static int blockQuoteMarkerEnd(const QString &text, int &depth);
     void insertHeadingData(const QString &text, int &index1,
                            FormatData *formatData);
     QVector<QPair<int, int>> parseInlineCodeSpans(const QString &text,

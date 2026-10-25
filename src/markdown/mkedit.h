@@ -190,7 +190,7 @@ private slots:
 signals:
     void cursorPosChanged(SelectRange *const selectRange, const bool readOnly);
     void fileSaveRaw();
-    void enterKeyPressed(int blockNumber, int &newCursorPos);
+    void enterKeyPressed(int blockNumber, int &newCursorPos, bool continueQuote);
     void quoteLeftKeyPressed(int blockNumber, bool &success);
     void checkRightClockOnCodeBlock(int blockNumber, bool &valid);
     void selectBlockCopy(int blockNumber, int &startPos, int &endPos);

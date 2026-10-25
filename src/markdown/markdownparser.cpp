@@ -43,6 +43,41 @@ bool isMarkdownEscaped(const QString &text, int position)
 }  // namespace
 
 // ---------------------------------------------------------------------------
+// Blockquote markers
+// ---------------------------------------------------------------------------
+int MarkdownParser::blockQuoteMarkerEnd(const QString &text, int &depth)
+{
+    depth = 0;
+    int i = 0;
+    while (i < text.size() && i < 3 && text.at(i) == QLatin1Char(' '))
+        ++i;
+
+    bool sawMarker = false;
+    while (i < text.size() && text.at(i) == QLatin1Char('>'))
+    {
+        sawMarker = true;
+        ++depth;
+        ++i;
+        // A single space after a marker is consumed; any further spaces are
+        // content. This matches CommonMark's "marker + space" rule and lets
+        // "> >" and ">>" nest correctly.
+        if (i < text.size() && text.at(i) == QLatin1Char(' '))
+            ++i;
+    }
+
+    return sawMarker ? i : -1;
+}
+
+QString MarkdownParser::blockQuotePrefix(const QString &text)
+{
+    int depth = 0;
+    const int contentStart = blockQuoteMarkerEnd(text, depth);
+    if (contentStart < 0)
+        return QString();
+    return text.left(contentStart);
+}
+
+// ---------------------------------------------------------------------------
 // Inline images
 // ---------------------------------------------------------------------------
 QVector<MarkdownImageExpression> MarkdownParser::parseImages(const QString &text)
@@ -230,25 +265,15 @@ void MarkdownParser::identifyFormatData(QTextBlock &block)
     formatData->setMaskSize(block.text().size());
 
     int index1 = 0;
-    // CommonMark blockquote markers are valid after up to three leading
-    // spaces and must be followed by whitespace or end-of-line. TODO: support
-    // nested quote depth and CommonMark lazy continuation paragraphs.
-    int quoteIndent = 0;
-    while (quoteIndent < text.size() && quoteIndent < 3 &&
-           text.at(quoteIndent) == QLatin1Char(' '))
-        ++quoteIndent;
-    if (quoteIndent < text.size() &&
-        text.at(quoteIndent) == QLatin1Char('>') &&
-        (quoteIndent + 1 == text.size() ||
-         text.at(quoteIndent + 1).isSpace()))
+    // Blockquote markers may be nested and need no trailing space, matching
+    // CommonMark: up to three leading spaces, then one or more '>' markers
+    // each optionally followed by a single space.
+    int quoteDepth = 0;
+    const int quoteContentStart = blockQuoteMarkerEnd(text, quoteDepth);
+    if (quoteContentStart >= 0)
     {
-        int quoteContentStart = quoteIndent + 1;
-        if (quoteContentStart < text.size() &&
-            (text.at(quoteContentStart) == QLatin1Char(' ') ||
-             text.at(quoteContentStart) == QLatin1Char('\t')))
-            ++quoteContentStart;
         formatData->addBlockQuoteFormat(quoteContentStart - 1,
-                                        text.size() - 1);
+                                        text.size() - 1, quoteDepth);
     }
 
     insertHeadingData(text, index1, formatData);

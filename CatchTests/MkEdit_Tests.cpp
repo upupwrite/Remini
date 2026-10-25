@@ -2552,3 +2552,73 @@ TEST_CASE(
     QTextCharFormat format = edit.textCursor().charFormat();
     REQUIRE(format.fontWeight() == QFont::Normal);
 }
+
+TEST_CASE("MkEdit pressing Enter continues a blockquote", "[MkEdit]")
+{
+    MkTextDocument doc;
+    MkEdit edit;
+
+    doc.setPlainText("> hello");
+    doc.setMarkdownHandle(true);
+    edit.setDocument(&doc);
+
+    QObject::connect(&edit, &MkEdit::cursorPosChanged, &doc,
+                     &MkTextDocument::cursorPosChangedHandle);
+    QObject::connect(&edit, &MkEdit::removeAllMkData, &doc,
+                     &MkTextDocument::removeAllMkDataHandle);
+    QObject::connect(&edit, &MkEdit::applyAllMkData, &doc,
+                     &MkTextDocument::applyAllMkDataHandle);
+    QObject::connect(&edit, &MkEdit::saveRawDocument, &doc,
+                     &MkTextDocument::saveRawDocumentHandler);
+    QObject::connect(&edit, &MkEdit::enterKeyPressed, &doc,
+                     &MkTextDocument::enterKeyPressedHandle);
+
+    QTextCursor cursor = edit.textCursor();
+    cursor.setPosition(1);
+    edit.setTextCursor(cursor);
+    cursor.setPosition(7);
+    edit.setTextCursor(cursor);
+
+    QScopedPointer<QKeyEvent> enter(
+        new QKeyEvent(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier));
+    edit.keyPressEvent(enter.data());
+
+    REQUIRE(doc.getRawDocument()->toPlainText() == "> hello\n> ");
+    REQUIRE(edit.textCursor().blockNumber() == 1);
+    REQUIRE(edit.textCursor().positionInBlock() == 2);
+}
+
+TEST_CASE("MkEdit pressing Ctrl+Enter breaks a blockquote", "[MkEdit]")
+{
+    MkTextDocument doc;
+    MkEdit edit;
+
+    doc.setPlainText("> hello");
+    doc.setMarkdownHandle(true);
+    edit.setDocument(&doc);
+
+    QObject::connect(&edit, &MkEdit::cursorPosChanged, &doc,
+                     &MkTextDocument::cursorPosChangedHandle);
+    QObject::connect(&edit, &MkEdit::removeAllMkData, &doc,
+                     &MkTextDocument::removeAllMkDataHandle);
+    QObject::connect(&edit, &MkEdit::applyAllMkData, &doc,
+                     &MkTextDocument::applyAllMkDataHandle);
+    QObject::connect(&edit, &MkEdit::saveRawDocument, &doc,
+                     &MkTextDocument::saveRawDocumentHandler);
+    QObject::connect(&edit, &MkEdit::enterKeyPressed, &doc,
+                     &MkTextDocument::enterKeyPressedHandle);
+
+    QTextCursor cursor = edit.textCursor();
+    cursor.setPosition(1);
+    edit.setTextCursor(cursor);
+    cursor.setPosition(7);
+    edit.setTextCursor(cursor);
+
+    QScopedPointer<QKeyEvent> ctrlEnter(
+        new QKeyEvent(QEvent::KeyPress, Qt::Key_Return, Qt::ControlModifier));
+    edit.keyPressEvent(ctrlEnter.data());
+
+    REQUIRE(doc.getRawDocument()->toPlainText() == "> hello\n");
+    REQUIRE(edit.textCursor().blockNumber() == 1);
+    REQUIRE(edit.textCursor().positionInBlock() == 0);
+}
