@@ -110,12 +110,6 @@ signals:
     void connectCursorPos(bool override = false);
 
 private:
-    struct CheckingBlock
-    {
-        QTextBlock start;
-        QTextBlock end;
-    };
-
     QTextDocument rawDocument;
 
     QString filePath;
@@ -145,12 +139,9 @@ private:
     SelectRange redoSelectRange;
 
     void identifyUserData();
-    void identifyUserData(QTextBlock &block);
 
     // Pixel offsets of the column stops shared by every row of a table.
     QVector<qreal> tableTabStops(const QVector<int> &columnWidths);
-    void formatAllLines(const QTextDocument &original,
-                        MkTextDocument &formatted);
 
     void autoCompleteCodeBlock(int blockNumber, bool &success);
     BlockData *checkValidCodeBlock(QTextBlock &block);

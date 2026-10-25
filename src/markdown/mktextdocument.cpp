@@ -1,5 +1,6 @@
 #include "mktextdocument.h"
 #include "blockrenderer.h"
+#include "blockstructure.h"
 #include "markdownparser.h"
 #include "markdownrenderer.h"
 
@@ -330,104 +331,89 @@ void MkTextDocument::identifyUserData()
     checkMarkPositions.clear();
     linkPositions.clear();
 
-    QList<BlockData *> codeBlockBody;
-    int startBlock;
-    BlockData *code;
-
-    bool openBlock = false;
     for (QTextBlock block = this->begin(); block != this->end();
          block = block.next())
     {
         block.setUserData(nullptr);
+    }
 
-        QRegularExpressionMatch matchCodeBlock =
-            regexCodeBlock.match(block.text());
-        if (matchCodeBlock.hasMatch())
+    // One pass finds every multi-block construct (code fences and tables).
+    const QVector<BlockStructure> structures =
+        BlockStructureScanner(*this).scan();
+    int structureIndex = 0;
+
+    for (QTextBlock block = this->begin(); block != this->end();
+         block = block.next())
+    {
+        const int blockNo = block.blockNumber();
+        while (structureIndex < structures.size() &&
+               structures.at(structureIndex).lastBlock < blockNo)
         {
-            if (!openBlock)
-            {
-                openBlock = true;
-                code = new BlockData(BlockData::start);
-                startBlock = block.blockNumber();
-                block.setUserData(code);
-                codeBlockBody.append(code);
-            }
-            else
-            {
-                openBlock = false;
-                code = new BlockData(BlockData::end);
-                block.setUserData(code);
-                codeBlockBody.append(code);
+            ++structureIndex;
+        }
 
-                foreach (auto codeBlock, codeBlockBody)
-                {
-                    codeBlock->setStartBlock(startBlock);
-                    codeBlock->setEndBlock(block.blockNumber());
-                }
-                codeBlockBody.clear();
-            }
+        const BlockStructure *structure =
+            (structureIndex < structures.size() &&
+             structures.at(structureIndex).contains(blockNo))
+                ? &structures.at(structureIndex)
+                : nullptr;
+
+        if (structure && structure->kind == BlockStructure::Kind::CodeFence)
+        {
+            const BlockStructure::Role role = structure->roleAt(blockNo);
+            BlockData::statusID status = BlockData::content;
+            if (role == BlockStructure::Role::Start)
+                status = BlockData::start;
+            else if (role == BlockStructure::Role::End)
+                status = BlockData::end;
+
+            auto *data = new BlockData(status);
+            data->setStartBlock(structure->firstBlock);
+            data->setEndBlock(structure->lastBlock);
+            block.setUserData(data);
             continue;
         }
 
-        if (openBlock)
+        if (structure && structure->kind == BlockStructure::Kind::Table)
         {
-            code = new BlockData(BlockData::content);
-            block.setUserData(code);
-            codeBlockBody.append(code);
+            TableData::RowKind kind = TableData::Body;
+            switch (structure->roleAt(blockNo))
+            {
+            case BlockStructure::Role::Header:
+                kind = TableData::Header;
+                break;
+            case BlockStructure::Role::Delimiter:
+                kind = TableData::Delimiter;
+                break;
+            default:
+                kind = TableData::Body;
+                break;
+            }
+
+            auto *table = new TableData(kind);
+            table->setColumnCount(structure->columnCount);
+            table->setAlignments(structure->alignments);
+            table->setColumnWidths(structure->columnWidths);
+            table->setTabStops(tableTabStops(structure->columnWidths));
+            table->setTableRange(structure->firstBlock, structure->lastBlock);
+            block.setUserData(table);
+
+            const int textLength = block.text().size();
+            if (kind == TableData::Delimiter)
+            {
+                // The delimiter row carries no visible text.
+                table->setMaskSize(textLength);
+                table->addMaskRange(0, textLength - 1);
+                continue;
+            }
+
+            parser.identifyFormatData(block, table);
             continue;
         }
 
-        QRegularExpressionMatch matchHorizontalLine =
-            regexHorizontalLine.match(block.text());
-        if (matchHorizontalLine.hasMatch())
+        if (regexHorizontalLine.match(block.text()).hasMatch())
         {
             block.setUserData(new LineData);
-            continue;
-        }
-
-        // A table is a run of blocks: header row, delimiter row, body rows.
-        // Detect it from the header block, attach one TableData per row, then
-        // skip over the rest of the run.
-        const TableInfo tableInfo =
-            MarkdownParser::detectTable(*this, block.blockNumber());
-        if (tableInfo.valid)
-        {
-            const QVector<qreal> tabStops =
-                tableTabStops(tableInfo.columnWidths);
-            for (int rowNo = tableInfo.headerBlock;
-                 rowNo <= tableInfo.lastBlock; ++rowNo)
-            {
-                QTextBlock row = this->findBlockByNumber(rowNo);
-                if (!row.isValid())
-                    continue;
-
-                TableData::RowKind kind = TableData::Body;
-                if (rowNo == tableInfo.headerBlock)
-                    kind = TableData::Header;
-                else if (rowNo == tableInfo.delimiterBlock)
-                    kind = TableData::Delimiter;
-
-                auto *table = new TableData(kind);
-                table->setColumnCount(tableInfo.columnCount);
-                table->setAlignments(tableInfo.alignments);
-                table->setColumnWidths(tableInfo.columnWidths);
-                table->setTabStops(tabStops);
-                table->setTableRange(tableInfo.headerBlock,
-                                     tableInfo.lastBlock);
-                row.setUserData(table);
-
-                if (kind == TableData::Delimiter)
-                {
-                    // The delimiter row carries no visible text.
-                    table->setMaskSize(row.text().size());
-                    table->addMaskRange(0, row.text().size() - 1);
-                    continue;
-                }
-
-                parser.identifyFormatData(row, table);
-            }
-
-            block = this->findBlockByNumber(tableInfo.lastBlock);
             continue;
         }
 
@@ -459,85 +445,6 @@ QVector<qreal> MkTextDocument::tableTabStops(const QVector<int> &columnWidths)
     }
 
     return stops;
-}
-
-void MkTextDocument::identifyUserData(QTextBlock &block)
-{
-    QTextBlockUserData *data = block.userData();
-    BlockData *blockData = dynamic_cast<BlockData *>(data);
-    if (blockData)
-        return;
-
-    block.setUserData(nullptr);
-
-    QRegularExpressionMatch matchHorizontalLine =
-        regexHorizontalLine.match(block.text());
-    if (matchHorizontalLine.hasMatch())
-    {
-        LineData *lineData = new LineData;
-        block.setUserData(lineData);
-    }
-    else
-    {
-        parser.identifyFormatData(block);
-    }
-}
-
-void MkTextDocument::formatAllLines(const QTextDocument &original,
-                                    MkTextDocument &formatted)
-{
-    bool openBlock = false;
-
-    QTextCursor cursor(&formatted);
-    cursor.movePosition(QTextCursor::Start);
-
-    for (QTextBlock block = original.begin(); block != original.end();
-         block = block.next())
-    {
-        cursor.insertBlock();
-        QString blockText = block.text();
-
-        QRegularExpressionMatch matchCodeBlock =
-            regexCodeBlock.match(blockText);
-        if (matchCodeBlock.hasMatch())
-        {
-            BlockData *blockData = new BlockData;
-            cursor.block().setUserData(blockData);
-
-            if (!openBlock)
-            {
-                openBlock = true;
-                blockData->setStatus(BlockData::start);
-            }
-            else
-            {
-                openBlock = false;
-                blockData->setStatus(BlockData::end);
-            }
-        }
-        else
-        {
-            if (openBlock)
-            {
-                BlockData *blockData = new BlockData;
-                blockData->setStatus(BlockData::content);
-                cursor.block().setUserData(blockData);
-            }
-            else
-            {
-                QRegularExpressionMatch matchHorizontalLine =
-                    regexHorizontalLine.match(block.text());
-                if (matchHorizontalLine.hasMatch())
-                {
-                    LineData *lineData = new LineData;
-                    cursor.block().setUserData(lineData);
-                }
-                QTextBlock inserted = cursor.block();
-                parser.identifyFormatData(inserted);
-            }
-        }
-        cursor.insertText(blockText);
-    }
 }
 
 void MkTextDocument::autoCompleteCodeBlock(int blockNumber, bool &success)

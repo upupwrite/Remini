@@ -70,6 +70,10 @@ public:
     // written into it; this is how a table row reuses its TableData.
     void identifyFormatData(QTextBlock &block, FormatData *existing = nullptr);
 
+    // A fenced code block opener/closer: up to three leading spaces followed by
+    // at least three backticks. Shared by the block scanner and the editor.
+    static bool isFenceLine(const QString &text);
+
     // --- Tables ------------------------------------------------------------
     // A GFM pipe table is a header row, a delimiter row, and zero or more body
     // rows. Detection works on plain text so the document can classify blocks

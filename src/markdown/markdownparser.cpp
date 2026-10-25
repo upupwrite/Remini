@@ -502,6 +502,24 @@ QVector<MarkdownImageExpression> MarkdownParser::parseImages(const QString &text
 
 
 // ---------------------------------------------------------------------------
+// Fenced code blocks
+// ---------------------------------------------------------------------------
+bool MarkdownParser::isFenceLine(const QString &text)
+{
+    int indent = 0;
+    while (indent < text.size() && indent < 3 &&
+           text.at(indent) == QLatin1Char(' '))
+        ++indent;
+
+    int backticks = 0;
+    while (indent + backticks < text.size() &&
+           text.at(indent + backticks) == QLatin1Char('`'))
+        ++backticks;
+
+    return backticks >= 3;
+}
+
+// ---------------------------------------------------------------------------
 // GFM pipe tables
 // ---------------------------------------------------------------------------
 namespace {
