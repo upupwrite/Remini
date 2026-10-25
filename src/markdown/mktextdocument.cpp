@@ -829,9 +829,57 @@ void MkTextDocument::smartSelectionHandle(int blockNumber, QTextCursor &cursor)
     cursor.setPosition(end + currentBlockPos, QTextCursor::KeepAnchor);
 }
 
+namespace {
+
+// True when the block currently shows rendered Markdown (markers hidden, table
+// pipes replaced by tabs, images collapsed to an object character). Such a
+// block must never be used as a source of truth for the raw document.
+bool isBlockRendered(const QTextBlock &block)
+{
+    QTextBlockUserData *data = block.userData();
+    if (!data)
+        return false;
+
+    if (auto *blockData = dynamic_cast<BlockData *>(data))
+        return blockData->isHidden();
+    if (auto *lineData = dynamic_cast<LineData *>(data))
+        return lineData->isHidden();
+    if (auto *formatData = dynamic_cast<FormatData *>(data))
+        return formatData->isHidden();
+
+    return false;
+}
+
+}  // namespace
+
+QString MkTextDocument::sourceText() const
+{
+    // Block counts can legitimately diverge only while a structural edit is in
+    // flight; in that state the rendered document already holds plain source.
+    if (this->blockCount() != rawDocument.blockCount())
+        return this->toPlainText();
+
+    QStringList lines;
+    lines.reserve(this->blockCount());
+
+    for (QTextBlock block = this->begin(); block.isValid(); block = block.next())
+    {
+        const QTextBlock rawBlock =
+            rawDocument.findBlockByNumber(block.blockNumber());
+        if (isBlockRendered(block) && rawBlock.isValid())
+            lines.append(rawBlock.text());
+        else
+            lines.append(block.text());
+    }
+
+    return lines.join(QLatin1Char('\n'));
+}
+
 void MkTextDocument::saveRawDocumentHandler()
 {
-    this->rawDocument.setPlainText(this->toPlainText());
+    // Never copy the rendered text wholesale: it may contain tabs instead of
+    // table pipes or object characters instead of image Markdown.
+    this->rawDocument.setPlainText(sourceText());
 }
 
 void MkTextDocument::saveSingleRawBlockHandler(int blockNumber)

@@ -1994,3 +1994,60 @@ TEST_CASE("MkTextDocument keeps table rows after a single-row edit",
     REQUIRE(body->getColumnCount() == 2);
     REQUIRE(body->getTabStops().size() == 3);
 }
+
+// ============================================================================
+// Source reconstruction (raw document safety)
+// ============================================================================
+
+TEST_CASE("MkTextDocument sourceText keeps table pipes and image syntax",
+          "[MkTextDocument][RawSync][Table]")
+{
+    MkTextDocument doc;
+    MkEdit edit;
+    SelectRange range;
+
+    const QString source =
+        "| a | b |\n| --- | --- |\n| 1 | 2 |\n![x](p.png) **bold**";
+    doc.setPlainText(source);
+    doc.setMarkdownHandle(true);
+    edit.setDocument(&doc);
+
+    range.hasSelection = false;
+    range.currentBlockNo = 99;
+    doc.cursorPosChangedHandle(&range);
+
+    // The rendered document no longer holds the pipes or the image Markdown.
+    REQUIRE(doc.toPlainText().contains(QLatin1Char('\t')));
+    REQUIRE(doc.toPlainText().contains(QChar::ObjectReplacementCharacter));
+
+    // Rebuilding the source must not leak rendered artifacts.
+    REQUIRE(doc.sourceText() == source);
+
+    doc.saveRawDocumentHandler();
+    REQUIRE(doc.getRawDocument()->toPlainText() == source);
+}
+
+TEST_CASE("MkTextDocument sourceText uses the visible text of edited blocks",
+          "[MkTextDocument][RawSync]")
+{
+    MkTextDocument doc;
+    MkEdit edit;
+    SelectRange range;
+
+    doc.setPlainText("**bold**\nplain");
+    doc.setMarkdownHandle(true);
+    edit.setDocument(&doc);
+
+    // Reveal block 1 only, then type into it.
+    range.hasSelection = false;
+    range.currentBlockNo = 1;
+    doc.cursorPosChangedHandle(&range);
+
+    QTextCursor cursor(&doc);
+    cursor.setPosition(doc.findBlockByNumber(1).position());
+    cursor.movePosition(QTextCursor::EndOfBlock);
+    cursor.insertText(QStringLiteral("!"));
+    doc.saveSingleRawBlockHandler(1);
+
+    REQUIRE(doc.sourceText() == "**bold**\nplain!");
+}

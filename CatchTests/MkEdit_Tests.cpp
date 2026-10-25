@@ -2546,11 +2546,13 @@ TEST_CASE(
     cursor.setPosition(3);
     edit.setTextCursor(cursor);
 
-    // FIX: observed Normal (400), not ExtraBold (800). The "**" on block 0
-    // is not preserved across the multi-block edit because the hidden-state
-    // text was written into the raw document.
+    // Structural edits start from the plain source form and write the source
+    // back block by block (MkTextDocument::sourceText), so the "**" markers of
+    // untouched blocks survive a multi-block deletion. Block 0 is therefore
+    // still bold after the delete.
+    REQUIRE(doc.getRawDocument()->toPlainText().startsWith("**bold**"));
     QTextCharFormat format = edit.textCursor().charFormat();
-    REQUIRE(format.fontWeight() == QFont::Normal);
+    REQUIRE(format.fontWeight() == QFont::ExtraBold);
 }
 
 TEST_CASE("MkEdit pressing Enter continues a blockquote", "[MkEdit]")

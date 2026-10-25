@@ -72,6 +72,10 @@ public:
     QString rawText() const;
     QString rawBlockText(int blockNo) const;
 
+    // Source Markdown rebuilt block by block: rendered blocks take their text
+    // from `rawDocument`, blocks being edited contribute their visible text.
+    QString sourceText() const;
+
     void revealAllMkSymbols();
 
 public slots:

@@ -900,7 +900,10 @@ void MkEdit::clearMkEffects(EditType editType)
     int posInBlock = cursor.positionInBlock();
     bool hasSelection = cursor.hasSelection();
 
-    if (editType != EditType::singleEdit && editType != EditType::multiDelete)
+    // Every structural edit starts from the plain source form so that
+    // updateRawDocument() can read the text back without translating rendered
+    // artifacts (table tabs, image objects) into the raw document.
+    if (editType != EditType::singleEdit)
     {
         emit removeAllMkData(this->textCursor().blockNumber());
     }
