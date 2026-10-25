@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.16)
 
 project(CatchTests LANGUAGES CXX)
 
@@ -21,6 +21,7 @@ set(CMAKE_AUTOUIC_SEARCH_PATHS ${APP_DIR} ${SETTINGS_DIR})
 
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets Gui Test)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Gui Test)
+find_package(Catch2 3 REQUIRED)
 
 add_executable(${PROJECT_NAME}
     main.cpp
@@ -64,16 +65,5 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     Qt${QT_VERSION_MAJOR}::Gui
     Qt${QT_VERSION_MAJOR}::Widgets
     Qt${QT_VERSION_MAJOR}::Test
+    Catch2::Catch2
 )
-
-if(DEFINED ENV{CATCH_INCLUDE_DIR})
-    set(CATCH_INCLUDE_DIR $ENV{CATCH_INCLUDE_DIR})
-else()
-    set(CATCH_INCLUDE_DIR "")
-endif()
-
-if(CATCH_INCLUDE_DIR STREQUAL "")
-    message(STATUS "CATCH_INCLUDE_DIR is not set; assuming Catch2 is available in the system include path")
-elseif(EXISTS "${CATCH_INCLUDE_DIR}")
-    target_include_directories(${PROJECT_NAME} PRIVATE "${CATCH_INCLUDE_DIR}")
-endif()

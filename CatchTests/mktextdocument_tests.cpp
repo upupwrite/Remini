@@ -24,7 +24,7 @@
 #include <QString>
 #include <QTextCharFormat>
 #include <QTextCursor>
-#include <catch2/catch.hpp>
+#include <catch2/catch_all.hpp>
 
 #include "mkedit.h"
 #include "mktextdocument.h"
@@ -53,7 +53,7 @@ TEST_CASE("MkTextDocument blockquote hides marker and styles block",
     doc.cursorPosChangedHandle(&range);
 
     REQUIRE(doc.begin().text() == "quoted text");
-    REQUIRE(doc.begin().blockFormat().leftMargin() == Approx(18.0));
+    REQUIRE(doc.begin().blockFormat().leftMargin() == Catch::Approx(18.0));
     REQUIRE(doc.getRawDocument()->toPlainText() == "> quoted text");
 }
 
@@ -73,9 +73,9 @@ TEST_CASE("MkTextDocument blockquote supports indentation and empty quotes",
     doc.cursorPosChangedHandle(&range);
 
     REQUIRE(doc.begin().text() == "indented quote");
-    REQUIRE(doc.begin().blockFormat().leftMargin() == Approx(18.0));
+    REQUIRE(doc.begin().blockFormat().leftMargin() == Catch::Approx(18.0));
     REQUIRE(doc.begin().next().text().isEmpty());
-    REQUIRE(doc.begin().next().blockFormat().leftMargin() == Approx(18.0));
+    REQUIRE(doc.begin().next().blockFormat().leftMargin() == Catch::Approx(18.0));
 }
 
 TEST_CASE("MkTextDocument blockquote marker requires whitespace",
@@ -94,7 +94,7 @@ TEST_CASE("MkTextDocument blockquote marker requires whitespace",
     doc.cursorPosChangedHandle(&range);
 
     REQUIRE(doc.begin().text() == ">not a quote");
-    REQUIRE(doc.begin().blockFormat().leftMargin() == Approx(0.0));
+    REQUIRE(doc.begin().blockFormat().leftMargin() == Catch::Approx(0.0));
 }
 
 TEST_CASE("MkTextDocument bold text", "[MkTextDocument]")

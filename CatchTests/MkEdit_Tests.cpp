@@ -2,7 +2,7 @@
 #include <QClipboard>
 #include <QScopedPointer>
 #include <QTest>
-#include <catch2/catch.hpp>
+#include <catch2/catch_all.hpp>
 
 #include "mkedit.h"
 
@@ -2114,8 +2114,6 @@ TEST_CASE("MkEdit gui text and raw text after pressing enter multiple times",
                      &MkTextDocument::undoStackRedo);
     QObject::connect(&edit, &MkEdit::saveSingleRawBlock, &doc,
                      &MkTextDocument::saveSingleRawBlockHandler);
-    QObject::connect(&edit, &MkEdit::saveEnterPressedRawBlock, &doc,
-                     &MkTextDocument::saveEnterPressRawBlockHandler);
     QObject::connect(&edit, &MkEdit::saveRawDocument, &doc,
                      &MkTextDocument::saveRawDocumentHandler);
     QObject::connect(&edit, &MkEdit::enterKeyPressed, &doc,
@@ -2523,8 +2521,6 @@ TEST_CASE(
                      &MkTextDocument::undoStackRedo);
     QObject::connect(&edit, &MkEdit::saveSingleRawBlock, &doc,
                      &MkTextDocument::saveSingleRawBlockHandler);
-    QObject::connect(&edit, &MkEdit::saveEnterPressedRawBlock, &doc,
-                     &MkTextDocument::saveEnterPressRawBlockHandler);
     QObject::connect(&edit, &MkEdit::saveRawDocument, &doc,
                      &MkTextDocument::saveRawDocumentHandler);
     QObject::connect(&edit, &MkEdit::enterKeyPressed, &doc,

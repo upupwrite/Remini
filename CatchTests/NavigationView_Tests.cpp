@@ -29,7 +29,7 @@
 #include <QKeyEvent>
 #include <QLineEdit>
 #include <QTemporaryDir>
-#include <catch2/catch.hpp>
+#include <catch2/catch_all.hpp>
 
 #include "navigationmodel.h"
 #include "navigationview.h"
