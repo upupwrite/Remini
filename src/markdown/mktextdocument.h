@@ -25,6 +25,7 @@
 #include "edittypes.h"
 #include "formatcollection.h"
 #include "markdownparser.h"
+#include "markdownrenderer.h"
 #include "selectrange.h"
 
 class MkTextDocument : public QTextDocument
@@ -139,24 +140,6 @@ private:
     void formatAllLines(const QTextDocument &original,
                         MkTextDocument &formatted);
 
-    void setCodeBlockMargin(QTextBlock &block, int leftMargin = 0,
-                            int rightMargin = 0, int topMargin = 0,
-                            int bottomMargin = 0);
-    void resetTextBlockFormat(QTextBlock block);
-    void applyMkFormat(QTextBlock &block, const BlockSupport &span,
-                       FragmentData::FormatSymbol status,
-                       FormatCollection &formatCollection);
-    void applyCheckBoxLinkEffect(FormatData *data, QTextBlock &block,
-                                 QTextCursor &cursor);
-    void hideSymbols(QTextBlock &block, const QString &symbol);
-    void hideSymbolsAtPos(QString &text, int pos, const QString &symbol);
-
-    void showSymbols(QTextBlock &block, const QString &symbol);
-    void removeCheckBoxLinkMousePosition(QTextBlock &block,
-                                         FormatData *formatData,
-                                         SelectRange *range = nullptr);
-    void showSymbolsAtPos(QString &text, int pos, const QString &symbol);
-
     void autoCompleteCodeBlock(int blockNumber, bool &success);
     BlockData *checkValidCodeBlock(QTextBlock &block);
 
@@ -166,7 +149,6 @@ private:
 
     void hideMKSymbolsFromPreviousSelectedBlocks(SelectRange *const range);
     void showMKSymbolsFromCurrentSelectedBlocks(SelectRange *const range);
-    void showHideCodeBlock(BlockData *data, bool hide, int fontSize);
 };
 
 struct UndoData

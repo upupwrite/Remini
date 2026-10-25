@@ -37,6 +37,7 @@ add_executable(${PROJECT_NAME}
     ${MARKDOWN_DIR}/formatdata.cpp
     ${MARKDOWN_DIR}/mkedit.cpp
     ${MARKDOWN_DIR}/markdownparser.cpp
+    ${MARKDOWN_DIR}/markdownrenderer.cpp
     ${MARKDOWN_DIR}/mktextdocument.cpp
     ${MARKDOWN_DIR}/highlighter.cpp
     ${APP_DIR}/views_handler.cpp
