@@ -647,15 +647,6 @@ void MkTextDocument::formatAllLines(const QTextDocument &original,
     }
 }
 
-void MkTextDocument::resetAllLoc()
-{
-    locItalicA.reset();
-    locItalicU.reset();
-    locBoldA.reset();
-    locBoldU.reset();
-    locCheck.reset();
-}
-
 void MkTextDocument::identifyFormatData(QTextBlock &block)
 {
     resetFormatLocation();
@@ -725,7 +716,7 @@ void MkTextDocument::identifyFormatData(QTextBlock &block)
                     insertFormatLinkData(locLinkTitle, locLink, index1, index2,
                                          index3, formatData, test, &linkUrl,
                                          &linkTitle);
-                    resetAllLoc();
+                    locCheck.reset();
                 }
             }
             else
@@ -815,8 +806,6 @@ void MkTextDocument::identifyFormatData(QTextBlock &block)
         block.setUserData(formatData);
     }
 }
-
-void MkTextDocument::identifyUnicode(QString &line) { Q_UNUSED(line); }
 
 // ---------------------------------------------------------------------------
 // ATX headings (H1-H6), including up to three leading spaces and optional
@@ -1192,29 +1181,6 @@ void MkTextDocument::parseEmphasis(
     }
 }
 
-void MkTextDocument::insertFormatData(FormatLocation &loc, int &index1,
-                                      int &index2, int &index3,
-                                      FormatData *formatData,
-                                      const QString &test)
-{
-    if (loc.start == -1)
-    {
-        loc.start = index1;
-    }
-    else
-    {
-        loc.end = index1;
-        if (loc.end - loc.start > 1)
-        {
-            loc.start = (loc.start < 1) ? 0 : loc.start;
-            formatData->addFormat(loc.start, loc.end, test);
-            loc.reset();
-            resetAllLoc();
-        }
-    }
-    incrementIndexes(index1, index2, index3, test.size());
-}
-
 void MkTextDocument::insertFormatCheckBoxData(FormatLocation &loc, int &index1,
                                               int &index2, int &index3,
                                               FormatData *formatData,
@@ -1254,17 +1220,6 @@ void MkTextDocument::incrementIndexes(int &index1, int &index2, int &index3,
     index1 += size;
     index2 += size;
     index3 += size;
-}
-
-bool MkTextDocument::convertCharacterToSymbol(const QChar &single,
-                                              QString &text)
-{
-    if (single == '*' || single == '_' || single == '~')
-    {
-        text += single;
-        return true;
-    }
-    return false;
 }
 
 void MkTextDocument::convertCharacterToCheckboxSymbol(const QChar &single,
@@ -1325,31 +1280,6 @@ void MkTextDocument::composeSymbolCombination(int length, const QString &text,
         }
     }
 
-    result.clear();
-    if (convertCharacterToLinkSymbol(text[index1], result))
-        return;
-}
-
-void MkTextDocument::composeOnlyLinkSymbolCombination(int length,
-                                                      const QString &text,
-                                                      int &index1, int &index2,
-                                                      int &index3,
-                                                      QString &result)
-{
-    result.clear();
-    if (index3 < length)
-    {
-        convertCharacterToLinkSymbol(text[index1], result);
-        convertCharacterToLinkSymbol(text[index2], result);
-        convertCharacterToLinkSymbol(text[index3], result);
-        if (result == LINK_SYMBOL_MID || result == LINK_SYMBOL_URL_START ||
-            result == LINK_SYMBOL_URL_END || result == ")>)")
-        {
-            if (result == ")>)")
-                result = ">)";
-            return;
-        }
-    }
     result.clear();
     if (convertCharacterToLinkSymbol(text[index1], result))
         return;
@@ -2415,15 +2345,7 @@ void MkTextDocument::undoStackRedo(bool &success)
 
 void MkTextDocument::resetFormatLocation()
 {
-    locBoldA.reset();
-    locBoldU.reset();
-    locItalicA.reset();
-    locItalicU.reset();
-    locStrike.reset();
     locCheck.reset();
-    locHeading1.reset();
-    locHeading2.reset();
-    locHeading3.reset();
     locLink.reset();
     locLinkTitle.reset();
 }

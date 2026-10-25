@@ -21,108 +21,10 @@
 #include <QUndoStack>
 #include <QVector>
 #include <QtGlobal>
-#include <set>
 
-#define MAXIMUM_FONT_SIZE 30
-#define MINIMUM_FONT_SIZE 7
-
-class FormatCollection
-{
-public:
-    FormatCollection(int fontSize)
-    {
-        linkColor.setRgb(50, 118, 254);
-
-        bold.setFontWeight(QFont::ExtraBold);
-        italic.setFontItalic(true);
-        strikethrough.setFontStrikeOut(true);
-        heading1.setFontPointSize(fontSize * 1.65);
-        heading2.setFontPointSize(fontSize * 1.42);
-        heading3.setFontPointSize(fontSize * 1.28);
-        // Keep H4 and H5 close to the established H3/H4 styles so they remain
-        // clearly readable instead of becoming too small and low-contrast.
-        heading4.setFontPointSize(fontSize * 1.28);
-        heading5.setFontPointSize(fontSize * 1.16);
-        heading6.setFontPointSize(fontSize);
-        heading1.setFontWeight(QFont::ExtraBold);
-        heading2.setFontWeight(QFont::Bold);
-        heading3.setFontWeight(QFont::DemiBold);
-        heading4.setFontWeight(QFont::DemiBold);
-        heading5.setFontWeight(QFont::DemiBold);
-        heading6.setFontWeight(QFont::DemiBold);
-        heading1.setForeground(QColor(QStringLiteral("#315F91")));
-        heading2.setForeground(QColor(QStringLiteral("#3C6F9F")));
-        heading3.setForeground(QColor(QStringLiteral("#477DA5")));
-        heading4.setForeground(QColor(QStringLiteral("#477DA5")));
-        heading5.setForeground(QColor(QStringLiteral("#4F7188")));
-        heading6.setForeground(QColor(QStringLiteral("#65727C")));
-        heading6.setFontItalic(true);
-        link.setFontUnderline(true);
-        link.setUnderlineColor(linkColor);
-        link.setForeground(linkColor);
-
-        // Qt 6.1 deprecated setFontFamily() in favour of setFontFamilies().
-        // Qt 5 has no setFontFamilies(), so pick the API at compile time.
-#if QT_VERSION >= QT_VERSION_CHECK(6, 1, 0)
-        codeSpan.setFontFamilies({QStringLiteral("Monospace")});
-#else
-        codeSpan.setFontFamily(QStringLiteral("Monospace"));
-#endif
-        codeSpan.setFontFixedPitch(true);
-    }
-
-    QTextCharFormat *getBold() { return &bold; };
-    QTextCharFormat *getItalic() { return &italic; };
-    QTextCharFormat *getStrikethrough() { return &strikethrough; };
-    QTextCharFormat *getHeading1() { return &heading1; };
-    QTextCharFormat *getHeading2() { return &heading2; };
-    QTextCharFormat *getHeading3() { return &heading3; };
-    QTextCharFormat *getHeading4() { return &heading4; };
-    QTextCharFormat *getHeading5() { return &heading5; };
-    QTextCharFormat *getHeading6() { return &heading6; };
-    QTextCharFormat *getLink() { return &link; };
-    QTextCharFormat *getCodeSpan() { return &codeSpan; };
-    QColor linkColor;
-
-private:
-    QTextCharFormat bold;
-    QTextCharFormat italic;
-    QTextCharFormat strikethrough;
-    QTextCharFormat heading1;
-    QTextCharFormat heading2;
-    QTextCharFormat heading3;
-    QTextCharFormat heading4;
-    QTextCharFormat heading5;
-    QTextCharFormat heading6;
-    QTextCharFormat link;
-    QTextCharFormat codeSpan;
-};
-
-#define NO_SELECTION_POS -1
-struct SelectRange
-{
-    bool hasSelection = false;
-    bool isCheckBox = false;
-    int arrowBlock = NO_SELECTION_POS;
-    int arrowPosInBlock = NO_SELECTION_POS;
-    int currentposInBlock = NO_SELECTION_POS;
-    int currentBlockNo = NO_SELECTION_POS;
-    int selectionFirstStartBlock = NO_SELECTION_POS;
-    int selectionFirstStartPosInBlock = NO_SELECTION_POS;
-    int selectionEndBlock = NO_SELECTION_POS;
-    int selectionEndPosInBlock = NO_SELECTION_POS;
-    bool isFirstMousePress = false;
-    int scrollValue;
-    std::set<int> hideBlocks;
-    std::set<int> showBlocks;
-};
-
-struct RawBlockInfo
-{
-    bool hasSelection = false;
-    int rawFirstBlock = NO_SELECTION_POS;
-    int rawEndBlock = NO_SELECTION_POS;
-};
+#include "edittypes.h"
+#include "formatcollection.h"
+#include "selectrange.h"
 
 class MkTextDocument : public QTextDocument
 {
@@ -223,15 +125,7 @@ private:
     int characterNo;
     SelectRange selectRange;
 
-    FormatLocation locBoldA;
-    FormatLocation locBoldU;
-    FormatLocation locItalicA;
-    FormatLocation locItalicU;
-    FormatLocation locStrike;
     FormatLocation locCheck;
-    FormatLocation locHeading1;
-    FormatLocation locHeading2;
-    FormatLocation locHeading3;
     FormatLocation locLink;
     FormatLocation locLinkTitle;
 
@@ -259,9 +153,7 @@ private:
     void formatAllLines(const QTextDocument &original,
                         MkTextDocument &formatted);
 
-    void resetAllLoc();
     void identifyFormatData(QTextBlock &block);
-    void identifyUnicode(QString &line);
     void insertHeadingData(const QString &text, int &index1,
                            FormatData *formatData);
 
@@ -280,9 +172,6 @@ private:
                        const QVector<QPair<int, int>> &protectedRanges,
                        FormatData *formatData);
 
-    void insertFormatData(FormatLocation &loc, int &index1, int &index2,
-                          int &index3, FormatData *formatData,
-                          const QString &test);
     void insertFormatCheckBoxData(FormatLocation &loc, int &index1, int &index2,
                                   int &index3, FormatData *formatData,
                                   const QString &test);
@@ -292,14 +181,10 @@ private:
                               const QString *linkUrl, const QString *linkTitle);
     void incrementIndexes(int &index1, int &index2, int &index3,
                           const int size = 1);
-    bool convertCharacterToSymbol(const QChar &single, QString &text);
     void convertCharacterToCheckboxSymbol(const QChar &single, QString &text);
     bool convertCharacterToLinkSymbol(const QChar &single, QString &text);
     void composeSymbolCombination(int length, const QString &text, int &index1,
                                   int &index2, int &index3, QString &result);
-    void composeOnlyLinkSymbolCombination(int length, const QString &text,
-                                          int &index1, int &index2, int &index3,
-                                          QString &result);
 
     void setCodeBlockMargin(QTextBlock &block, int leftMargin = 0,
                             int rightMargin = 0, int topMargin = 0,
@@ -329,16 +214,6 @@ private:
     void hideMKSymbolsFromPreviousSelectedBlocks(SelectRange *const range);
     void showMKSymbolsFromCurrentSelectedBlocks(SelectRange *const range);
     void showHideCodeBlock(BlockData *data, bool hide, int fontSize);
-};
-
-enum EditType
-{
-    undoRedo = 0,
-    singleEdit,
-    multiDelete,
-    checkbox,
-    enterPressed,
-    multiEdit,
 };
 
 struct UndoData
