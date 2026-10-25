@@ -19,6 +19,7 @@
 #include <QTextEdit>
 #include <QUndoCommand>
 #include <QUndoStack>
+#include <QSet>
 #include <QVector>
 #include <QtGlobal>
 
@@ -78,9 +79,21 @@ public:
 
     void revealAllMkSymbols();
 
+    bool isHoverWholeTable() const;
+    int hoveredBlock() const;
+
+private:
+    // Re-renders the document so exactly the cursor/selection/hover blocks
+    // show their Markdown source.
+    void refreshVisibleBlocks();
+
 public slots:
     void cursorPosChangedHandle(SelectRange *const range,
                                 const bool readOnly = false);
+    // Reveal one block (its Markdown source) while the mouse hovers it.
+    // `-1` hides the hovered block again. Only table rows are affected.
+    void setHoveredBlock(const int blockNo);
+    void setHoverWholeTable(const bool whole);
     void removeAllMkDataHandle(int blockNo);
     void applyAllMkDataHandle(int blockNumber);
     void applyMkSingleBlockHandle(int blockNumber);
@@ -135,8 +148,11 @@ private:
     QColor linkColor;
     bool disableMarkdownState;
 
-    SelectRange undoSelectRange;
-    SelectRange redoSelectRange;
+    int hoveredBlockNo = -1;
+    bool hoverWholeTable = false;
+    // Blocks currently shown because of the caret or selection. Hover-revealed
+    // blocks are excluded so they never move the caret.
+    QSet<int> cursorVisibleBlocks;
 
     void identifyUserData();
 

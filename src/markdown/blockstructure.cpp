@@ -1,5 +1,8 @@
 #include "blockstructure.h"
 
+#include "blockdata.h"
+#include "formatdata.h"
+#include "linedata.h"
 #include "markdownparser.h"
 
 BlockStructureScanner::BlockStructureScanner(const QTextDocument &document)
@@ -64,4 +67,20 @@ QVector<BlockStructure> BlockStructureScanner::scan() const
     // user is still typing it (the editor inserts the closing fence eagerly in
     // autoCompleteCodeBlock, so a lone fence is genuinely incomplete input).
     return structures;
+}
+
+bool isBlockRendered(const QTextBlock &block)
+{
+    QTextBlockUserData *data = block.userData();
+    if (!data)
+        return false;
+
+    if (auto *blockData = dynamic_cast<BlockData *>(data))
+        return blockData->isHidden();
+    if (auto *lineData = dynamic_cast<LineData *>(data))
+        return lineData->isHidden();
+    if (auto *formatData = dynamic_cast<FormatData *>(data))
+        return formatData->isHidden();
+
+    return false;
 }

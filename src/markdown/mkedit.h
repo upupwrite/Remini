@@ -94,12 +94,17 @@ public:
     void setMkState(bool enable);
     void setLineWrap(bool enable);
 
+    // 0 = off, 1 = reveal the hovered table row, 2 = reveal the whole table.
+    void setTableHoverMode(int mode);
+    int tableHoverMode() const;
+
 protected:
     void insertFromMimeData(const QMimeData *source) override;
     void mousePressEvent(QMouseEvent *e) override;
     void mouseMoveEvent(QMouseEvent *e) override;
     void mouseDoubleClickEvent(QMouseEvent *e) override;
     void dragEnterEvent(QDragEnterEvent *e) override;
+    void leaveEvent(QEvent *e) override;
     void inputMethodEvent(QInputMethodEvent *event) override;
 
 private:
@@ -108,6 +113,7 @@ private:
     QBrush brushDefault;
     QPen penCodeBlock;
     QPen whitePen;
+    QPen tableGridPen;
     int savedCharacterNumber = -1;
 
     EditSnapshot undoSnapshot;
@@ -117,6 +123,9 @@ private:
     QTimer fileSaveTimer;
     SelectRange selectRange;
     EditRestore undoRestore;
+
+    int hoveredTableRow = -1;
+    int tableHover = 1;
 
     bool isCalcuatedForStartPos = false;
     bool isCursorChangedHandleTriggered = false;
@@ -138,6 +147,7 @@ private:
     QAction selectBlockAction;
     QAction disableMarkdown;
     QAction lineWrapAction;
+    QAction tableHoverAction;
     QPoint contextMenuPos;
 
     QRegularExpression regexUrl;
@@ -148,9 +158,15 @@ private:
     QRegularExpressionMatch matchCodeBlockRegex;
 
     QRect getVisibleRect();
-    // Draws the borders and column separators of one table.
+    // Draws the borders and column separators of one table, skipping the rows
+    // that currently show their Markdown source.
     void paintTable(QPainter *painter, TableData *table, int scrollPos,
                     int fontSize);
+
+    // Table row under the pointer, or -1. Used by the hover reveal.
+    int tableRowAt(const QPoint &viewportPos) const;
+    void updateHoveredTableRow(const QPoint &viewportPos);
+    void clearHoveredTableRow();
     void clearMkEffects(EditType editType = EditType::singleEdit);
     void applyMkEffects(const int blockNumber);
 

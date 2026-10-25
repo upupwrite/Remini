@@ -1,10 +1,12 @@
 #include "mkedit.h"
 
 #include <QElapsedTimer>
+#include <QCursor>
 #include <QInputMethodEvent>
 #include <QSettings>
 
 #include "blockdata.h"
+#include "blockstructure.h"
 #include "linedata.h"
 
 // ---------------------------------------------------------------------------
@@ -53,6 +55,8 @@ MkEdit::MkEdit(QWidget *parent) : QTextEdit(parent)
     // the state that activating the menu item will switch to.
     disableMarkdown.setText("Disable Markdown");
     lineWrapAction.setText("Disable line-wrap");
+    tableHoverAction.setText("Reveal Whole Table on Hover");
+    tableHoverAction.setCheckable(true);
 
     connect(&undoAction, &QAction::triggered, this, &MkEdit::undoContextMenu);
     connect(&redoAction, &QAction::triggered, this, &MkEdit::redoContextMenu);
@@ -67,6 +71,9 @@ MkEdit::MkEdit(QWidget *parent) : QTextEdit(parent)
             &MkEdit::disableMarkdownInternal);
     connect(&lineWrapAction, &QAction::triggered, this,
             &MkEdit::lineWrapHandler);
+    connect(&tableHoverAction, &QAction::triggered, this,
+            [this](bool checked)
+            { setTableHoverMode(checked ? 2 : 1); });
     connect(this, &MkEdit::customContextMenuRequested, this,
             &MkEdit::contextMenuHandler);
 
@@ -75,9 +82,17 @@ MkEdit::MkEdit(QWidget *parent) : QTextEdit(parent)
     penCodeBlock.setWidthF(1);
     penCodeBlock.setStyle(Qt::SolidLine);
 
+    tableGridPen.setWidthF(1);
+    tableGridPen.setStyle(Qt::SolidLine);
+    tableGridPen.setColor(QColor(160, 160, 160, 120));
+
     connectSignals(true);
     this->setUndoRedoEnabled(false);
     preUndoSetup();
+
+    // Hover reveal is per-editor state, persisted across restarts.
+    QSettings startupSettings("Remini", "Remini");
+    setTableHoverMode(startupSettings.value("tableHover", 1).toInt());
 
 }
 
@@ -158,7 +173,7 @@ void MkEdit::paintEvent(QPaintEvent *e)
 void MkEdit::paintTable(QPainter *painter, TableData *table, int scrollPos,
                         int fontSize)
 {
-    if (!table)
+    if (!table || !painter)
         return;
 
     const QVector<qreal> &stops = table->getTabStops();
@@ -173,37 +188,43 @@ void MkEdit::paintTable(QPainter *painter, TableData *table, int scrollPos,
         return;
 
     QAbstractTextDocumentLayout *layout = this->document()->documentLayout();
-    const qreal top = layout->blockBoundingRect(first).top();
-    const qreal bottom = layout->blockBoundingRect(last).bottom();
-
     const qreal left = first.layout()->position().x();
     const qreal right = left + widthCodeBlock;
 
     painter->save();
-    painter->setPen(whitePen);
+    painter->setPen(tableGridPen);
 
-    // Horizontal borders: above the header, below it, and below the table.
-    painter->drawLine(QPointF(left, top - scrollPos),
-                      QPointF(right, top - scrollPos));
-    painter->drawLine(QPointF(left, bottom - scrollPos),
-                      QPointF(right, bottom - scrollPos));
-
-    // Header separator sits on the collapsed delimiter row.
-    QTextBlock delimiter =
-        this->document()->findBlockByNumber(table->getTableStartBlock() + 1);
-    if (delimiter.isValid())
+    // Draw one row at a time: a row that currently shows its Markdown source
+    // must not keep any cell border, so the grid disappears immediately.
+    for (QTextBlock row = first;
+         row.isValid() && row.blockNumber() <= last.blockNumber();
+         row = row.next())
     {
-        const qreal separator = layout->blockBoundingRect(delimiter).top();
-        painter->drawLine(QPointF(left, separator - scrollPos),
-                          QPointF(right, separator - scrollPos));
-    }
+        if (!isBlockRendered(row))
+            continue;
 
-    // Vertical separators at every column stop.
-    for (const qreal stop : stops)
-    {
-        const qreal x = left + stop;
-        painter->drawLine(QPointF(x, top - scrollPos),
-                          QPointF(x, bottom - scrollPos));
+        const QRectF bounding = layout->blockBoundingRect(row);
+        const qreal top = bounding.top() - scrollPos;
+        const qreal bottom = bounding.bottom() - scrollPos;
+
+        const bool previousRendered =
+            row.blockNumber() > first.blockNumber() &&
+            isBlockRendered(row.previous());
+        const QTextBlock next = row.next();
+        const bool nextRendered =
+            next.isValid() && next.blockNumber() <= last.blockNumber() &&
+            isBlockRendered(next);
+
+        if (!previousRendered)
+            painter->drawLine(QPointF(left, top), QPointF(right, top));
+        if (!nextRendered)
+            painter->drawLine(QPointF(left, bottom), QPointF(right, bottom));
+
+        for (const qreal stop : stops)
+        {
+            const qreal x = left + stop;
+            painter->drawLine(QPointF(x, top), QPointF(x, bottom));
+        }
     }
 
     painter->restore();
@@ -1155,6 +1176,8 @@ void MkEdit::contextMenuHandler(QPoint pos)
     menu.addSeparator();
     menu.addAction(&disableMarkdown);
     menu.addAction(&lineWrapAction);
+    menu.addSeparator();
+    menu.addAction(&tableHoverAction);
     menu.exec(viewport()->mapToGlobal(pos));
 }
 
@@ -1362,6 +1385,7 @@ void MkEdit::mouseMoveEvent(QMouseEvent *e)
     QTextEdit::mouseMoveEvent(e);
 
     const QPoint pointer = e->position().toPoint();
+    updateHoveredTableRow(pointer);
 
     QTextDocument *doc = this->document();
     MkTextDocument *mkDoc = dynamic_cast<MkTextDocument *>(doc);
@@ -1444,6 +1468,12 @@ void MkEdit::mouseDoubleClickEvent(QMouseEvent *e)
 }
 
 void MkEdit::dragEnterEvent(QDragEnterEvent *e) {}
+
+void MkEdit::leaveEvent(QEvent *e)
+{
+    clearHoveredTableRow();
+    QTextEdit::leaveEvent(e);
+}
 
 QColor MkEdit::getTypeColor() const { return syntaxColor.type; }
 
@@ -1613,4 +1643,96 @@ void MkEdit::cursorPositionChangedHandle()
         std::bind(&MkEdit::connectSignals, this, std::placeholders::_1));
     emit cursorPosChanged(&selectRange, this->isReadOnly());
     postCursorPosChangedSignal();
+}
+
+void MkEdit::setTableHoverMode(int mode)
+{
+    tableHover = qBound(0, mode, 2);
+    tableHoverAction.setChecked(tableHover == 2);
+
+    QSettings settings("Remini", "Remini");
+    settings.setValue("tableHover", tableHover);
+
+    if (auto *mkDoc = dynamic_cast<MkTextDocument *>(this->document()))
+        mkDoc->setHoverWholeTable(tableHover == 2);
+
+    if (tableHover == 0)
+    {
+        clearHoveredTableRow();
+    }
+    else if (this->underMouse())
+    {
+        updateHoveredTableRow(
+            this->viewport()->mapFromGlobal(QCursor::pos()));
+    }
+}
+
+int MkEdit::tableHoverMode() const { return tableHover; }
+
+int MkEdit::tableRowAt(const QPoint &viewportPos) const
+{
+    const QTextCursor cursor = this->cursorForPosition(viewportPos);
+    const QTextBlock block = cursor.block();
+    if (!block.isValid())
+        return -1;
+
+    return dynamic_cast<TableData *>(block.userData()) ? block.blockNumber()
+                                                       : -1;
+}
+
+namespace {
+
+// Viewport rectangle occupied by one block.
+QRect blockViewportRect(const QTextEdit &edit, const QTextBlock &block)
+{
+    if (!block.isValid())
+        return QRect();
+
+    const QRectF bounding =
+        edit.document()->documentLayout()->blockBoundingRect(block);
+    const QPoint topLeft = edit.cursorRect(QTextCursor(block)).topLeft();
+    return QRect(topLeft, QSize(qMax(1, int(bounding.width())),
+                                qMax(1, int(bounding.height()))));
+}
+
+}  // namespace
+
+void MkEdit::updateHoveredTableRow(const QPoint &viewportPos)
+{
+    if (tableHover == 0)
+        return;
+
+    auto *mkDoc = dynamic_cast<MkTextDocument *>(this->document());
+    if (!mkDoc)
+        return;
+
+    // Hysteresis: revealing a row changes its height, so recomputing the row
+    // from the pointer alone would oscillate. Stay on the current row while the
+    // pointer is still inside it.
+    if (hoveredTableRow >= 0 &&
+        blockViewportRect(*this,
+                          this->document()->findBlockByNumber(hoveredTableRow))
+            .contains(viewportPos))
+    {
+        return;
+    }
+
+    const int row = tableRowAt(viewportPos);
+    if (row == hoveredTableRow)
+        return;
+
+    hoveredTableRow = row;
+    mkDoc->setHoveredBlock(row);
+    this->viewport()->update();
+}
+
+void MkEdit::clearHoveredTableRow()
+{
+    if (hoveredTableRow < 0)
+        return;
+
+    hoveredTableRow = -1;
+    if (auto *mkDoc = dynamic_cast<MkTextDocument *>(this->document()))
+        mkDoc->setHoveredBlock(-1);
+    this->viewport()->update();
 }

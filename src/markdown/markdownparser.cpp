@@ -871,6 +871,10 @@ void MarkdownParser::identifyFormatData(QTextBlock &block,
     // spaces the user typed around the pipes.
     if (auto *table = dynamic_cast<TableData *>(formatData))
     {
+        // The delimiter row is a layout artifact: none of it is visible.
+        if (table->getRowKind() == TableData::Delimiter)
+            formatData->addMaskRange(0, text.size() - 1);
+
         for (int i = 0; i < text.size(); ++i)
         {
             if (text.at(i) != QLatin1Char('|') || isMarkdownEscaped(text, i) ||

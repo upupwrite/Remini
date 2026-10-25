@@ -203,39 +203,111 @@ QString MkTextDocument::rawBlockText(int blockNo) const
 void MkTextDocument::cursorPosChangedHandle(SelectRange *const range,
                                             const bool readOnly)
 {
-    if (range && !readOnly)
+    if (!range || readOnly)
+        return;
+
+    this->selectRange.hasSelection = range->hasSelection;
+    if (range->hasSelection)
     {
-        int start;
-        int end;
-
-        this->selectRange.hasSelection = range->hasSelection;
-        if (range->hasSelection)
-        {
-            start = std::min(range->selectionFirstStartBlock,
-                             range->selectionEndBlock);
-            end = std::max(range->selectionFirstStartBlock,
-                           range->selectionEndBlock);
-        }
-        else
-        {
-            this->selectRange.currentposInBlock = range->currentposInBlock;
-            this->selectRange.currentBlockNo = range->currentBlockNo;
-            start = end = range->currentBlockNo;
-        }
-
-        for (int num = start; num <= end; num++)
-        {
-            this->selectRange.hideBlocks.erase(num);
-            this->selectRange.showBlocks.insert(num);
-        }
-
-        hideMKSymbolsFromPreviousSelectedBlocks(&this->selectRange);
-        showMKSymbolsFromCurrentSelectedBlocks(&this->selectRange);
-
-        range->currentBlockNo = this->selectRange.currentBlockNo;
-        range->currentposInBlock = this->selectRange.currentposInBlock;
+        this->selectRange.selectionFirstStartBlock =
+            qMin(range->selectionFirstStartBlock, range->selectionEndBlock);
+        this->selectRange.selectionEndBlock =
+            qMax(range->selectionFirstStartBlock, range->selectionEndBlock);
     }
+    else
+    {
+        this->selectRange.currentposInBlock = range->currentposInBlock;
+        this->selectRange.currentBlockNo = range->currentBlockNo;
+    }
+
+    refreshVisibleBlocks();
+
+    range->currentBlockNo = this->selectRange.currentBlockNo;
+    range->currentposInBlock = this->selectRange.currentposInBlock;
 }
+
+void MkTextDocument::refreshVisibleBlocks()
+{
+    if (disableMarkdownState)
+        return;
+
+    // Everything is rendered unless the cursor, the selection, or the mouse
+    // asks for the source of a block.
+    QSet<int> visible;
+    if (this->selectRange.hasSelection)
+    {
+        for (int num = this->selectRange.selectionFirstStartBlock;
+             num <= this->selectRange.selectionEndBlock; ++num)
+            visible.insert(num);
+    }
+    else
+    {
+        visible.insert(this->selectRange.currentBlockNo);
+    }
+
+    cursorVisibleBlocks.clear();
+    if (this->selectRange.hasSelection)
+    {
+        for (int num = this->selectRange.selectionFirstStartBlock;
+             num <= this->selectRange.selectionEndBlock; ++num)
+            cursorVisibleBlocks.insert(num);
+    }
+    else
+    {
+        cursorVisibleBlocks.insert(this->selectRange.currentBlockNo);
+    }
+
+    if (hoveredBlockNo >= 0)
+    {
+        auto *table = dynamic_cast<TableData *>(
+            this->findBlockByNumber(hoveredBlockNo).userData());
+        if (table && hoverWholeTable)
+        {
+            for (int num = table->getTableStartBlock();
+                 num <= table->getTableEndBlock(); ++num)
+                visible.insert(num);
+        }
+        else if (table)
+        {
+            visible.insert(hoveredBlockNo);
+        }
+    }
+
+    this->selectRange.showBlocks.clear();
+    this->selectRange.hideBlocks.clear();
+    for (int num = 0; num < this->blockCount(); ++num)
+        this->selectRange.hideBlocks.insert(num);
+    for (const int num : visible)
+    {
+        this->selectRange.hideBlocks.erase(num);
+        this->selectRange.showBlocks.insert(num);
+    }
+
+    hideMKSymbolsFromPreviousSelectedBlocks(&this->selectRange);
+    showMKSymbolsFromCurrentSelectedBlocks(&this->selectRange);
+}
+
+void MkTextDocument::setHoveredBlock(const int blockNo)
+{
+    if (hoveredBlockNo == blockNo)
+        return;
+
+    hoveredBlockNo = blockNo;
+    refreshVisibleBlocks();
+}
+
+void MkTextDocument::setHoverWholeTable(const bool whole)
+{
+    if (hoverWholeTable == whole)
+        return;
+
+    hoverWholeTable = whole;
+    refreshVisibleBlocks();
+}
+
+bool MkTextDocument::isHoverWholeTable() const { return hoverWholeTable; }
+
+int MkTextDocument::hoveredBlock() const { return hoveredBlockNo; }
 
 void MkTextDocument::removeAllMkDataHandle(int blockNo)
 {
@@ -279,6 +351,8 @@ void MkTextDocument::applyAllMkDataHandle(int blockNumber)
     this->selectRange.hideBlocks.erase(blockNumber);
     hideMKSymbolsFromPreviousSelectedBlocks(&this->selectRange);
 
+    cursorVisibleBlocks.clear();
+    cursorVisibleBlocks.insert(blockNumber);
     this->selectRange.showBlocks.insert(blockNumber);
     showMKSymbolsFromCurrentSelectedBlocks(&this->selectRange);
 }
@@ -736,29 +810,6 @@ void MkTextDocument::smartSelectionHandle(int blockNumber, QTextCursor &cursor)
     cursor.setPosition(end + currentBlockPos, QTextCursor::KeepAnchor);
 }
 
-namespace {
-
-// True when the block currently shows rendered Markdown (markers hidden, table
-// pipes replaced by tabs, images collapsed to an object character). Such a
-// block must never be used as a source of truth for the raw document.
-bool isBlockRendered(const QTextBlock &block)
-{
-    QTextBlockUserData *data = block.userData();
-    if (!data)
-        return false;
-
-    if (auto *blockData = dynamic_cast<BlockData *>(data))
-        return blockData->isHidden();
-    if (auto *lineData = dynamic_cast<LineData *>(data))
-        return lineData->isHidden();
-    if (auto *formatData = dynamic_cast<FormatData *>(data))
-        return formatData->isHidden();
-
-    return false;
-}
-
-}  // namespace
-
 QString MkTextDocument::sourceText() const
 {
     // Block counts can legitimately diverge only while a structural edit is in
@@ -1024,6 +1075,13 @@ void MkTextDocument::showMKSymbolsFromCurrentSelectedBlocks(
                 MarkdownRenderer::resetTextBlockFormat(block);
                 MarkdownRenderer::removeCheckBoxLinkMousePosition(block, checkMarkPositions, linkPositions);
 
+                // Re-parsing replaces the user data, so a table row clones its
+                // table layout first; otherwise the row would forget its
+                // columns, tab stops, and pipe-to-tab replacement.
+                TableData *freshTable = nullptr;
+                if (auto *table = dynamic_cast<TableData *>(formatData))
+                    freshTable = table->cloneLayout();
+
                 QTextCursor cursor(block);
                 cursor.movePosition(QTextCursor::StartOfBlock);
                 cursor.movePosition(QTextCursor::EndOfBlock,
@@ -1031,7 +1089,17 @@ void MkTextDocument::showMKSymbolsFromCurrentSelectedBlocks(
                 QString line =
                     rawDocument.findBlockByNumber(block.blockNumber()).text();
                 cursor.insertText(line);
-                parser.identifyFormatData(block);
+
+                if (freshTable)
+                {
+                    freshTable->setMaskSize(line.size());
+                    block.setUserData(freshTable);
+                    parser.identifyFormatData(block, freshTable);
+                }
+                else
+                {
+                    parser.identifyFormatData(block);
+                }
 
                 FormatData *newData =
                     dynamic_cast<FormatData *>(block.userData());
@@ -1059,7 +1127,11 @@ void MkTextDocument::showMKSymbolsFromCurrentSelectedBlocks(
                                           formatCollection);
                     }
 
-                    if (isHidden)
+                    // Only move the caret when this block is shown because
+                    // the caret or selection is inside it. A block revealed by
+                    // hovering must not steal the caret position.
+                    if (isHidden &&
+                        cursorVisibleBlocks.contains(block.blockNumber()))
                     {
                         range->currentBlockNo = block.blockNumber();
                         range->currentposInBlock =
@@ -1387,6 +1459,10 @@ void MkTextDocument::revealAllMkSymbols()
         this->selectRange.hideBlocks.erase(num);
         this->selectRange.showBlocks.insert(num);
     }
+
+    cursorVisibleBlocks.clear();
+    for (int num = 0; num < this->blockCount(); ++num)
+        cursorVisibleBlocks.insert(num);
 
     showMKSymbolsFromCurrentSelectedBlocks(&this->selectRange);
 }

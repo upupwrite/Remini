@@ -2051,3 +2051,82 @@ TEST_CASE("MkTextDocument sourceText uses the visible text of edited blocks",
 
     REQUIRE(doc.sourceText() == "**bold**\nplain!");
 }
+
+// ============================================================================
+// Hover reveal (mouse over a table row shows its Markdown source)
+// ============================================================================
+
+TEST_CASE("MkTextDocument reveals the hovered table row and locks to the table",
+          "[MkTextDocument][Table][Hover]")
+{
+    MkTextDocument doc;
+    MkEdit edit;
+    SelectRange range;
+
+    doc.setPlainText("| a | b |\n| --- | --- |\n| 1 | 2 |\ntail");
+    doc.setMarkdownHandle(true);
+    edit.setDocument(&doc);
+
+    // Cursor parked outside the table so only hover can reveal rows.
+    range.hasSelection = false;
+    range.currentBlockNo = 3;
+    doc.cursorPosChangedHandle(&range);
+    doc.setHoveredBlock(2);
+
+    // Only row 2 shows source; the header keeps its rendered form.
+    REQUIRE(doc.findBlockByNumber(2).text() == "| 1 | 2 |");
+    REQUIRE(doc.findBlockByNumber(0).text().contains(QLatin1Char('\t')));
+
+    // Leaving the row renders it again.
+    doc.setHoveredBlock(-1);
+    REQUIRE(doc.findBlockByNumber(2).text().contains(QLatin1Char('\t')));
+    REQUIRE_FALSE(doc.findBlockByNumber(2).text().contains(QLatin1Char('|')));
+}
+
+TEST_CASE("MkTextDocument can reveal the whole hovered table",
+          "[MkTextDocument][Table][Hover]")
+{
+    MkTextDocument doc;
+    MkEdit edit;
+    SelectRange range;
+
+    doc.setPlainText("| a | b |\n| --- | --- |\n| 1 | 2 |\ntail");
+    doc.setMarkdownHandle(true);
+    edit.setDocument(&doc);
+
+    range.hasSelection = false;
+    range.currentBlockNo = 3;
+    doc.cursorPosChangedHandle(&range);
+
+    doc.setHoverWholeTable(true);
+    doc.setHoveredBlock(2);
+
+    REQUIRE(doc.findBlockByNumber(0).text() == "| a | b |");
+    REQUIRE(doc.findBlockByNumber(1).text() == "| --- | --- |");
+    REQUIRE(doc.findBlockByNumber(2).text() == "| 1 | 2 |");
+
+    doc.setHoveredBlock(-1);
+    REQUIRE(doc.findBlockByNumber(0).text().contains(QLatin1Char('\t')));
+}
+
+TEST_CASE("MkTextDocument shows the source of every selected block",
+          "[MkTextDocument][Table]")
+{
+    MkTextDocument doc;
+    MkEdit edit;
+    SelectRange range;
+
+    doc.setPlainText("| a | b |\n| --- | --- |\n| 1 | 2 |\ntail");
+    doc.setMarkdownHandle(true);
+    edit.setDocument(&doc);
+
+    range.hasSelection = true;
+    range.selectionFirstStartBlock = 1;
+    range.selectionEndBlock = 2;
+    doc.cursorPosChangedHandle(&range);
+
+    REQUIRE(doc.findBlockByNumber(1).text() == "| --- | --- |");
+    REQUIRE(doc.findBlockByNumber(2).text() == "| 1 | 2 |");
+    // Blocks outside the selection stay rendered.
+    REQUIRE(doc.findBlockByNumber(0).text().contains(QLatin1Char('\t')));
+}

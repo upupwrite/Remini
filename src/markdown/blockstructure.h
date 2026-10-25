@@ -1,6 +1,7 @@
 #ifndef BLOCKSTRUCTURE_H
 #define BLOCKSTRUCTURE_H
 
+#include <QTextBlock>
 #include <QTextDocument>
 #include <QVector>
 #include <Qt>
@@ -81,5 +82,11 @@ public:
 private:
     const QTextDocument &document;
 };
+
+// True when the block currently shows rendered Markdown (markers hidden, table
+// pipes replaced by tabs, images collapsed to an object character). Such a block
+// must never be used as a source of truth, and its decorations must not be
+// drawn. Shared by the document, the renderer, and the editor's painter.
+bool isBlockRendered(const QTextBlock &block);
 
 #endif  // BLOCKSTRUCTURE_H
