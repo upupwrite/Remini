@@ -27,6 +27,7 @@ add_executable(${PROJECT_NAME}
     main.cpp
     MkEdit_Tests.cpp
     mktextdocument_tests.cpp
+    editcommand_tests.cpp
     NavigationView_Tests.cpp
     RecentFilesDialog_Tests.cpp
 
