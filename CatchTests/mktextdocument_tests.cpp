@@ -1779,3 +1779,62 @@ TEST_CASE("MkTextDocument toggles a checkbox that follows an image",
     REQUIRE(doc.getRawDocument()->toPlainText() ==
             "![i](p.png) - [x] task");
 }
+
+TEST_CASE("MkTextDocument strips a link title attribute from the destination",
+          "[MkTextDocument][regression]")
+{
+    MkTextDocument doc;
+    doc.setPlainText("[t](https://x.dev/a \"tip\")");
+
+    FormatData *data = dynamic_cast<FormatData *>(doc.begin().userData());
+    REQUIRE(data != nullptr);
+
+    bool foundLink = false;
+    for (auto it = data->formats_begin(); it != data->formats_end(); ++it)
+    {
+        if ((*it)->getStatus() != FragmentData::LINK_TITLE)
+            continue;
+
+        const QString *url =
+            data->getLinkUrlFromTitleStart((*it)->getStart());
+        REQUIRE(url != nullptr);
+        REQUIRE(*url == "https://x.dev/a");
+        foundLink = true;
+    }
+    REQUIRE(foundLink);
+}
+
+TEST_CASE("MkTextDocument ignores an escaped backtick", "[MkTextDocument]")
+{
+    MkTextDocument doc;
+    MkEdit edit;
+    SelectRange range;
+
+    doc.setPlainText("\\`a`");
+    doc.setMarkdownHandle(true);
+    edit.setDocument(&doc);
+
+    range.hasSelection = false;
+    range.currentBlockNo = 99;
+    doc.cursorPosChangedHandle(&range);
+
+    REQUIRE(doc.begin().text() == "`a`");
+}
+
+TEST_CASE("MkTextDocument keeps code spans working next to escapes",
+          "[MkTextDocument]")
+{
+    MkTextDocument doc;
+    MkEdit edit;
+    SelectRange range;
+
+    doc.setPlainText("\\* `a*b*`");
+    doc.setMarkdownHandle(true);
+    edit.setDocument(&doc);
+
+    range.hasSelection = false;
+    range.currentBlockNo = 99;
+    doc.cursorPosChangedHandle(&range);
+
+    REQUIRE(doc.begin().text() == "* a*b*");
+}

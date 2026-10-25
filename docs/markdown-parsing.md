@@ -446,8 +446,9 @@ Two forms are supported:
   The only form that allows spaces in the destination without escaping, and the
   form produced when pasting a URL.
 - **Plain form** `[title](destination)` — handled by `parsePlainLinks()` before
-  the marker scan. Nested parentheses are balanced (`[x](a(b))`). An optional
-  `"title"` is not interpreted; it stays part of the destination.
+  the marker scan. Nested parentheses are balanced (`[x](a(b))`). A trailing
+  `"title"` / `'title'` is stripped from the destination instead of opening a
+  malformed URL.
 
 Emphasis and checkboxes inside the title still work (`[**b**](u)` → `b`),
 because only the brackets and the destination are protected from the scanners.
@@ -474,10 +475,15 @@ character from acting as a marker
 | `\[t\](u)` | `[t](u)` (not a link) |
 | `\!\[a\](p.png)` | `![a](p.png)` (not an image) |
 | `\\*x*` | `\` then emphasised `x` |
+| `` \`code` `` | `` `code` `` (no code span) |
+| `\# text` | `# text` (no heading) |
+| `\---` | `---` (no horizontal rule) |
+| `\> text` | `> text` (no quote) |
 
-Escaping is supported for the delimiters that the scanners would otherwise
-consume: emphasis/strikethrough characters, link brackets, image openers, and
-`>` markers. Other constructs (for example a heading hash) are not escapable yet.
+Escaped characters are added to the protected ranges, so every scanner
+(emphasis, link markers, code spans) skips them. Heading, blockquote, and
+horizontal-rule detection fail naturally because the leading backslash breaks
+their line-start patterns.
 
 ### 7.7 Checkboxes
 
@@ -746,7 +752,7 @@ Legend: ✅ fully supported · ⚠️ partial / with caveats · ❌ not supporte
 | Task list | `- [ ] x`, `- [x] x` | ✅ | clickable ☐ / ☑ |
 | Link (angle form) | `[t](<url>)` | ✅ | needed for spaces in the destination |
 | Link (plain form) | `[t](url)` | ✅ | balanced parentheses supported |
-| Link title attribute | `[t](url "title")` | ❌ | the quoted text stays part of the destination |
+| Link title attribute | `[t](url "title")` | ⚠️ | stripped from the destination; the quoted text is not stored |
 | Autolink | `<https://…>`, `<mailto:…>` | ✅ | angle brackets hidden |
 | Image | `![alt](url)`, `![alt](<path with spaces>)` | ✅ | local paths and `file://`; remote URLs are not fetched |
 | Image with title | `![a](p.png "t")` | ✅ | title is parsed but unused |
@@ -809,15 +815,12 @@ Legend: ✅ fully supported · ⚠️ partial / with caveats · ❌ not supporte
    two separate blocks; the second is not treated as part of the quote.
 3. **No setext headings, tables, inline HTML, or emoji.** A `title` followed by
    `===` is plain text, and `---` is a horizontal rule.
-4. **Link title attributes** (`[t](url "title")`) are not interpreted; the quoted
-   text becomes part of the destination.
+4. **Link title attributes** (`[t](url "title")`) are stripped from the
+   destination but the quoted text is discarded rather than stored as a tooltip.
 5. **Parsing is line-scoped.** Emphasis, links, code spans, and images cannot
    span two blocks. Blockquotes and fenced code blocks are the only constructs
    handled across blocks, and only because they are detected at block level.
-6. **Escapes are selective.** A backslash protects emphasis characters, link
-   brackets, image openers, and `>` markers. Other markers (for example `#`) are
-   not escapable yet.
-7. **Lists render as plain text.** Bullets and numbers are not drawn specially;
+6. **Lists render as plain text.** Bullets and numbers are not drawn specially;
    only Enter-continuation differs from plain paragraphs.
 
 ---

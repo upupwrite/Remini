@@ -229,7 +229,36 @@ QVector<MarkdownLinkExpression> MarkdownParser::parsePlainLinks(
         link.urlStart = urlStart;
         link.urlEnd = urlEnd;
         link.title = text.mid(i + 1, titleEnd - i - 1);
-        link.url = text.mid(destinationStart, urlEnd - destinationStart);
+
+        // A trailing `"title"` / `'title'` is not part of the destination.
+        int bareUrlEnd = urlEnd;
+        if (urlEnd > destinationStart &&
+            (text.at(urlEnd - 1) == QLatin1Char('"') ||
+             text.at(urlEnd - 1) == QLatin1Char('\'')))
+        {
+            const QChar quote = text.at(urlEnd - 1);
+            int quoteOpen = -1;
+            for (int cursor = urlEnd - 2; cursor > destinationStart; --cursor)
+            {
+                if (text.at(cursor) == quote &&
+                    !isMarkdownEscaped(text, cursor))
+                {
+                    quoteOpen = cursor;
+                    break;
+                }
+            }
+            if (quoteOpen > destinationStart &&
+                text.at(quoteOpen - 1).isSpace())
+            {
+                bareUrlEnd = quoteOpen - 1;
+                while (bareUrlEnd > destinationStart &&
+                       text.at(bareUrlEnd).isSpace())
+                    --bareUrlEnd;
+            }
+        }
+
+        link.url = text.mid(destinationStart,
+                            bareUrlEnd - destinationStart + 1);
 
         formatData->addFormat(link.titleStart, link.titleEnd,
                               QStringLiteral(LINK_SYMBOL_TITLE_END), &link.url,
@@ -757,7 +786,7 @@ MarkdownParser::parseInlineCodeSpans(const QString &text,
 
     while (i < n)
     {
-        if (text.at(i) != QLatin1Char('`'))
+        if (text.at(i) != QLatin1Char('`') || isMarkdownEscaped(text, i))
         {
             ++i;
             continue;
@@ -783,7 +812,7 @@ MarkdownParser::parseInlineCodeSpans(const QString &text,
         int closerStart = -1;
         while (j < n)
         {
-            if (text.at(j) != QLatin1Char('`'))
+            if (text.at(j) != QLatin1Char('`') || isMarkdownEscaped(text, j))
             {
                 ++j;
                 continue;
