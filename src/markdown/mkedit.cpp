@@ -62,7 +62,7 @@ MkEdit::MkEdit(QWidget *parent) : QTextEdit(parent)
     undoAction.setText("Undo         Ctrl+Z");
     redoAction.setText("Redo          Ctrl+Y");
     copyTextAction.setText("Copy          Ctrl+C");
-    pasteTextAction.setText("Paste          Ctrl+Y");
+    pasteTextAction.setText("Paste          Ctrl+V");
     deleteTextAction.setText("Delete        Del");
     selectAllAction.setText("Select All    Ctrl+A");
     selectBlockAction.setText("Copy Block");

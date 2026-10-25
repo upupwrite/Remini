@@ -3,6 +3,18 @@
 Remini is split by responsibility. Keep a feature's implementation beside its
 interface and avoid adding new application code to the repository root.
 
+Related documents:
+
+- [markdown-parsing.md](markdown-parsing.md) — how Markdown is parsed, masked,
+  rendered, and synced back to the raw source (read this before changing syntax
+  support).
+- [build-and-packaging.md](build-and-packaging.md) — requirements, CMake
+  options, Catch2 resolution, test commands, and release packaging.
+- [keyboard-shortcuts.md](keyboard-shortcuts.md) — editor shortcuts and
+  gestures.
+- [cross-platform-development.md](cross-platform-development.md) — platform
+  support matrix and cross-platform practices.
+
 ## Source layout
 
 - `src/app/` — application entry point, main window, view orchestration, startup
@@ -83,3 +95,19 @@ interface and avoid adding new application code to the repository root.
 4. Document non-obvious invariants and failure behavior; avoid comments that
    merely restate a line of code.
 5. Update both application and test include/source paths when moving a file.
+6. Write comments in English.
+
+## Documentation map
+
+| Change | Document to update |
+| --- | --- |
+| New or changed Markdown syntax | `docs/markdown-parsing.md` (syntax matrix, pipeline, limitations) |
+| New module, file, or ownership change | this file, plus the module `README.md` |
+| Build, CMake option, or dependency change | `docs/build-and-packaging.md` |
+| New shortcut or editing gesture | `docs/keyboard-shortcuts.md` |
+| Platform-specific work | `docs/cross-platform-development.md` |
+| User-visible feature | `README.md` feature list |
+
+The syntax matrix in `docs/markdown-parsing.md` is the contract: when a
+construct starts or stops working, update the matrix and add a regression test
+in the same change.
