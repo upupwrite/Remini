@@ -38,6 +38,11 @@ Related documents:
     value types (`EditType`, `SelectRange`) and the format collection.
   - `markdownconnections.{h,cpp}` — single source of truth for connecting and
     disconnecting an editor to/from a document.
+  - `blockstructure.{h,cpp}` — shared scan for multi-block constructs (code
+    fences, tables) and `isBlockRendered()`.
+- `src/app/theme.h` — `MarkdownPalette` plus the Light/Dark style sheets; the
+  palette is pushed to the editor because rendered colours live in
+  `QTextCharFormat`, not in QSS.
 - `src/navigation/` — file-tree model and navigation view interactions.
 - `src/search/` — background text/file search worker.
 - `src/settings/` — settings dialog, Designer form, and settings-specific notes.

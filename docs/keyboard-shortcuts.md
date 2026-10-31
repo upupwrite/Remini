@@ -84,7 +84,7 @@ Right-clicking the editor offers:
 
 | Item | Shortcut shown | Notes |
 | --- | --- | --- |
-| Copy Block | — | Only offered when the click is inside a fenced code block; copies the fence body. |
+| Copy Block / Table | — | Only offered inside a fenced code block or a table; copies the block body or the whole table source. |
 | Undo | `Ctrl+Z` | |
 | Redo | `Ctrl+Y` | |
 | Copy | `Ctrl+C` | |
@@ -93,6 +93,7 @@ Right-clicking the editor offers:
 | Select All | `Ctrl+A` | |
 | Disable / Enable Markdown | — | Toggles marker hiding for the whole document (persisted). |
 | Disable / Enable line-wrap | — | Toggles `WidgetWidth` / `NoWrap`. |
+| Reveal Whole Table on Hover | — | Checkable: switches table hover between the current row and the whole table. |
 
 ---
 
@@ -102,6 +103,7 @@ Right-clicking the editor offers:
 | --- | --- |
 | Arrow keys | Move the caret; crossing a block boundary reveals the newly entered block and re-hides the one that was left. |
 | `Shift` + arrows | Extend the selection with the same reveal/hide behaviour. |
+| Hover a table row | Reveals that row's Markdown source (configurable: off / row / whole table). |
 | Click on `☐` / `☑` | Toggles the checkbox and updates the raw Markdown. |
 | Click on a link title | Opens the destination with the platform handler. |
 | Click elsewhere | Places the caret and reveals that block's Markdown. |

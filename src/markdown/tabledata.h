@@ -41,6 +41,13 @@ public:
     int getColumnCount() const;
 
     // Alignment parsed from the delimiter row (`:---`, `---:`, `:---:`).
+    //
+    // NOTE(limit): the alignments are recorded but not applied yet. Cell text is
+    // laid out with left tab stops, and Qt cannot right-align or centre a run
+    // between two stops without per-cell padding. Keep this data so a future
+    // implementation (per-cell tab stops or a custom layout) needs no re-parse.
+    // TODO(remini): honour AlignRight / AlignHCenter once cell padding or custom
+    // block layout exists.
     void setAlignments(const QVector<Qt::Alignment> &alignments);
     Qt::Alignment getAlignment(int column) const;
 

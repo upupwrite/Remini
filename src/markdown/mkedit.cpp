@@ -50,7 +50,7 @@ MkEdit::MkEdit(QWidget *parent) : QTextEdit(parent)
     pasteTextAction.setText("Paste          Ctrl+V");
     deleteTextAction.setText("Delete        Del");
     selectAllAction.setText("Select All    Ctrl+A");
-    selectBlockAction.setText("Copy Block");
+    selectBlockAction.setText("Copy Block / Table");
     // The action label is kept in sync by setMkState(); it always describes
     // the state that activating the menu item will switch to.
     disableMarkdown.setText("Disable Markdown");
@@ -1731,6 +1731,13 @@ QRect blockViewportRect(const QTextEdit &edit, const QTextBlock &block)
 
 }  // namespace
 
+// NOTE(limit): revealing a row swaps tabs for pipes, so the row's width changes
+// while it is revealed. The pointer is therefore tracked with hysteresis (stay
+// on the current row while it still contains the pointer) instead of a pure
+// hit-test. Making the geometry stable would require rendering the source row in
+// a fixed-width overlay.
+// TODO(remini): add a hover debounce delay if fast mouse movement over large
+// tables causes visible re-layout churn.
 void MkEdit::updateHoveredTableRow(const QPoint &viewportPos)
 {
     if (tableHover == 0)

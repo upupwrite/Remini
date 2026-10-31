@@ -2177,3 +2177,20 @@ TEST_CASE("MkEdit applies the theme palette to rendered Markdown", "[Theme]")
     REQUIRE(doc.markdownPalette().accent == light.accent);
     REQUIRE(edit.markdownPalette().tableGrid == light.tableGrid);
 }
+
+TEST_CASE("MkTextDocument copies a whole table from any of its rows",
+          "[MkTextDocument][Table]")
+{
+    MkTextDocument doc;
+    doc.setPlainText("intro\n| a | b |\n| --- | --- |\n| 1 | 2 |\noutro");
+
+    int startPos = 0;
+    int endPos = 0;
+    doc.selectBlockCopyHandle(3, startPos, endPos);
+
+    QTextCursor cursor(&doc);
+    cursor.setPosition(startPos);
+    cursor.setPosition(endPos, QTextCursor::KeepAnchor);
+    REQUIRE(cursor.selectedText().replace(QChar::ParagraphSeparator, '\n') ==
+            "| a | b |\n| --- | --- |\n| 1 | 2 |");
+}

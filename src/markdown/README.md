@@ -18,6 +18,7 @@ Layout and ownership rules: [../../docs/architecture.md](../../docs/architecture
 | `formatdata.{h,cpp}` | Per-block parse result: fragments, hidden-character mask, link/image metadata, blockquote depth. |
 | `blockdata.{h,cpp}` | User data for fenced code blocks (`start` / `content` / `end`). |
 | `tabledata.{h,cpp}` | Per-row user data for GFM pipe tables: row kind, column count, alignments, shared tab stops, table block range. Derives from `FormatData`. |
+| `blockstructure.{h,cpp}` | One pass that finds every multi-block construct (code fences, tables) plus `isBlockRendered()`. |
 | `linedata.{h,cpp}` | User data for horizontal rules. |
 | `blocksupport.h` | Common `getStart()` / `getEnd()` contract. |
 | `editcommand.{h,cpp}` | Undo/redo commands plus `EditSnapshot` / `EditRestore` value types. |
@@ -57,5 +58,7 @@ Layout and ownership rules: [../../docs/architecture.md](../../docs/architecture
 ./build/CatchTests/CatchTests "[MkEdit]"           # editing
 ./build/CatchTests/CatchTests "[MarkdownParser]"   # parser helpers
 ./build/CatchTests/CatchTests "[Table]"            # tables
+./build/CatchTests/CatchTests "[Hover]"            # hover reveal
+./build/CatchTests/CatchTests "[Theme]"            # theme palette
 ./build/CatchTests/CatchTests "[EditCommand]"      # undo/redo in isolation
 ```

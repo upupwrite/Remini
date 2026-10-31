@@ -505,6 +505,9 @@ void MkTextDocument::identifyUserData()
     }
 }
 
+// NOTE(limit): column widths are measured in characters using the document
+// font. A font or zoom change therefore needs a re-measure, which the editor
+// triggers from wheelEvent()/setFont().
 QVector<qreal> MkTextDocument::tableTabStops(const QVector<int> &columnWidths)
 {
     // Convert the widest cell of every column into a pixel offset. The extra
@@ -586,6 +589,22 @@ void MkTextDocument::selectBlockCopyHandle(int blockNumber, int &startPos,
                                            int &endPos)
 {
     QTextBlock currentBlock = this->findBlockByNumber(blockNumber);
+
+    // Tables copy like code blocks: the whole multi-block construct.
+    if (auto *table = dynamic_cast<TableData *>(currentBlock.userData()))
+    {
+        const QTextBlock first =
+            this->findBlockByNumber(table->getTableStartBlock());
+        const QTextBlock last =
+            this->findBlockByNumber(table->getTableEndBlock());
+        if (!first.isValid() || !last.isValid())
+            return;
+
+        startPos = first.position();
+        endPos = last.position() + last.length() - 1;
+        return;
+    }
+
     BlockData *blockData = checkValidCodeBlock(currentBlock);
     if (blockData)
     {

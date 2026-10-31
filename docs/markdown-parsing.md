@@ -445,25 +445,52 @@ skips protected ranges: `` | `x|y` | `` keeps its literal pipe.
 Only the brackets are replaced in the rendered view; `rawDocument` always keeps
 the original pipes, so saving and reopening round-trips exactly.
 
-**Editing**
+**Editing (same model as fenced code blocks)**
 
 | Gesture | Behaviour |
 | --- | --- |
-| `Enter` in a table row | Inserts an empty row with the same column count (`\|   \|   \|`) and puts the caret in the first cell |
+| Caret enters a row | That row is rebuilt from its raw source, so every cell can be edited directly |
+| Caret leaves the row | The row is rendered back into columns |
+| Mouse hovers a row | The row is revealed for as long as the pointer stays inside the table (`tableHover = 1`), or the whole table is revealed (`tableHover = 2`) |
+| Click inside a row | The caret is placed at the clicked cell: the position is mapped from rendered to source offsets |
+| `Enter` in a row | Inserts an empty row with the same column count (`\|   \|   \|`), caret in the first cell |
 | `Ctrl+Enter` | Leaves the table with a plain paragraph break |
-| Editing a cell | The row is shown as raw Markdown; on leaving the row it is re-rendered into columns |
+| Right-click → *Copy Block / Table* | Copies the whole table source, including the pipes |
+
+Selection is handled by the same "visible block" pass: every selected block
+shows its Markdown source, so copying a selection yields pipes, not tabs.
 
 Re-parsing a single row reuses the existing table layout
-(`TableData::cloneLayout()`), so the column widths and tab stops stay stable
-while typing.
+(`TableData::cloneLayout()`), so column widths and tab stops stay stable while
+typing. Revealing a row never moves the caret: `cursorVisibleBlocks` records the
+blocks that are visible because of the caret/selection, and only those remap the
+caret position after a re-render.
 
-**Limitations**
+**Hover mode setting**
 
-- Cell text is left-aligned inside its column; the parsed `alignments` are
-  stored but the tab-stop layout cannot right-align or centre yet.
-- Column widths are measured in characters using the document font, so a zoom
-  or font change needs a re-parse to re-measure.
-- Inline HTML and nested tables are not supported.
+`QSettings` key `tableHover`: `0` = off, `1` = current row (default), `2` = whole
+table. It is exposed in the settings dialog (*Table Hover*) and as a checkable
+context-menu item. `MkEdit::updateHoveredTableRow` uses hysteresis: while the
+pointer is still inside the revealed row it keeps that row, because revealing a
+row changes its width.
+
+**Grid life cycle**
+
+`MkEdit::paintTable` draws the grid **row by row** and skips rows that currently
+show their source, so cell borders disappear the moment a row is revealed and
+reappear when it is rendered again. The header separator sits on the collapsed
+delimiter row.
+
+**Limitations** (also marked with `NOTE(limit)` / `TODO(remini)` in the code)
+
+- Cell text is left-aligned. `TableData::alignments` is parsed and stored, but
+  Qt tab stops cannot right-align or centre a run; see
+  `tabledata.h`.
+- Column widths are measured in characters with the document font. `MkEdit`
+  re-measures on zoom and on `setFont`, but a theme-only change does not.
+- Revealing a row swaps tabs for pipes, so its width changes while revealed.
+  The pointer uses hysteresis instead of a pure hit-test.
+- Nested tables and tables inside blockquotes are not supported.
 
 ---
 
@@ -923,7 +950,43 @@ Legend: ✅ fully supported · ⚠️ partial / with caveats · ❌ not supporte
 
 ---
 
-## 16. Test map
+## 16. Theming rendered Markdown
+
+Rendered colours are baked into `QTextCharFormat` objects, so they cannot be
+expressed in the widget style sheet. They live in `MarkdownPalette`
+(`src/app/theme.h`), one instance per theme:
+
+```cpp
+struct MarkdownPalette {
+    QColor surface, text, muted, border, accent;
+    QColor codeSpan, codeCard, codeCardBorder;
+    QColor quoteText, quoteBackground;
+    QColor tableGrid, tableHeader, tableHeaderText, tableRowAlternate;
+    QColor horizontalRule, hoverRow;
+    QColor heading[6];
+};
+```
+
+Flow:
+
+```
+MainWindow::applyThemeByName(name)
+  ├── QApplication::setStyle(...)      // widget style
+  ├── setStyleSheet(theme.qss)         // widget colours + syntax properties
+  └── ViewsHandler::applyMarkdownPalette(theme.palette)
+        └── MkEdit::setMarkdownPalette(palette)
+              ├── tableGridPen / hoverRowBrush  (painter)
+              └── MkTextDocument::setMarkdownPalette(palette)
+                    └── FormatCollection(fontSize, palette)
+```
+
+`FormatCollection` maps the palette to the heading, link, inline-code and quote
+formats, so switching the theme only requires a re-render
+(`MkEdit::setMarkdownPalette` calls `applyAllMkDataHandle`).
+
+---
+
+## 17. Test map
 
 Tests live in `CatchTests/` and are the executable specification of this
 document.
@@ -947,6 +1010,12 @@ Useful filters:
 
 # tables
 ./build/CatchTests/CatchTests "[Table]"
+
+# hover reveal
+./build/CatchTests/CatchTests "[Hover]"
+
+# theme palette
+./build/CatchTests/CatchTests "[Theme]"
 
 # one case by name
 ./build/CatchTests/CatchTests "MkTextDocument blockquote*"

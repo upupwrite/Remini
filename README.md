@@ -31,8 +31,8 @@ https://github.com/AngryFender/Remini/assets/29480834/2fc6bc0e-da17-424a-8036-dc
 - [x]  Inline images (local paths and `file://` destinations)
 - [x]  Links, autolinks, and backslash escapes
 - [x]  Automated packages for Windows, Debian, and Arch Linux
-- [ ]  Themes, color schemes
-- [x]  Tables (GFM pipe tables, rows added on `Enter`)
+- [x]  Tables (GFM pipe tables, hover-to-edit rows, rows added on `Enter`)
+- [x]  Light and dark themes that also colour rendered Markdown
 - [ ]  Emoji library
 
 ### Markdown support at a glance
