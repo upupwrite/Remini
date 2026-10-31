@@ -98,6 +98,10 @@ public:
     void setTableHoverMode(int mode);
     int tableHoverMode() const;
 
+    // Colours for rendered Markdown (headings, quotes, table grid, ...).
+    void setMarkdownPalette(const MarkdownPalette &palette);
+    const MarkdownPalette &markdownPalette() const;
+
 protected:
     void insertFromMimeData(const QMimeData *source) override;
     void mousePressEvent(QMouseEvent *e) override;
@@ -114,6 +118,9 @@ private:
     QPen penCodeBlock;
     QPen whitePen;
     QPen tableGridPen;
+    QPen hoverRowPen;
+    QBrush hoverRowBrush;
+    MarkdownPalette palette = darkPalette();
     int savedCharacterNumber = -1;
 
     EditSnapshot undoSnapshot;

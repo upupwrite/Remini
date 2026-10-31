@@ -257,6 +257,11 @@ void MkEdit::wheelEvent(QWheelEvent *e)
 
         QSettings settings("Remini", "Remini");
         settings.setValue("fontsize", this->currentFont().pointSizeF());
+
+        // Table column stops are measured in pixels from the current font, so a
+        // zoom needs a fresh measurement to stay aligned.
+        if (auto *mkDoc = dynamic_cast<MkTextDocument *>(this->document()))
+            mkDoc->applyAllMkDataHandle(this->textCursor().blockNumber());
     }
     else
     {
@@ -1241,9 +1246,10 @@ void MkEdit::blockColor(const QColor &color)
         penCodeBlock.setColor(codeBlockColor);
         penCodeBlock.setWidth(2);
 
-        whitePen.setColor(Qt::gray);
+        whitePen.setColor(palette.horizontalRule);
         whitePen.setCapStyle(Qt::RoundCap);
         whitePen.setWidth(1);
+        tableGridPen.setColor(palette.tableGrid);
 
         update();
     }
@@ -1521,6 +1527,9 @@ void MkEdit::setDocument(QTextDocument *document)
     disconnectSignals(true);
     QTextEdit::setDocument(document);
     connectSignals(true);
+
+    if (auto *mkDoc = dynamic_cast<MkTextDocument *>(document))
+        mkDoc->setMarkdownPalette(palette);
 }
 
 QString MkEdit::rawPlainText() const
@@ -1562,6 +1571,10 @@ void MkEdit::setFont(const QFont &font)
     lineWrapAction.setFont(menuFont);
 
     QTextEdit::setFont(font);
+
+    // Re-measure table columns for the new font metrics.
+    if (auto *mkDoc = dynamic_cast<MkTextDocument *>(this->document()))
+        mkDoc->applyAllMkDataHandle(this->textCursor().blockNumber());
 }
 
 void MkEdit::fileSaveHandle() { fileSaveWithScroll(); }
@@ -1644,6 +1657,27 @@ void MkEdit::cursorPositionChangedHandle()
     emit cursorPosChanged(&selectRange, this->isReadOnly());
     postCursorPosChangedSignal();
 }
+
+void MkEdit::setMarkdownPalette(const MarkdownPalette &newPalette)
+{
+    palette = newPalette;
+
+    tableGridPen.setColor(palette.tableGrid);
+    hoverRowBrush = QBrush(palette.hoverRow);
+    hoverRowPen.setColor(palette.hoverRow);
+
+    // Rendered colours are baked into character formats, so the document has
+    // to be re-rendered for the new theme to take effect.
+    if (auto *mkDoc = dynamic_cast<MkTextDocument *>(this->document()))
+    {
+        mkDoc->setMarkdownPalette(palette);
+        mkDoc->applyAllMkDataHandle(this->textCursor().blockNumber());
+    }
+
+    this->viewport()->update();
+}
+
+const MarkdownPalette &MkEdit::markdownPalette() const { return palette; }
 
 void MkEdit::setTableHoverMode(int mode)
 {

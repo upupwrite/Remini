@@ -177,7 +177,7 @@ void MarkdownRenderer::applyMkFormat(QTextDocument *document,
         break;
     case FragmentData::BLOCKQUOTE:
     {
-        quoteFormat.setForeground(QColor(QStringLiteral("#65727C")));
+        quoteFormat.setForeground(formatCollection.quoteText);
         quoteFormat.setFontItalic(true);
 
         // Nested quotes indent further; a marker-only line still reports a
@@ -188,7 +188,7 @@ void MarkdownRenderer::applyMkFormat(QTextDocument *document,
 
         QTextBlockFormat blockFormat = block.blockFormat();
         blockFormat.setLeftMargin(18 * quoteDepth);
-        blockFormat.setBackground(QColor(90, 120, 150, 20));
+        blockFormat.setBackground(formatCollection.quoteBackground);
         QTextCursor blockCursor(block);
         blockCursor.setBlockFormat(blockFormat);
         format = &quoteFormat;

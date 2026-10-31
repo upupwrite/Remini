@@ -28,6 +28,8 @@ signals:
     // changed. MainWindow listens to this and re-applies the style sheet
     // (and, on some platforms, the QStyle) without requiring a restart.
     void themeChanged(const QString &themeName);
+    // 0 = off, 1 = reveal the hovered row, 2 = reveal the whole table.
+    void tableHoverChanged(int mode);
 
 private slots:
     void executeFolderDialog();

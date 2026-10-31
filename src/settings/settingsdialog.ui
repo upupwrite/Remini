@@ -242,7 +242,7 @@ p, li { white-space: pre-wrap; }
          <x>10</x>
          <y>30</y>
          <width>157</width>
-         <height>34</height>
+         <height>62</height>
         </rect>
        </property>
        <layout class="QGridLayout" name="gridLayout_5">
@@ -255,6 +255,16 @@ p, li { white-space: pre-wrap; }
         </item>
         <item row="0" column="1">
          <widget class="QComboBox" name="cmb_lineWrap"/>
+        </item>
+        <item row="1" column="0">
+         <widget class="QLabel" name="lbl_tableHover">
+          <property name="text">
+           <string>Table Hover</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="1">
+         <widget class="QComboBox" name="cmb_tableHover"/>
         </item>
        </layout>
       </widget>

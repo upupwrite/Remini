@@ -197,6 +197,9 @@ void ViewsHandler::initConnection()
     // to do. Keeping ViewsHandler ignorant of MainWindow avoids a
     // circular dependency between the two classes.
     // ------------------------------------------------------------------
+    QObject::connect(settingsDialog, &SettingsDialog::tableHoverChanged,
+                     viewText, &MkEdit::setTableHoverMode);
+
     QObject::connect(settingsDialog, &SettingsDialog::themeChanged, this,
                      &ViewsHandler::themeChanged);
 
@@ -291,6 +294,12 @@ void ViewsHandler::initConnection()
 
     QObject::connect(viewTree, &NavigationView::sendFocusToSearch, this,
                      &ViewsHandler::sendFocusToSearchHandler);
+}
+
+void ViewsHandler::applyMarkdownPalette(const MarkdownPalette &palette)
+{
+    if (viewText)
+        viewText->setMarkdownPalette(palette);
 }
 
 void ViewsHandler::connectDocument()

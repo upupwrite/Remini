@@ -287,6 +287,16 @@ void MkTextDocument::refreshVisibleBlocks()
     showMKSymbolsFromCurrentSelectedBlocks(&this->selectRange);
 }
 
+void MkTextDocument::setMarkdownPalette(const MarkdownPalette &newPalette)
+{
+    palette = newPalette;
+}
+
+const MarkdownPalette &MkTextDocument::markdownPalette() const
+{
+    return palette;
+}
+
 void MkTextDocument::setHoveredBlock(const int blockNo)
 {
     if (hoveredBlockNo == blockNo)
@@ -874,7 +884,7 @@ void MkTextDocument::hideMKSymbolsFromPreviousSelectedBlocks(
 {
     emit disconnectCursorPos();
     int fontSize = this->defaultFont().pointSize();
-    FormatCollection formatCollection(fontSize);
+    FormatCollection formatCollection(fontSize, this->palette);
 
     if (disableMarkdownState)
     {
@@ -1028,7 +1038,7 @@ void MkTextDocument::showMKSymbolsFromCurrentSelectedBlocks(
 {
     emit disconnectCursorPos();
     int fontSize = this->defaultFont().pointSize();
-    FormatCollection formatCollection(fontSize);
+    FormatCollection formatCollection(fontSize, this->palette);
     QTextBlock block;
 
     foreach (int num, range->showBlocks)

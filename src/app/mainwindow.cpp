@@ -143,9 +143,14 @@ void MainWindow::applyThemeByName(const QString &name)
 
     // Then the QSS. MkEdit widgets inside the window react to the new
     // qproperty-* color rules automatically; each setter emits
-    // syntaxColorUpdate, which the Highlighter uses to re-run, so no
-    // manual repaint or re-highlight is required here.
+    // syntaxColorUpdate, which the Highlighter uses to re-run.
     this->setStyleSheet(themeContents);
+
+    // Rendered Markdown colours (headings, quotes, tables, code cards) are not
+    // expressible in QSS because they are baked into QTextCharFormat objects,
+    // so the palette is pushed to the editor explicitly.
+    if (view_handler)
+        view_handler->applyMarkdownPalette(theme->palette);
 }
 
 // ---------------------------------------------------------------------------

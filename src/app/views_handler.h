@@ -5,6 +5,7 @@
 #include <navigationmodel.h>
 #include <navigationview.h>
 #include <startuptext.h>
+#include <theme.h>
 
 #include <QFileDialog>
 #include <QListWidget>
@@ -48,6 +49,8 @@ public:
     ~ViewsHandler() {}
 
 public slots:
+    // Forward the active theme's rendered-Markdown colours to the editor.
+    void applyMarkdownPalette(const MarkdownPalette &palette);
     void openRecentFilesDialogHandle(bool show);
     void startTextSearchInAllFilesHandle();
     void startFileSearchHandle();

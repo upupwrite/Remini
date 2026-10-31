@@ -30,6 +30,7 @@
 #include "markdownrenderer.h"
 #include "selectrange.h"
 #include "tabledata.h"
+#include "theme.h"
 
 class MkTextDocument : public QTextDocument
 {
@@ -81,6 +82,10 @@ public:
 
     bool isHoverWholeTable() const;
     int hoveredBlock() const;
+
+    // Palette used when applying Markdown character/block formats.
+    void setMarkdownPalette(const MarkdownPalette &palette);
+    const MarkdownPalette &markdownPalette() const;
 
 private:
     // Re-renders the document so exactly the cursor/selection/hover blocks
@@ -148,6 +153,7 @@ private:
     QColor linkColor;
     bool disableMarkdownState;
 
+    MarkdownPalette palette = darkPalette();
     int hoveredBlockNo = -1;
     bool hoverWholeTable = false;
     // Blocks currently shown because of the caret or selection. Hover-revealed

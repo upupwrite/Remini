@@ -66,6 +66,11 @@ SettingsDialog::SettingsDialog(QWidget *parent)
     ui->cmb_lineWrap->addItem("Disabled");
     ui->cmb_lineWrap->addItem("Enabled");
 
+    // Table hover reveal: 0 = off, 1 = current row, 2 = whole table.
+    ui->cmb_tableHover->addItem("Off");
+    ui->cmb_tableHover->addItem("Current Row");
+    ui->cmb_tableHover->addItem("Whole Table");
+
     for (const Theme &t : themeAchieve::themeVec())
     {
         ui->cmb_theme->addItem(t.name);
@@ -293,6 +298,7 @@ void SettingsDialog::saveSettingsHandler()
     // the values written by MkEdit::disableMarkdownInternal().
     settings.setValue("markdown", ui->cmb_mkState->currentIndex() != 0);
     settings.setValue("linewrap", ui->cmb_lineWrap->currentIndex() != 0);
+    settings.setValue("tableHover", ui->cmb_tableHover->currentIndex());
     settings.setValue("vaultPath", ui->edit_vaultRootPath->text());
 
     // ------------------------------------------------------------------
@@ -324,6 +330,7 @@ void SettingsDialog::saveSettingsHandler()
     // is safe to run synchronously.
     // ------------------------------------------------------------------
     emit updateUiSettings(font);
+    emit tableHoverChanged(ui->cmb_tableHover->currentIndex());
 
     // ------------------------------------------------------------------
     // Only emit themeChanged when the theme actually changed. Defer the
@@ -377,6 +384,8 @@ void SettingsDialog::show()
     // Populate the simple combo boxes and path field.
     // ------------------------------------------------------------------
     ui->cmb_mkState->setCurrentIndex(markdown ? 1 : 0);
+    ui->cmb_tableHover->setCurrentIndex(
+        qBound(0, settings.value("tableHover", 1).toInt(), 2));
     ui->cmb_lineWrap->setCurrentIndex(linewrap ? 1 : 0);
     ui->edit_vaultRootPath->setText(vaultRootPath);
 

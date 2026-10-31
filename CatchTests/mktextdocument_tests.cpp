@@ -28,6 +28,7 @@
 
 #include "mkedit.h"
 #include "markdownparser.h"
+#include "theme.h"
 #include "mktextdocument.h"
 
 TEST_CASE("MkTextDocument simple text", "[MkTextDocument]")
@@ -2129,4 +2130,50 @@ TEST_CASE("MkTextDocument shows the source of every selected block",
     REQUIRE(doc.findBlockByNumber(2).text() == "| 1 | 2 |");
     // Blocks outside the selection stay rendered.
     REQUIRE(doc.findBlockByNumber(0).text().contains(QLatin1Char('\t')));
+}
+
+// ============================================================================
+// Theme palette
+// ============================================================================
+
+TEST_CASE("Themes expose a Markdown palette", "[Theme]")
+{
+    const Theme *light = themeAchieve::findByName(themes::light().name);
+    const Theme *dark = themeAchieve::findByName(themes::dark().name);
+    REQUIRE(light != nullptr);
+    REQUIRE(dark != nullptr);
+
+    // Every rendered colour must be valid in both themes.
+    for (const Theme *theme : {light, dark})
+    {
+        const MarkdownPalette &p = theme->palette;
+        REQUIRE(p.surface.isValid());
+        REQUIRE(p.text.isValid());
+        REQUIRE(p.border.isValid());
+        REQUIRE(p.accent.isValid());
+        REQUIRE(p.tableGrid.isValid());
+        REQUIRE(p.quoteBackground.isValid());
+        for (const QColor &heading : p.heading)
+            REQUIRE(heading.isValid());
+
+        REQUIRE(theme->qss.contains(QStringLiteral("MkEdit")));
+    }
+
+    REQUIRE(light->palette.surface != dark->palette.surface);
+    REQUIRE(light->palette.heading[0] != dark->palette.heading[0]);
+}
+
+TEST_CASE("MkEdit applies the theme palette to rendered Markdown", "[Theme]")
+{
+    MkTextDocument doc;
+    MkEdit edit;
+    doc.setPlainText("# heading");
+    doc.setMarkdownHandle(true);
+    edit.setDocument(&doc);
+
+    const MarkdownPalette light = lightPalette();
+    edit.setMarkdownPalette(light);
+
+    REQUIRE(doc.markdownPalette().accent == light.accent);
+    REQUIRE(edit.markdownPalette().tableGrid == light.tableGrid);
 }

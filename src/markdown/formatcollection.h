@@ -6,6 +6,8 @@
 #include <QTextCharFormat>
 #include <QtGlobal>
 
+#include "theme.h"
+
 #define MAXIMUM_FONT_SIZE 30
 #define MINIMUM_FONT_SIZE 7
 
@@ -14,9 +16,10 @@
 class FormatCollection
 {
 public:
-    explicit FormatCollection(int fontSize)
+    explicit FormatCollection(int fontSize,
+                              const MarkdownPalette &palette = darkPalette())
     {
-        linkColor.setRgb(50, 118, 254);
+        linkColor = palette.accent;
 
         bold.setFontWeight(QFont::ExtraBold);
         italic.setFontItalic(true);
@@ -35,13 +38,16 @@ public:
         heading4.setFontWeight(QFont::DemiBold);
         heading5.setFontWeight(QFont::DemiBold);
         heading6.setFontWeight(QFont::DemiBold);
-        heading1.setForeground(QColor(QStringLiteral("#315F91")));
-        heading2.setForeground(QColor(QStringLiteral("#3C6F9F")));
-        heading3.setForeground(QColor(QStringLiteral("#477DA5")));
-        heading4.setForeground(QColor(QStringLiteral("#477DA5")));
-        heading5.setForeground(QColor(QStringLiteral("#4F7188")));
-        heading6.setForeground(QColor(QStringLiteral("#65727C")));
+        heading1.setForeground(palette.heading[0]);
+        heading2.setForeground(palette.heading[1]);
+        heading3.setForeground(palette.heading[2]);
+        heading4.setForeground(palette.heading[3]);
+        heading5.setForeground(palette.heading[4]);
+        heading6.setForeground(palette.heading[5]);
         heading6.setFontItalic(true);
+
+        quoteText = palette.quoteText;
+        quoteBackground = palette.quoteBackground;
         link.setFontUnderline(true);
         link.setUnderlineColor(linkColor);
         link.setForeground(linkColor);
@@ -54,6 +60,7 @@ public:
         codeSpan.setFontFamily(QStringLiteral("Monospace"));
 #endif
         codeSpan.setFontFixedPitch(true);
+        codeSpan.setForeground(palette.codeSpan);
     }
 
     QTextCharFormat *getBold() { return &bold; }
@@ -68,6 +75,16 @@ public:
     QTextCharFormat *getLink() { return &link; }
     QTextCharFormat *getCodeSpan() { return &codeSpan; }
     QColor linkColor;
+    QColor quoteText;
+    QColor quoteBackground;
+    QColor codeCard;
+    QColor codeCardBorder;
+    QColor tableGrid;
+    QColor tableHeader;
+    QColor tableHeaderText;
+    QColor tableRowAlternate;
+    QColor horizontalRule;
+    QColor hoverRow;
 
 private:
     QTextCharFormat bold;
