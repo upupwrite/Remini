@@ -49,10 +49,47 @@ jobs:
           $stage = "Remini-$version-win64"
           New-Item -ItemType Directory -Force -Path $stage | Out-Null
           Copy-Item "Build\Release\Remini.exe" $stage
+
+          # Run windeployqt (keep --no-translations as before)
           & "${{ github.workspace }}\Remini\Qt\6.5.0\msvc2019_64\bin\windeployqt.exe" `
             --no-translations "$stage\Remini.exe"
-          Compress-Archive -Path "$stage" -DestinationPath "Remini-$version-win64.zip"
 
+          # --- Explicitly bundle MSVC runtime DLLs for VS-free machines ---
+          # Copy app-local Visual C++ runtime (x64) so the app runs without
+          # installing the VC++ Redistributable on the target machine.
+          $vcRedistCandidates = @(
+            "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Redist\MSVC\*\x64\Microsoft.VC143.CRT",
+            "C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Redist\MSVC\*\x64\Microsoft.VC143.CRT",
+            "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Redist\MSVC\*\x64\Microsoft.VC143.CRT",
+            "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Redist\MSVC\*\x64\Microsoft.VC143.CRT"
+          )
+          $vcRedistDir = $null
+          foreach ($candidate in $vcRedistCandidates) {
+            $found = Get-ChildItem -Path $candidate -Directory -ErrorAction SilentlyContinue |
+              Sort-Object Name -Descending | Select-Object -First 1
+            if ($found) {
+              $vcRedistDir = $found.FullName
+              break
+            }
+          }
+          if (-not $vcRedistDir) {
+            throw "Could not locate VC++ Redist x64 directory on the runner."
+          }
+          Write-Host "Bundling MSVC runtime DLLs from: $vcRedistDir"
+          Copy-Item "$vcRedistDir\*.dll" $stage -Force
+
+          # Also copy UCRT (Universal C Runtime) app-local DLLs, which are
+          # required on systems older than Windows 10.
+          $ucrtDir = "C:\Program Files (x86)\Windows Kits\10\Redist\ucrt\DLLs\x64"
+          if (Test-Path $ucrtDir) {
+            Write-Host "Bundling UCRT DLLs from: $ucrtDir"
+            Copy-Item "$ucrtDir\*.dll" $stage -Force
+          } else {
+            Write-Warning "UCRT redist directory not found at: $ucrtDir"
+          }
+
+          Compress-Archive -Path "$stage" -DestinationPath "Remini-$version-win64.zip"
+      
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
