@@ -198,10 +198,16 @@ private:
     QMap<int, QString> imageAltTextMap;
     QBitArray mask;
     QMap<int, QChar> characterReplacements;
+    // Lazily built prefix indexes for hidden-format coordinate conversion.
+    mutable QVector<int> maskedCharacterPrefix;
+    mutable QVector<int> collapsedImagePrefix;
+    mutable bool positionIndexesDirty = true;
     QString originalText;
     int blockQuoteDepth;
     bool hidden;
     bool formatted;
+    void invalidatePositionIndexes();
+    void rebuildPositionIndexes() const;
     void addMaskBit(const int start, const QString &startSymbol, const int end,
                     const QString &endSymbol);
     void addMaskBitForLinkContent(const int start, const int end,
