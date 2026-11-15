@@ -41,22 +41,14 @@ jobs:
             libgl1-mesa-dev \
             libglu1-mesa-dev \
             qt6-base-dev \
-            qt6-base-dev-tools
-
-      # -------------------------------------------------------------------
-      - name: Set up vcpkg
-        run: |
-          vcpkg_root="$RUNNER_TEMP/vcpkg"
-          git clone --depth 1 https://github.com/microsoft/vcpkg.git "$vcpkg_root"
-          "$vcpkg_root/bootstrap-vcpkg.sh" -disableMetrics
-          echo "VCPKG_ROOT=$vcpkg_root" >> "$GITHUB_ENV"
+            qt6-base-dev-tools \
+            catch2
 
       - name: Configure (CMake)
         run: |
           cmake -S . -B build \
             -G Ninja \
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
-            -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" \
             -DREMINI_BUILD_BENCHMARKS=ON
 
       # Ninja is a single-config generator; do NOT pass --config here.
