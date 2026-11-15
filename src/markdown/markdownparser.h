@@ -99,10 +99,12 @@ private:
     QVector<MarkdownLinkExpression>
     parsePlainLinks(const QString &text,
                     const QVector<QPair<int, int>> &protectedRanges,
+                    const QVector<uchar> &escaped,
                     FormatData *formatData);
 
     // `<https://example.com>` autolinks.
-    void parseAutoLinks(const QString &text, FormatData *formatData);
+    void parseAutoLinks(const QString &text, const QVector<uchar> &escaped,
+                        FormatData *formatData);
 
     // Hide the backslash of a backslash-escaped punctuation character so that
     // `\*` renders as `*` instead of starting emphasis. Returns the positions
@@ -118,10 +120,12 @@ private:
 
     void insertHeadingData(const QString &text, int &index1,
                            FormatData *formatData);
-    QVector<QPair<int, int>> parseInlineCodeSpans(const QString &text,
-                                                  FormatData *formatData);
+    QVector<QPair<int, int>> parseInlineCodeSpans(
+        const QString &text, const QVector<uchar> &escaped,
+        FormatData *formatData);
     void parseEmphasis(const QString &text,
                        const QVector<QPair<int, int>> &protectedRanges,
+                       const QVector<uchar> &escaped,
                        FormatData *formatData);
     void insertFormatCheckBoxData(FormatLocation &loc, int &index1, int &index2,
                                   int &index3, FormatData *formatData,
