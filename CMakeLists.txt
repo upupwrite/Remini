@@ -131,6 +131,12 @@ if(BUILD_TESTING)
     add_test(NAME CatchTests COMMAND CatchTests)
 endif()
 
+# The standalone parser benchmark is opt-in and does not affect normal builds.
+option(REMINI_BUILD_BENCHMARKS "Build Markdown parser performance benchmarks" OFF)
+if(REMINI_BUILD_BENCHMARKS)
+    add_subdirectory(benchmarks)
+endif()
+
 set_target_properties(Remini PROPERTIES
     MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
     MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
