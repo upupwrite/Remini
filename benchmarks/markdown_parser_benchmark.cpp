@@ -10,6 +10,8 @@
 #include <QTextBlock>
 #include <QTextDocument>
 #include <QTextStream>
+#include <QStringList>
+#include <QVector>
 
 #include <algorithm>
 #include <cmath>
@@ -240,6 +242,7 @@ quint64 scanOnly(QTextDocument &document, int passes)
 quint64 documentPipeline(QTextDocument &document, int passes)
 {
     quint64 checksum = 0;
+    MarkdownParser parser;
     for (int p = 0; p < passes; ++p)
     {
         QVector<int> roles(document.blockCount(), -1); // -2=fence, 1=table, 2=delimiter
@@ -249,7 +252,6 @@ quint64 documentPipeline(QTextDocument &document, int passes)
                 roles[n] = s.kind == BlockStructure::Kind::CodeFence
                     ? -2 : (s.roleAt(n) == BlockStructure::Role::Delimiter ? 2 : 1);
 
-        MarkdownParser parser;
         for (QTextBlock block = document.begin(); block.isValid(); block = block.next())
         {
             const int role = roles.at(block.blockNumber());
