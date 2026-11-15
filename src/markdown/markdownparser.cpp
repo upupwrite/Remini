@@ -4,6 +4,8 @@
 
 #include <QtGlobal>
 
+#include <algorithm>
+
 // ---------------------------------------------------------------------------
 // File-local helpers
 // ---------------------------------------------------------------------------
@@ -31,27 +33,59 @@ bool isMarkdownEscaped(const QString &text, int position)
 // A delimiter run is "protected" if it sits entirely inside one of the ranges
 // claimed by inline code spans, links, or escaped characters. Protected runs
 // are skipped by the emphasis and marker scanners.
+// Protected ranges are normalized once per block before any scanner uses
+// them. Keeping them sorted and disjoint makes membership/skip lookups
+// logarithmic instead of repeatedly walking every code span, escape, and link.
+namespace {
+void normalizeProtectedRanges(QVector<QPair<int, int>> &ranges)
+{
+    if (ranges.size() < 2)
+        return;
+
+    std::sort(ranges.begin(), ranges.end(),
+              [](const QPair<int, int> &a, const QPair<int, int> &b) {
+                  return a.first == b.first ? a.second < b.second
+                                            : a.first < b.first;
+              });
+
+    int write = 0;
+    for (int read = 1; read < ranges.size(); ++read)
+    {
+        QPair<int, int> &current = ranges[write];
+        const QPair<int, int> &next = ranges[read];
+        if (next.first <= current.second + 1)
+            current.second = qMax(current.second, next.second);
+        else
+            ranges[++write] = next;
+    }
+    ranges.resize(write + 1);
+}
+
+int firstRangeEndingAtOrAfter(
+    int pos, const QVector<QPair<int, int>> &ranges)
+{
+    return static_cast<int>(std::lower_bound(
+        ranges.cbegin(), ranges.cend(), pos,
+        [](const QPair<int, int> &range, int value) {
+            return range.second < value;
+        }) - ranges.cbegin());
+}
+} // namespace
+
 bool MarkdownParser::isProtectedPosition(
     int pos, const QVector<QPair<int, int>> &ranges)
 {
-    for (const auto &r : ranges)
-    {
-        if (pos >= r.first && pos <= r.second)
-            return true;
-    }
-    return false;
+    const int index = firstRangeEndingAtOrAfter(pos, ranges);
+    return index < ranges.size() && ranges.at(index).first <= pos;
 }
 
 int MarkdownParser::protectedRangeEndAt(
     int pos, const QVector<QPair<int, int>> &ranges)
 {
-    int end = -1;
-    for (const auto &r : ranges)
-    {
-        if (pos >= r.first && pos <= r.second)
-            end = qMax(end, r.second);
-    }
-    return end;
+    const int index = firstRangeEndingAtOrAfter(pos, ranges);
+    return index < ranges.size() && ranges.at(index).first <= pos
+               ? ranges.at(index).second
+               : -1;
 }
 
 // ---------------------------------------------------------------------------
@@ -704,6 +738,10 @@ FormatData *MarkdownParser::parseBlock(const QString &sourceText,
         protectedRanges.append(qMakePair(link.titleStart, link.titleStart));
         protectedRanges.append(qMakePair(link.titleEnd, link.urlEnd));
     }
+
+    // All later scans consume this same immutable index. Merging adjacent
+    // ranges is safe: no Markdown scanner needs to distinguish their origin.
+    normalizeProtectedRanges(protectedRanges);
 
     // <https://example.com> - hidden angle brackets, clickable URL text.
     parseAutoLinks(text, formatData);
