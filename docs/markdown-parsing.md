@@ -215,7 +215,7 @@ blockFormat.setLeftMargin(18 * quoteDepth);
 
 ## 5. Parsing order inside one block
 
-`MarkdownParser::parseBlock(block)` runs a fixed sequence. Order
+`MarkdownParser::parseBlock(text, ...)` runs a fixed sequence on plain block text. Order
 matters, because later stages must know about earlier ones:
 
 1. **Blockquote marker** — `blockQuoteMarkerEnd()` consumes up to three leading
