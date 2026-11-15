@@ -26,34 +26,33 @@ using EscapeMap = QVector<uchar>;
 // an O(1) lookup instead of recounting the preceding backslash run.
 EscapeMap buildEscapeMap(const QString &text)
 {
-    // Most prose blocks contain no escapes. Avoid allocating a per-character
-    // map in that common case; an empty map means no position is escaped.
-    if (!text.contains(QLatin1Char('\\')))
-        return EscapeMap();
-
-    EscapeMap escaped(text.size(), 0);
-    const int n = text.size();
-    for (int i = 0; i < n;)
+    // Allocate lazily: ordinary prose needs no per-character escape map.
+    // For escape-heavy text, this combines detection and map construction in
+    // one pass instead of scanning once with contains() and again to fill it.
+    EscapeMap escaped;
+    const int length = text.size();
+    for (int index = 0; index < length;)
     {
-        if (text.at(i) != QLatin1Char('\\'))
+        if (text.at(index) != QLatin1Char('\\'))
         {
-            ++i;
+            ++index;
             continue;
         }
 
-        const int runStart = i;
-        while (i < n && text.at(i) == QLatin1Char('\\'))
-            ++i;
+        if (escaped.isEmpty())
+            escaped.fill(0, length);
 
-        // Match the original parity rule for every position, including
-        // positions inside a backslash run (not only its following character).
-        for (int position = runStart + 1; position < i; ++position)
+        const int runStart = index;
+        while (index < length && text.at(index) == QLatin1Char('\\'))
+            ++index;
+
+        for (int position = runStart + 1; position < index; ++position)
         {
             if (((position - runStart) & 1) != 0)
                 escaped[position] = 1;
         }
-        if (((i - runStart) & 1) != 0 && i < n)
-            escaped[i] = 1;
+        if (((index - runStart) & 1) != 0 && index < length)
+            escaped[index] = 1;
     }
     return escaped;
 }
@@ -803,15 +802,20 @@ FormatData *MarkdownParser::parseBlock(const QString &sourceText,
     int index2 = index1 + 1;
     int index3 = index2 + 1;
 
-    int len = text.length();
-    while (index1 < len)
+    const int length = text.size();
+    int protectedRangeIndex = 0;
+    while (index1 < length)
     {
-        // Characters owned by a code span, a plain link, or an escape are not
-        // Markdown markers; jump over the whole range.
-        const int protectedEnd = protectedRangeEndAt(index1, protectedRanges);
-        if (protectedEnd >= index1)
+        // This scan moves only forward, so maintain a range cursor instead of
+        // performing a binary search for every source character.
+        while (protectedRangeIndex < protectedRanges.size() &&
+               protectedRanges.at(protectedRangeIndex).second < index1)
+            ++protectedRangeIndex;
+
+        if (protectedRangeIndex < protectedRanges.size() &&
+            protectedRanges.at(protectedRangeIndex).first <= index1)
         {
-            index1 = protectedEnd + 1;
+            index1 = protectedRanges.at(protectedRangeIndex).second + 1;
             index2 = index1 + 1;
             index3 = index2 + 1;
             continue;
@@ -1173,6 +1177,7 @@ void MarkdownParser::parseEmphasis(
 
     // --- Step 1: tokenize ---------------------------------------------------
     QVector<DelimRun> runs;
+    int protectedRangeIndex = 0;
     for (int i = 0; i < n;)
     {
         const QChar c = text.at(i);
@@ -1196,8 +1201,13 @@ void MarkdownParser::parseEmphasis(
             continue;
         }
 
-        // Skip delimiter runs that are entirely inside a code span.
-        if (isProtectedPosition(i, protectedRanges))
+        // Delimiter runs are visited in source order. Advance through the
+        // sorted protected ranges once instead of binary-searching each run.
+        while (protectedRangeIndex < protectedRanges.size() &&
+               protectedRanges.at(protectedRangeIndex).second < i)
+            ++protectedRangeIndex;
+        if (protectedRangeIndex < protectedRanges.size() &&
+            protectedRanges.at(protectedRangeIndex).first <= i)
         {
             i = j;
             continue;
