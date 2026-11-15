@@ -49,6 +49,8 @@ struct Options
     int passes = 5;
     QString filter;
     QString format = QStringLiteral("text");
+    QString profile = QStringLiteral("normal");
+    int workloadScale = 1;
 };
 
 struct Result
@@ -182,6 +184,25 @@ QVector<Workload> makeWorkloads()
     return all;
 }
 
+void applyWorkloadScale(QVector<Workload> &workloads, int scale)
+{
+    if (scale <= 1) return;
+    for (Workload &workload : workloads)
+    {
+        const QVector<Line> original = workload.lines;
+        workload.lines.clear();
+        workload.lines.reserve(original.size() * scale);
+        for (int copy = 0; copy < scale; ++copy)
+            for (const Line &line : original)
+                workload.lines.append(line);
+
+        workload.characters = 0;
+        workload.bytes = 0;
+        workload.source.clear();
+        workload.finalize();
+    }
+}
+
 bool positiveInt(const QString &text, int &value, bool allowZero = false)
 {
     bool ok = false;
@@ -203,6 +224,14 @@ bool optionsFromArgs(const QStringList &args, Options &o)
         else if (key == "--warmup") { if (!positiveInt(value, o.warmup, true)) return false; }
         else if (key == "--passes") { if (!positiveInt(value, o.passes)) return false; }
         else if (key == "--filter") o.filter = value;
+        else if (key == "--profile")
+        {
+            o.profile = value.toLower();
+            if (o.profile == "normal") o.workloadScale = 1;
+            else if (o.profile == "stress") o.workloadScale = 8;
+            else if (o.profile == "high-pressure") o.workloadScale = 32;
+            else return false;
+        }
         else if (key == "--format")
         {
             o.format = value.toLower();
@@ -311,9 +340,11 @@ void printHelp()
 {
     QTextStream out(stdout);
     out << "Remini Markdown parser benchmark\n"
-        << "Usage: MarkdownParserBenchmark [--iterations N] [--warmup N] [--passes N] "
+        << "Usage: MarkdownParserBenchmark [--profile normal|stress|high-pressure] "
+           "[--iterations N] [--warmup N] [--passes N] "
            "[--filter TEXT] [--format text|csv|json]\n"
         << "Defaults: iterations=15, warmup=3, passes=5\n"
+        << "Profiles scale each workload: normal=1x, stress=8x, high-pressure=32x\n"
         << "Stages: parse-only, structure-scan, document-pipeline\n";
 }
 
@@ -343,6 +374,8 @@ void output(const QVector<Result> &results, const Options &o)
 #ifdef REMINI_BENCHMARK_BUILD_CONFIG
         root.insert("build_config", REMINI_BENCHMARK_BUILD_CONFIG);
 #endif
+        root.insert("profile", o.profile);
+        root.insert("workload_scale", o.workloadScale);
         root.insert("iterations", o.samples); root.insert("warmup", o.warmup);
         root.insert("passes_per_sample", o.passes);
 #if defined(__clang__)
@@ -373,6 +406,7 @@ void output(const QVector<Result> &results, const Options &o)
     }
 
     out << "Remini Markdown parser | Qt " << QT_VERSION_STR
+        << " | profile=" << o.profile << " (" << o.workloadScale << "x)"
         << " | samples=" << o.samples << " warmup=" << o.warmup
         << " passes/sample=" << o.passes << "\n\n";
     out << "WORKLOAD                 STAGE                 MEDIAN ms   P95 ms       lines/s       MiB/s      ns/char\n";
@@ -396,8 +430,11 @@ int main(int argc, char *argv[])
         return app.arguments().contains("--help") || app.arguments().contains("-h") ? 0 : 2;
     }
 
+    QVector<Workload> workloads = makeWorkloads();
+    applyWorkloadScale(workloads, options.workloadScale);
+
     QVector<Result> results;
-    for (const Workload &w : makeWorkloads())
+    for (const Workload &w : workloads)
     {
         if (!options.filter.isEmpty() && !w.name.contains(options.filter, Qt::CaseInsensitive))
             continue;
