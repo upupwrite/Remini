@@ -154,11 +154,11 @@ void ViewsHandler::initFontDefault()
     QSettings settings(QStringLiteral("Remini"), QStringLiteral("Remini"));
     QFont font;
     font.setFamily(
-        settings.value(QStringLiteral(QString::fromLatin1(SettingsKeys::FontFamily)), defaultUiFont()).toString());
-    font.setPointSize(settings.value(QStringLiteral(QString::fromLatin1(SettingsKeys::FontSize)), 14).toInt());
-    font.setStretch(settings.value(QStringLiteral(QString::fromLatin1(SettingsKeys::FontStretch)), 0).toInt());
+        settings.value(QString::fromLatin1(SettingsKeys::FontFamily), defaultUiFont()).toString());
+    font.setPointSize(settings.value(QString::fromLatin1(SettingsKeys::FontSize), 14).toInt());
+    font.setStretch(settings.value(QString::fromLatin1(SettingsKeys::FontStretch), 0).toInt());
     font.setWeight(static_cast<QFont::Weight>(
-        settings.value(QStringLiteral(QString::fromLatin1(SettingsKeys::FontWeight)), 1).toInt()));
+        settings.value(QString::fromLatin1(SettingsKeys::FontWeight), 1).toInt()));
 
     updateUiSettingsHandler(font);
 }
@@ -326,15 +326,15 @@ ViewsHandler::DOCUMENT_STATUS ViewsHandler::setCurrentDocument(
 
     QSettings settings(QStringLiteral("Remini"), QStringLiteral("Remini"));
     const QString fontFamily =
-        settings.value(QStringLiteral(QString::fromLatin1(SettingsKeys::FontFamily)), defaultMonospaceFont())
+        settings.value(QString::fromLatin1(SettingsKeys::FontFamily), defaultMonospaceFont())
             .toString();
-    const int fontSize = settings.value(QStringLiteral(QString::fromLatin1(SettingsKeys::FontSize)), 11).toInt();
+    const int fontSize = settings.value(QString::fromLatin1(SettingsKeys::FontSize), 11).toInt();
     const bool markdown =
         settings.value(QString::fromLatin1(SettingsKeys::MarkdownEnabled), true).toBool();
     const int stretch =
-        settings.value(QStringLiteral(QString::fromLatin1(SettingsKeys::FontStretch)), QFont::Unstretched).toInt();
+        settings.value(QString::fromLatin1(SettingsKeys::FontStretch), QFont::Unstretched).toInt();
     const int weight =
-        settings.value(QStringLiteral(QString::fromLatin1(SettingsKeys::FontWeight)), QFont::Normal).toInt();
+        settings.value(QString::fromLatin1(SettingsKeys::FontWeight), QFont::Normal).toInt();
 
     QFont font(fontFamily, fontSize, weight, false);
     font.setStretch(stretch);
