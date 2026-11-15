@@ -94,7 +94,7 @@ private:
 
     // Plain-parenthesis links `[title](url)`. The angle-bracket form
     // `[title](<url>)` is handled by the marker scan in
-    // identifyFormatData(); these are collected separately and protected from
+    // parseBlock(); these are collected separately and protected from
     // the marker scan.
     QVector<MarkdownLinkExpression>
     parsePlainLinks(const QString &text,
