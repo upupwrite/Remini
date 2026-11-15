@@ -71,7 +71,7 @@ the document or block they operate on.
     │                          │                      │
  fenced code fence      horizontal rule          everything else
  (`^ {0,3}```.*$`)         (`^---$`)                  │
-    │                          │             MarkdownParser::identifyFormatData
+    │                          │             MarkdownParser::parseBlock
  BlockData                LineData                   │
                                               FormatData (fragments + mask)
                                                        │
@@ -105,7 +105,7 @@ Every `QTextBlock` in the rendered document carries exactly one
 | --- | --- | --- |
 | `BlockData` | Part of a fenced code block (`start`, `content`, `end`), plus the fence's first/last block numbers and hidden state | `identifyUserData` |
 | `LineData` | A horizontal rule (`---`) | `identifyUserData` |
-| `FormatData` | Any block containing inline/block Markdown fragments | `MarkdownParser::identifyFormatData` |
+| `FormatData` | Any block containing inline/block Markdown fragments | `MarkdownParser::parseBlock` |
 | `TableData` | One row of a GFM pipe table. Derives from `FormatData`, so all
   fragment/mask machinery still applies, and adds row kind, column count,
   alignments, shared tab stops and the table's block range | `identifyUserData` |
@@ -215,7 +215,7 @@ blockFormat.setLeftMargin(18 * quoteDepth);
 
 ## 5. Parsing order inside one block
 
-`MarkdownParser::identifyFormatData(block)` runs a fixed sequence. Order
+`MarkdownParser::parseBlock(block)` runs a fixed sequence. Order
 matters, because later stages must know about earlier ones:
 
 1. **Blockquote marker** — `blockQuoteMarkerEnd()` consumes up to three leading
@@ -644,7 +644,7 @@ group must be exactly five characters wide. See §6.5 for the rendered result an
 1. Reset character/block formats (`MarkdownRenderer::resetTextBlockFormat`).
 2. Replace the block's text with the **raw** line
    (`rawDocument.findBlockByNumber(n).text()`), restoring all markers.
-3. Re-parse the block (`parser.identifyFormatData`) — the old `FormatData` is
+3. Re-parse the block (`parser.parseBlock`) — the old `FormatData` is
    discarded and rebuilt.
 4. Apply text fragments (everything except `IMAGE`) in source order.
 5. Apply `IMAGE` fragments **in reverse order**, so replacing one expression
@@ -889,7 +889,7 @@ Legend: ✅ fully supported · ⚠️ partial / with caveats · ❌ not supporte
 ### 14.1 Adding an inline construct
 
 1. Add a value to `FragmentData::FormatSymbol` (`formatdata.h`).
-2. Detect it in `MarkdownParser::identifyFormatData` (usually a new helper) and
+2. Detect it in `MarkdownParser::parseBlock` (usually a new helper) and
    call `formatData->addFormat(start, end, symbol)` or, if the masking pattern
    is unusual, `addMaskRange()` plus a dedicated `addFormat` branch.
 3. Map the symbol to a format in `MarkdownRenderer::applyMkFormat`.
