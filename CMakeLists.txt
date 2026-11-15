@@ -78,6 +78,7 @@ set(PROJECT_SOURCES
 
     ${SETTINGS_DIR}/settingsdialog.cpp
     ${SETTINGS_DIR}/settingsdialog.h
+    ${SETTINGS_DIR}/settingskeys.h
     ${SETTINGS_DIR}/settingsdialog.ui
 
     ${WIDGETS_DIR}/recentfilesdialog.cpp

@@ -25,9 +25,11 @@ Related documents:
     rendered document, the raw source document, and the undo stack. It
     orchestrates parsing, rendering, and raw/rendered sync but delegates the
     details to the helpers below.
-  - `markdownparser.{h,cpp}` — stateless Markdown parsing (headings, emphasis,
-    inline code, links, checkboxes, blockquotes, images, tables) into
-    `FormatData`, plus the table/host detection helpers used by the document.
+  - `markdownparser.{h,cpp}` — plain-text Markdown parsing (headings, emphasis,
+    inline code, links, checkboxes, blockquotes, and images) into caller-owned
+    `FormatData`; it does not access Qt document or block objects.
+  - `blockstructure.{h,cpp}` — document-aware classification of fenced code
+    blocks and GFM tables, including table layout metadata.
   - `markdownrenderer.{h,cpp}` — stateless rendering primitives (character/
     block formats, symbol hiding/revealing, code-block chrome, table rows).
   - `tabledata.{h,cpp}` — per-row table user data (row kind, columns, shared
@@ -38,8 +40,7 @@ Related documents:
     value types (`EditType`, `SelectRange`) and the format collection.
   - `markdownconnections.{h,cpp}` — single source of truth for connecting and
     disconnecting an editor to/from a document.
-  - `blockstructure.{h,cpp}` — shared scan for multi-block constructs (code
-    fences, tables) and `isBlockRendered()`.
+
 - `src/app/theme.h` — `MarkdownPalette` plus the Light/Dark style sheets; the
   palette is pushed to the editor because rendered colours live in
   `QTextCharFormat`, not in QSS.
@@ -88,8 +89,10 @@ Related documents:
 
 ### Settings
 
-- `SettingsDialog` reads and writes the established `QSettings` keys.
-  Keep existing key names stable unless a deliberate migration is included.
+- `SettingsKeys` in `src/settings/settingskeys.h` defines hierarchical
+  `QSettings` paths. Persistent settings are grouped under `editor/`,
+  `workspace/`, and `appearance/`; application code must use these constants.
+- This refactor deliberately does not migrate legacy flat keys or `config.ini`.
 - Application-wide theme application remains owned by `MainWindow`; settings
   should signal a theme change rather than duplicate global styling logic.
 

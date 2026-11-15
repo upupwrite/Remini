@@ -5,27 +5,10 @@
 #include <QPair>
 #include <QString>
 #include <QStringList>
-#include <QTextBlock>
-#include <QTextDocument>
 #include <QVector>
 #include <Qt>
 
 class FormatData;
-class TableData;
-
-// Description of one GFM pipe table found in a document.
-struct TableInfo
-{
-    bool valid = false;
-    int headerBlock = -1;
-    int delimiterBlock = -1;
-    int lastBlock = -1;
-    int columnCount = 0;
-    QVector<int> columnWidths;
-    QVector<Qt::Alignment> alignments;
-};
-
-
 
 // Result of scanning one inline Markdown image expression.
 struct MarkdownImageExpression
@@ -48,10 +31,8 @@ struct MarkdownLinkExpression
     QString title;
 };
 
-// Stateless-at-call-time Markdown parser. It turns block text into
-// FormatData fragments (and, for images, their metadata) without mutating the
-// rendered QTextDocument. The tiny per-pass location state lives inside the
-// parser instance and is reset on every identifyFormatData() call.
+// Parses Markdown from plain text and returns formatting metadata.
+// Document ownership and block classification belong to the document layer.
 class MarkdownParser
 {
 public:
@@ -63,12 +44,11 @@ public:
     // editor to continue a quote on Enter.
     static QString blockQuotePrefix(const QString &text);
 
-    // Parse one block and attach a FormatData user-data object when the block
-    // actually contains Markdown. Empty results leave userData untouched.
-    //
-    // When `existing` is supplied the caller keeps ownership and the parse is
-    // written into it; this is how a table row reuses its TableData.
-    void identifyFormatData(QTextBlock &block, FormatData *existing = nullptr);
+    // Parse plain block text. The caller owns the returned object.
+    // When existing is supplied, it is updated and returned without changing
+    // ownership. Table-specific transformations are explicit input flags.
+    FormatData *parseBlock(const QString &text, FormatData *existing = nullptr,
+                           bool tableRow = false, bool tableDelimiter = false);
 
     // A fenced code block opener/closer: up to three leading spaces followed by
     // at least three backticks. Shared by the block scanner and the editor.
@@ -88,10 +68,6 @@ public:
     // Column alignments declared by a delimiter row.
     static QVector<Qt::Alignment> tableAlignments(const QString &delimiterText);
 
-    // Inspect the document starting at `blockNumber`. Returns a valid TableInfo
-    // when a header/delimiter pair starts there.
-    static TableInfo detectTable(const QTextDocument &document,
-                                 const int blockNumber);
 
 private:
     struct FormatLocation

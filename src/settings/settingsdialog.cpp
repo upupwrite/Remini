@@ -9,6 +9,7 @@
 #include <QTimer>
 
 #include "mktextdocument.h"
+#include "settingskeys.h"
 #include "theme.h"
 #include "ui_settingsdialog.h"
 
@@ -290,16 +291,16 @@ void SettingsDialog::saveSettingsHandler()
     QSettings settings("Remini", "Remini");
     const QFont font = ui->txt_preview->font();
 
-    settings.setValue("font", font.family());
-    settings.setValue("fontsize", font.pointSize());
-    settings.setValue("stretch", font.stretch());
-    settings.setValue("weight", font.weight());
+    settings.setValue(QString::fromLatin1(SettingsKeys::FontFamily), font.family());
+    settings.setValue(QString::fromLatin1(SettingsKeys::FontSize), font.pointSize());
+    settings.setValue(QString::fromLatin1(SettingsKeys::FontStretch), font.stretch());
+    settings.setValue(QString::fromLatin1(SettingsKeys::FontWeight), font.weight());
     // Store markdown / linewrap as booleans to keep the type consistent with
     // the values written by MkEdit::disableMarkdownInternal().
-    settings.setValue("markdown", ui->cmb_mkState->currentIndex() != 0);
-    settings.setValue("linewrap", ui->cmb_lineWrap->currentIndex() != 0);
-    settings.setValue("tableHover", ui->cmb_tableHover->currentIndex());
-    settings.setValue("vaultPath", ui->edit_vaultRootPath->text());
+    settings.setValue(QString::fromLatin1(SettingsKeys::MarkdownEnabled), ui->cmb_mkState->currentIndex() != 0);
+    settings.setValue(QString::fromLatin1(SettingsKeys::LineWrapEnabled), ui->cmb_lineWrap->currentIndex() != 0);
+    settings.setValue(QString::fromLatin1(SettingsKeys::TableHoverMode), ui->cmb_tableHover->currentIndex());
+    settings.setValue(QString::fromLatin1(SettingsKeys::WorkspaceRootPath), ui->edit_vaultRootPath->text());
 
     // ------------------------------------------------------------------
     // Read the previously stored theme BEFORE overwriting it. The result
@@ -311,9 +312,9 @@ void SettingsDialog::saveSettingsHandler()
     // cost when the user only changed the font size.
     // ------------------------------------------------------------------
     const QString previousTheme =
-        settings.value(QStringLiteral("theme"), themes::dark().name).toString();
+        settings.value(QStringLiteral(QString::fromLatin1(SettingsKeys::Theme)), themes::dark().name).toString();
     const QString newTheme = ui->cmb_theme->currentText();
-    settings.setValue("theme", newTheme);
+    settings.setValue(QString::fromLatin1(SettingsKeys::Theme), newTheme);
 
     // ------------------------------------------------------------------
     // Hide the dialog before notifying the rest of the application.
@@ -371,21 +372,21 @@ void SettingsDialog::show()
     // Retrieve stored settings with sensible defaults.
     // ------------------------------------------------------------------
     const QString fontFamily =
-        settings.value("font", defaultMonospaceFont()).toString();
-    const int fontSize = settings.value("fontsize", 11).toInt();
-    const bool markdown = settings.value("markdown", true).toBool();
-    const bool linewrap = settings.value("linewrap", true).toBool();
-    const int stretch = settings.value("stretch", QFont::Unstretched).toInt();
-    const int weight = settings.value("weight", QFont::Normal).toInt();
+        settings.value(QString::fromLatin1(SettingsKeys::FontFamily), defaultMonospaceFont()).toString();
+    const int fontSize = settings.value(QString::fromLatin1(SettingsKeys::FontSize), 11).toInt();
+    const bool markdown = settings.value(QString::fromLatin1(SettingsKeys::MarkdownEnabled), true).toBool();
+    const bool linewrap = settings.value(QString::fromLatin1(SettingsKeys::LineWrapEnabled), true).toBool();
+    const int stretch = settings.value(QString::fromLatin1(SettingsKeys::FontStretch), QFont::Unstretched).toInt();
+    const int weight = settings.value(QString::fromLatin1(SettingsKeys::FontWeight), QFont::Normal).toInt();
     vaultRootPath =
-        settings.value("vaultPath", QDir::currentPath()).toString();
+        settings.value(QString::fromLatin1(SettingsKeys::WorkspaceRootPath), QDir::currentPath()).toString();
 
     // ------------------------------------------------------------------
     // Populate the simple combo boxes and path field.
     // ------------------------------------------------------------------
     ui->cmb_mkState->setCurrentIndex(markdown ? 1 : 0);
     ui->cmb_tableHover->setCurrentIndex(
-        qBound(0, settings.value("tableHover", 1).toInt(), 2));
+        qBound(0, settings.value(QString::fromLatin1(SettingsKeys::TableHoverMode), 1).toInt(), 2));
     ui->cmb_lineWrap->setCurrentIndex(linewrap ? 1 : 0);
     ui->edit_vaultRootPath->setText(vaultRootPath);
 
@@ -395,7 +396,7 @@ void SettingsDialog::show()
     // the theme. Signal blocking is already active for this widget.
     // ------------------------------------------------------------------
     const QString savedTheme =
-        settings.value(QStringLiteral("theme"), themes::dark().name).toString();
+        settings.value(QStringLiteral(QString::fromLatin1(SettingsKeys::Theme)), themes::dark().name).toString();
     const int themeIndex = ui->cmb_theme->findText(savedTheme);
     if (themeIndex >= 0)
     {

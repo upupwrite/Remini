@@ -7,6 +7,7 @@ This directory owns the Qt settings dialog and its Designer form.
 - `settingsdialog.ui` — visual layout edited with Qt Designer.
 - `settingsdialog.h` — dialog interface, signals, and slots.
 - `settingsdialog.cpp` — widget setup, preview updates, persistence, and dialog lifecycle.
+- `settingskeys.h` — centralized hierarchical `QSettings` keys used by the application.
 
 ## Settings flow
 
@@ -19,7 +20,7 @@ This directory owns the Qt settings dialog and its Designer form.
 ## Development notes
 
 - Keep the UI form focused on layout; put behavior in the dialog implementation.
-- Keep persistent setting keys stable unless adding an explicit migration. The dialog uses `font`, `fontsize`, `stretch`, `weight`, `markdown`, `linewrap`, `vaultPath`, and `theme`. `ViewsHandler` also has legacy vault-path handling through the `vault` key and optional `config.ini`; treat this as existing compatibility behavior rather than silently renaming keys.
+- Keep persistent setting keys stable unless adding an explicit migration. The application uses hierarchical keys declared in `settingskeys.h`, grouped under `editor/`, `workspace/`, and `appearance/`. This refactor intentionally removes the old flat keys and the `config.ini` override; existing settings are not migrated.
 - Use `QSignalBlocker` when restoring control values so initialization does not trigger preview or application handlers unexpectedly.
 - Theme application is intentionally deferred after acceptance because rebuilding the application style while the dialog is visible can cause unnecessary re-polishing.
-- The settings dialog currently shares a few settings concerns with `ViewsHandler`; a follow-up extraction of a dedicated settings repository would further reduce duplicated `QSettings` access.
+- Use `SettingsKeys` constants rather than introducing string literals for persistent keys. Keep settings access close to the feature that owns the value.

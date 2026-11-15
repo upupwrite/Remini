@@ -1,7 +1,6 @@
 #include "markdownparser.h"
 
 #include "formatdata.h"
-#include "tabledata.h"
 
 #include <QtGlobal>
 
@@ -651,68 +650,21 @@ QVector<Qt::Alignment> MarkdownParser::tableAlignments(
     return alignments;
 }
 
-TableInfo MarkdownParser::detectTable(const QTextDocument &document,
-                                      const int blockNumber)
-{
-    TableInfo info;
-
-    const QTextBlock header = document.findBlockByNumber(blockNumber);
-    if (!header.isValid() || !isTableRow(header.text()))
-        return info;
-
-    const QTextBlock delimiter = header.next();
-    if (!delimiter.isValid() || !isTableDelimiterRow(delimiter.text()))
-        return info;
-
-    const QStringList headerCells = tableCells(header.text());
-    const QStringList delimiterCells = tableCells(delimiter.text());
-    if (headerCells.isEmpty() || headerCells.size() != delimiterCells.size())
-        return info;
-
-    info.valid = true;
-    info.headerBlock = header.blockNumber();
-    info.delimiterBlock = delimiter.blockNumber();
-    info.columnCount = headerCells.size();
-    info.alignments = tableAlignments(delimiter.text());
-
-    info.columnWidths = QVector<int>(info.columnCount, 0);
-    auto trackWidths = [&info](const QStringList &cells)
-    {
-        const int count = qMin(cells.size(), info.columnCount);
-        for (int i = 0; i < count; ++i)
-            info.columnWidths[i] = qMax(info.columnWidths.at(i),
-                                        cells.at(i).size());
-    };
-    trackWidths(headerCells);
-
-    int last = delimiter.blockNumber();
-    for (QTextBlock row = delimiter.next(); row.isValid(); row = row.next())
-    {
-        // The table ends at the first blank line or non-row block.
-        if (!isTableRow(row.text()))
-            break;
-        // A delimiter row cannot appear twice in a row for the same table.
-        last = row.blockNumber();
-        trackWidths(tableCells(row.text()));
-    }
-
-    info.lastBlock = last;
-    return info;
-}
-
 // ---------------------------------------------------------------------------
 // Per-block Markdown detection
 // ---------------------------------------------------------------------------
-void MarkdownParser::identifyFormatData(QTextBlock &block,
-                                        FormatData *existing)
+FormatData *MarkdownParser::parseBlock(const QString &sourceText,
+                                      FormatData *existing,
+                                      bool tableRow,
+                                      bool tableDelimiter)
 {
     resetFormatLocation();
     FormatData *formatData = existing ? existing : new FormatData;
-    QString text(block.text());
+    const QString text(sourceText);
     QString textLink = text;
     QString test;
 
-    formatData->setMaskSize(block.text().size());
+    formatData->setMaskSize(text.size());
 
     int index1 = 0;
     // Blockquote markers may be nested and need no trailing space, matching
@@ -869,10 +821,10 @@ void MarkdownParser::identifyFormatData(QTextBlock &block,
     // Table rows: turn every unescaped pipe outside a code span into a tab so
     // all rows of the table line up on the shared tab stops, and hide the
     // spaces the user typed around the pipes.
-    if (auto *table = dynamic_cast<TableData *>(formatData))
+    if (tableRow)
     {
         // The delimiter row is a layout artifact: none of it is visible.
-        if (table->getRowKind() == TableData::Delimiter)
+        if (tableDelimiter && !text.isEmpty())
             formatData->addMaskRange(0, text.size() - 1);
 
         for (int i = 0; i < text.size(); ++i)
@@ -896,7 +848,6 @@ void MarkdownParser::identifyFormatData(QTextBlock &block,
                 ++right;
             }
         }
-        Q_UNUSED(table);
     }
 
     if (!formatData->isEmpty() || formatData->hasMaskedCharacters())
@@ -925,9 +876,12 @@ void MarkdownParser::identifyFormatData(QTextBlock &block,
                     QString(), QString());
             }
         }
-        if (existing == nullptr)
-            block.setUserData(formatData);
+        return formatData;
     }
+
+    if (!existing)
+        delete formatData;
+    return existing;
 }
 
 // ---------------------------------------------------------------------------
