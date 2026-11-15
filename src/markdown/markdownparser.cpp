@@ -20,12 +20,35 @@ bool isUnicodePunctuation(QChar c)
     return c.isPunct() || c.isSymbol();
 }
 
-bool isMarkdownEscaped(const QString &text, int position)
+using EscapeMap = QVector<uchar>;
+
+// Build escape information in one forward pass. Every scanner then performs
+// an O(1) lookup instead of recounting the preceding backslash run.
+EscapeMap buildEscapeMap(const QString &text)
 {
-    int backslashes = 0;
-    for (int i = position - 1; i >= 0 && text.at(i) == QLatin1Char('\\'); --i)
-        ++backslashes;
-    return (backslashes % 2) != 0;
+    EscapeMap escaped(text.size(), 0);
+    const int n = text.size();
+    for (int i = 0; i < n;)
+    {
+        if (text.at(i) != QLatin1Char('\\'))
+        {
+            ++i;
+            continue;
+        }
+
+        const int runStart = i;
+        while (i < n && text.at(i) == QLatin1Char('\\'))
+            ++i;
+
+        if (((i - runStart) & 1) != 0 && i < n)
+            escaped[i] = 1;
+    }
+    return escaped;
+}
+
+bool isMarkdownEscaped(const EscapeMap &escaped, int position)
+{
+    return position >= 0 && position < escaped.size() && escaped.at(position);
 }
 
 }  // namespace
@@ -169,7 +192,7 @@ QVector<QPair<int, int>> MarkdownParser::maskEscapedCharacters(
 // ---------------------------------------------------------------------------
 QVector<MarkdownLinkExpression> MarkdownParser::parsePlainLinks(
     const QString &text, const QVector<QPair<int, int>> &protectedRanges,
-    FormatData *formatData)
+    const EscapeMap &escaped, FormatData *formatData)
 {
     QVector<MarkdownLinkExpression> links;
     const int n = text.size();
@@ -177,7 +200,7 @@ QVector<MarkdownLinkExpression> MarkdownParser::parsePlainLinks(
 
     while (i < n)
     {
-        if (text.at(i) != QLatin1Char('[') || isMarkdownEscaped(text, i) ||
+        if (text.at(i) != QLatin1Char('[') || isMarkdownEscaped(escaped, i) ||
             isProtectedPosition(i, protectedRanges))
         {
             ++i;
@@ -196,7 +219,7 @@ QVector<MarkdownLinkExpression> MarkdownParser::parsePlainLinks(
         int titleEnd = -1;
         for (int cursor = i + 1; cursor < n; ++cursor)
         {
-            if (isMarkdownEscaped(text, cursor))
+            if (isMarkdownEscaped(escaped, cursor))
                 continue;
             const QChar c = text.at(cursor);
             if (c == QLatin1Char('['))
@@ -235,7 +258,7 @@ QVector<MarkdownLinkExpression> MarkdownParser::parsePlainLinks(
         int urlEnd = -1;
         for (int cursor = destinationStart; cursor < n; ++cursor)
         {
-            if (isMarkdownEscaped(text, cursor))
+            if (isMarkdownEscaped(escaped, cursor))
                 continue;
             const QChar c = text.at(cursor);
             if (c == QLatin1Char('('))
@@ -275,7 +298,7 @@ QVector<MarkdownLinkExpression> MarkdownParser::parsePlainLinks(
             for (int cursor = urlEnd - 2; cursor > destinationStart; --cursor)
             {
                 if (text.at(cursor) == quote &&
-                    !isMarkdownEscaped(text, cursor))
+                    !isMarkdownEscaped(escaped, cursor))
                 {
                     quoteOpen = cursor;
                     break;
@@ -311,14 +334,16 @@ QVector<MarkdownLinkExpression> MarkdownParser::parsePlainLinks(
 // ---------------------------------------------------------------------------
 // Autolinks: <https://example.com>
 // ---------------------------------------------------------------------------
-void MarkdownParser::parseAutoLinks(const QString &text, FormatData *formatData)
+void MarkdownParser::parseAutoLinks(const QString &text,
+                                    const EscapeMap &escaped,
+                                    FormatData *formatData)
 {
     const int n = text.size();
     int i = 0;
 
     while (i < n)
     {
-        if (text.at(i) != QLatin1Char('<') || isMarkdownEscaped(text, i))
+        if (text.at(i) != QLatin1Char('<') || isMarkdownEscaped(escaped, i))
         {
             ++i;
             continue;
@@ -330,7 +355,7 @@ void MarkdownParser::parseAutoLinks(const QString &text, FormatData *formatData)
             const QChar c = text.at(cursor);
             if (c.isSpace() || c == QLatin1Char('<'))
                 break;
-            if (c == QLatin1Char('>') && !isMarkdownEscaped(text, cursor))
+            if (c == QLatin1Char('>') && !isMarkdownEscaped(escaped, cursor))
             {
                 close = cursor;
                 break;
@@ -364,13 +389,14 @@ void MarkdownParser::parseAutoLinks(const QString &text, FormatData *formatData)
 // ---------------------------------------------------------------------------
 QVector<MarkdownImageExpression> MarkdownParser::parseImages(const QString &text)
 {
+    const EscapeMap escaped = buildEscapeMap(text);
     QVector<MarkdownImageExpression> images;
     int i = 0;
     while (i + 3 < text.size())
     {
         if (text.at(i) != QLatin1Char('!') ||
             text.at(i + 1) != QLatin1Char('[') ||
-            isMarkdownEscaped(text, i))
+            isMarkdownEscaped(escaped, i))
         {
             ++i;
             continue;
@@ -382,7 +408,7 @@ QVector<MarkdownImageExpression> MarkdownParser::parseImages(const QString &text
         int altEnd = -1;
         for (; cursor < text.size(); ++cursor)
         {
-            if (isMarkdownEscaped(text, cursor))
+            if (isMarkdownEscaped(escaped, cursor))
                 continue;
             const QChar c = text.at(cursor);
             if (c == QLatin1Char('['))
@@ -418,7 +444,7 @@ QVector<MarkdownImageExpression> MarkdownParser::parseImages(const QString &text
             for (; angleEnd < text.size(); ++angleEnd)
             {
                 if (text.at(angleEnd) == QLatin1Char('>') &&
-                    !isMarkdownEscaped(text, angleEnd))
+                    !isMarkdownEscaped(escaped, angleEnd))
                     break;
             }
             if (angleEnd >= text.size())
@@ -433,7 +459,7 @@ QVector<MarkdownImageExpression> MarkdownParser::parseImages(const QString &text
             for (; close < text.size(); ++close)
             {
                 const QChar c = text.at(close);
-                if (isMarkdownEscaped(text, close))
+                if (isMarkdownEscaped(escaped, close))
                     continue;
                 if (inTitle)
                 {
@@ -461,7 +487,7 @@ QVector<MarkdownImageExpression> MarkdownParser::parseImages(const QString &text
             cursor = destinationStart;
             for (; cursor < text.size(); ++cursor)
             {
-                if (isMarkdownEscaped(text, cursor))
+                if (isMarkdownEscaped(escaped, cursor))
                     continue;
                 const QChar c = text.at(cursor);
                 if (c.isSpace() && depth == 0)
@@ -490,7 +516,7 @@ QVector<MarkdownImageExpression> MarkdownParser::parseImages(const QString &text
                 for (; close < text.size(); ++close)
                 {
                     const QChar c = text.at(close);
-                    if (isMarkdownEscaped(text, close))
+                    if (isMarkdownEscaped(escaped, close))
                         continue;
                     if (inTitle)
                     {
@@ -640,6 +666,7 @@ bool MarkdownParser::isTableDelimiterRow(const QString &text)
 bool MarkdownParser::isTableRow(const QString &text)
 {
     const QString trimmed = text.trimmed();
+    const EscapeMap escaped = buildEscapeMap(trimmed);
     if (trimmed.isEmpty())
         return false;
 
@@ -647,7 +674,7 @@ bool MarkdownParser::isTableRow(const QString &text)
     for (int i = 0; i < trimmed.size(); ++i)
     {
         if (trimmed.at(i) == QLatin1Char('|') &&
-            !isMarkdownEscaped(trimmed, i))
+            !isMarkdownEscaped(escaped, i))
             return true;
     }
     return false;
@@ -714,10 +741,15 @@ FormatData *MarkdownParser::parseBlock(const QString &sourceText,
 
     insertHeadingData(text, index1, formatData);
 
+    // Build escape information once for all inline scanners in this block.
+    // This preserves QString offsets while avoiding repeated backwards scans
+    // over the same backslash runs.
+    const EscapeMap escaped = buildEscapeMap(text);
+
     // Inline code spans first, so every later scanner can skip their content
     // (`` `**literal**` `` must not become bold).
     const QVector<QPair<int, int>> codeSpanRanges =
-        parseInlineCodeSpans(text, formatData);
+        parseInlineCodeSpans(text, escaped, formatData);
 
     QVector<QPair<int, int>> protectedRanges = codeSpanRanges;
 
@@ -731,7 +763,7 @@ FormatData *MarkdownParser::parseBlock(const QString &sourceText,
     // Plain `[title](url)` links are resolved up front; the marker scan below
     // only handles the angle-bracket form `[title](<url>)`.
     const QVector<MarkdownLinkExpression> plainLinks =
-        parsePlainLinks(text, protectedRanges, formatData);
+        parsePlainLinks(text, protectedRanges, escaped, formatData);
     for (const auto &link : plainLinks)
     {
         // Protect the brackets and the destination only. The title text may
@@ -745,11 +777,11 @@ FormatData *MarkdownParser::parseBlock(const QString &sourceText,
     normalizeProtectedRanges(protectedRanges);
 
     // <https://example.com> - hidden angle brackets, clickable URL text.
-    parseAutoLinks(text, formatData);
+    parseAutoLinks(text, escaped, formatData);
 
     // CommonMark delimiter-stack emphasis parser (replaces the old
     // three-character window heuristic for *, _, ~~).
-    parseEmphasis(text, protectedRanges, formatData);
+    parseEmphasis(text, protectedRanges, escaped, formatData);
 
     int index2 = index1 + 1;
     int index3 = index2 + 1;
@@ -768,7 +800,7 @@ FormatData *MarkdownParser::parseBlock(const QString &sourceText,
             continue;
         }
 
-        if (isMarkdownEscaped(text, index1))
+        if (isMarkdownEscaped(escaped, index1))
         {
             ++index1;
             index2 = index1 + 1;
@@ -868,7 +900,7 @@ FormatData *MarkdownParser::parseBlock(const QString &sourceText,
 
         for (int i = 0; i < text.size(); ++i)
         {
-            if (text.at(i) != QLatin1Char('|') || isMarkdownEscaped(text, i) ||
+            if (text.at(i) != QLatin1Char('|') || isMarkdownEscaped(escaped, i) ||
                 isProtectedPosition(i, codeSpanRanges))
                 continue;
 
@@ -1007,6 +1039,7 @@ void MarkdownParser::insertHeadingData(const QString &text, int &index1,
 // ---------------------------------------------------------------------------
 QVector<QPair<int, int>>
 MarkdownParser::parseInlineCodeSpans(const QString &text,
+                                     const EscapeMap &escaped,
                                      FormatData *formatData)
 {
     QVector<QPair<int, int>> ranges;
@@ -1015,7 +1048,7 @@ MarkdownParser::parseInlineCodeSpans(const QString &text,
 
     while (i < n)
     {
-        if (text.at(i) != QLatin1Char('`') || isMarkdownEscaped(text, i))
+        if (text.at(i) != QLatin1Char('`') || isMarkdownEscaped(escaped, i))
         {
             ++i;
             continue;
@@ -1041,7 +1074,7 @@ MarkdownParser::parseInlineCodeSpans(const QString &text,
         int closerStart = -1;
         while (j < n)
         {
-            if (text.at(j) != QLatin1Char('`') || isMarkdownEscaped(text, j))
+            if (text.at(j) != QLatin1Char('`') || isMarkdownEscaped(escaped, j))
             {
                 ++j;
                 continue;
@@ -1109,6 +1142,7 @@ MarkdownParser::parseInlineCodeSpans(const QString &text,
 void MarkdownParser::parseEmphasis(
     const QString &text,
     const QVector<QPair<int, int>> &protectedRanges,
+    const EscapeMap &escaped,
     FormatData *formatData)
 {
     struct DelimRun
