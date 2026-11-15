@@ -44,31 +44,19 @@ jobs:
             qt6-base-dev-tools
 
       # -------------------------------------------------------------------
-      # Tests use Catch2 v3 (find_package(Catch2 3) + Catch2::Catch2). Build
-      # a pinned Catch2 v3 release from source and expose it through
-      # CMAKE_PREFIX_PATH so the version does not depend on the distro package.
-      # -------------------------------------------------------------------
-      - name: Install Catch2 v3
+      - name: Set up vcpkg
         run: |
-          catch_root="$RUNNER_TEMP/catch2"
-          catch_prefix="$RUNNER_TEMP/catch2-install"
-          git clone --depth 1 --branch v3.7.1 \
-            https://github.com/catchorg/Catch2.git "$catch_root"
-          cmake -S "$catch_root" -B "$catch_root/build" \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX="$catch_prefix" \
-            -DCATCH_BUILD_TESTING=OFF \
-            -DCATCH_INSTALL_DOCS=OFF \
-            -DCATCH_INSTALL_EXTRAS=OFF
-          cmake --build "$catch_root/build" --target install
-          echo "CATCH2_PREFIX=$catch_prefix" >> "$GITHUB_ENV"
+          vcpkg_root="$RUNNER_TEMP/vcpkg"
+          git clone --depth 1 https://github.com/microsoft/vcpkg.git "$vcpkg_root"
+          "$vcpkg_root/bootstrap-vcpkg.sh" -disableMetrics
+          echo "VCPKG_ROOT=$vcpkg_root" >> "$GITHUB_ENV"
 
       - name: Configure (CMake)
         run: |
           cmake -S . -B build \
             -G Ninja \
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
-            -DCMAKE_PREFIX_PATH="$CATCH2_PREFIX" \
+            -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" \
             -DREMINI_BUILD_BENCHMARKS=ON
 
       # Ninja is a single-config generator; do NOT pass --config here.
