@@ -829,7 +829,7 @@ FormatData *MarkdownParser::parseBlock(const QString &sourceText,
             continue;
         }
 
-        composeSymbolCombination(len, text, index1, index2, index3, test);
+        composeSymbolCombination(length, text, index1, index2, index3, test);
 
         if (test != "")
         {
