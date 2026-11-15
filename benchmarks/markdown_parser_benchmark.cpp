@@ -97,6 +97,22 @@ QVector<Workload> makeWorkloads()
             tick + "code" + tick + QStringLiteral(", __strong__, and escaped \\*markers\\*.")});
     inlineText.finalize(); all.append(inlineText);
 
+    Workload escapeHeavy;
+    escapeHeavy.name = "escape-heavy";
+    const QChar backslash = QLatin1Char('\\');
+    for (int i = 0; i < 512; ++i)
+    {
+        QString line = QStringLiteral("Escape parity workload %1: ").arg(i);
+        for (int run = 0; run < 24; ++run)
+        {
+            line += QString(1, backslash) + QStringLiteral("*escaped* ");
+            line += QString(2, backslash) + QStringLiteral("**bold** ");
+            line += QString(3, backslash) + QStringLiteral("_literal_ ");
+        }
+        escapeHeavy.lines.append({line});
+    }
+    escapeHeavy.finalize(); all.append(escapeHeavy);
+
     Workload headings;
     headings.name = "headings-and-lists";
     for (int i = 0; i < 512; ++i)
