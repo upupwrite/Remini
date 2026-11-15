@@ -26,6 +26,11 @@ using EscapeMap = QVector<uchar>;
 // an O(1) lookup instead of recounting the preceding backslash run.
 EscapeMap buildEscapeMap(const QString &text)
 {
+    // Most prose blocks contain no escapes. Avoid allocating a per-character
+    // map in that common case; an empty map means no position is escaped.
+    if (!text.contains(QLatin1Char('\\')))
+        return EscapeMap();
+
     EscapeMap escaped(text.size(), 0);
     const int n = text.size();
     for (int i = 0; i < n;)
@@ -880,16 +885,9 @@ FormatData *MarkdownParser::parseBlock(const QString &sourceText,
     const auto imageMatches = parseImages(text);
     for (const auto &match : imageMatches)
     {
-        bool insideCodeSpan = false;
-        for (const auto &range : codeSpanRanges)
-        {
-            if (match.start >= range.first && match.start <= range.second)
-            {
-                insideCodeSpan = true;
-                break;
-            }
-        }
-        if (insideCodeSpan)
+        // Code-span ranges are ordered and disjoint, so reuse the same
+        // logarithmic range lookup as the other inline scanners.
+        if (isProtectedPosition(match.start, codeSpanRanges))
             continue;
 
         formatData->addImageFormat(match.start, match.end - 1,
