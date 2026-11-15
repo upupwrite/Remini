@@ -726,6 +726,7 @@ FormatData *MarkdownParser::parseBlock(const QString &sourceText,
     const QVector<QPair<int, int>> escapedRanges =
         maskEscapedCharacters(text, formatData);
     protectedRanges += escapedRanges;
+    normalizeProtectedRanges(protectedRanges);
 
     // Plain `[title](url)` links are resolved up front; the marker scan below
     // only handles the angle-bracket form `[title](<url>)`.
