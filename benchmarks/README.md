@@ -10,7 +10,7 @@ make normal CI pass/fail decisions.
 Configure from the repository root:
 
 ```sh
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DREMINI_BUILD_BENCHMARKS=ON
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DREMINI_BUILD_BENCHMARKS=ON -DBUILD_TESTING=OFF
 cmake --build build --target MarkdownParserBenchmark --parallel
 ```
 
@@ -21,6 +21,9 @@ require Catch2. A Release build is recommended for performance comparisons.
 
 ```sh
 ./build/benchmarks/MarkdownParserBenchmark
+
+# Headless Linux sessions can use the offscreen Qt platform plugin
+QT_QPA_PLATFORM=offscreen ./build/benchmarks/MarkdownParserBenchmark --filter plain-prose
 ```
 
 Options:
