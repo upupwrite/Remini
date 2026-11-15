@@ -8,6 +8,7 @@
 #include "blockdata.h"
 #include "blockstructure.h"
 #include "linedata.h"
+#include "settingskeys.h"
 
 // ---------------------------------------------------------------------------
 // Clamp a document position to the valid range [0, characterCount - 1].
@@ -92,7 +93,7 @@ MkEdit::MkEdit(QWidget *parent) : QTextEdit(parent)
 
     // Hover reveal is per-editor state, persisted across restarts.
     QSettings startupSettings("Remini", "Remini");
-    setTableHoverMode(startupSettings.value("tableHover", 1).toInt());
+    setTableHoverMode(startupSettings.value(QString::fromLatin1(SettingsKeys::TableHoverMode), 1).toInt());
 
 }
 
@@ -256,7 +257,7 @@ void MkEdit::wheelEvent(QWheelEvent *e)
         this->ensureCursorVisible();
 
         QSettings settings("Remini", "Remini");
-        settings.setValue("fontsize", this->currentFont().pointSizeF());
+        settings.setValue(QString::fromLatin1(SettingsKeys::FontSize), this->currentFont().pointSizeF());
 
         // Table column stops are measured in pixels from the current font, so a
         // zoom needs a fresh measurement to stay aligned.
@@ -1582,9 +1583,9 @@ void MkEdit::fileSaveHandle() { fileSaveWithScroll(); }
 void MkEdit::disableMarkdownInternal()
 {
     QSettings settings("Remini", "Remini");
-    bool markdownStatus = settings.value("markdown", true).toBool();
+    bool markdownStatus = settings.value(QString::fromLatin1(SettingsKeys::MarkdownEnabled), true).toBool();
     setMkState(!markdownStatus);
-    settings.setValue("markdown", !markdownStatus);
+    settings.setValue(QString::fromLatin1(SettingsKeys::MarkdownEnabled), !markdownStatus);
 }
 
 void MkEdit::lineWrapHandler()
@@ -1685,7 +1686,7 @@ void MkEdit::setTableHoverMode(int mode)
     tableHoverAction.setChecked(tableHover == 2);
 
     QSettings settings("Remini", "Remini");
-    settings.setValue("tableHover", tableHover);
+    settings.setValue(QString::fromLatin1(SettingsKeys::TableHoverMode), tableHover);
 
     if (auto *mkDoc = dynamic_cast<MkTextDocument *>(this->document()))
         mkDoc->setHoverWholeTable(tableHover == 2);

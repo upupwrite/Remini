@@ -5,6 +5,55 @@
 #include "linedata.h"
 #include "markdownparser.h"
 
+namespace {
+
+bool detectTable(const QTextDocument &document, int blockNumber,
+                 BlockStructure &structure)
+{
+    const QTextBlock header = document.findBlockByNumber(blockNumber);
+    if (!header.isValid() || !MarkdownParser::isTableRow(header.text()))
+        return false;
+
+    const QTextBlock delimiter = header.next();
+    if (!delimiter.isValid() ||
+        !MarkdownParser::isTableDelimiterRow(delimiter.text()))
+        return false;
+
+    const QStringList headerCells = MarkdownParser::tableCells(header.text());
+    const QStringList delimiterCells =
+        MarkdownParser::tableCells(delimiter.text());
+    if (headerCells.isEmpty() || headerCells.size() != delimiterCells.size())
+        return false;
+
+    structure.kind = BlockStructure::Kind::Table;
+    structure.firstBlock = header.blockNumber();
+    structure.columnCount = headerCells.size();
+    structure.alignments = MarkdownParser::tableAlignments(delimiter.text());
+    structure.columnWidths = QVector<int>(structure.columnCount, 0);
+
+    auto trackWidths = [&structure](const QStringList &cells) {
+        const int count = qMin(cells.size(), structure.columnCount);
+        for (int i = 0; i < count; ++i)
+            structure.columnWidths[i] =
+                qMax(structure.columnWidths.at(i), cells.at(i).size());
+    };
+    trackWidths(headerCells);
+
+    int lastBlock = delimiter.blockNumber();
+    for (QTextBlock row = delimiter.next(); row.isValid(); row = row.next())
+    {
+        if (!MarkdownParser::isTableRow(row.text()))
+            break;
+        lastBlock = row.blockNumber();
+        trackWidths(MarkdownParser::tableCells(row.text()));
+    }
+
+    structure.lastBlock = lastBlock;
+    return true;
+}
+
+}  // namespace
+
 BlockStructureScanner::BlockStructureScanner(const QTextDocument &document)
     : document(document)
 {
@@ -47,20 +96,12 @@ QVector<BlockStructure> BlockStructureScanner::scan() const
         if (insideFence)
             continue;
 
-        const TableInfo table = MarkdownParser::detectTable(document, blockNo);
-        if (!table.valid)
+        BlockStructure structure;
+        if (!detectTable(document, blockNo, structure))
             continue;
 
-        BlockStructure structure;
-        structure.kind = BlockStructure::Kind::Table;
-        structure.firstBlock = table.headerBlock;
-        structure.lastBlock = table.lastBlock;
-        structure.columnCount = table.columnCount;
-        structure.columnWidths = table.columnWidths;
-        structure.alignments = table.alignments;
         structures.append(structure);
-
-        blockNo = table.lastBlock;
+        blockNo = structure.lastBlock;
     }
 
     // An unterminated fence is not a structure: it must stay visible while the

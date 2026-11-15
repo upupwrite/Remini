@@ -388,7 +388,7 @@ void MkTextDocument::applyMkSingleBlockHandle(int blockNumber)
         if (fresh->getRowKind() == TableData::Delimiter)
             fresh->addMaskRange(0, textLength - 1);
         else
-            parser.identifyFormatData(block, fresh);
+            parser.parseBlock(block.text(), fresh, true, false);
     }
     else
     {
@@ -401,7 +401,7 @@ void MkTextDocument::applyMkSingleBlockHandle(int blockNumber)
             LineData *lineData = new LineData;
             block.setUserData(lineData);
         }
-        parser.identifyFormatData(block);
+        block.setUserData(parser.parseBlock(block.text()));
     }
 
     this->selectRange.hideBlocks.erase(blockNumber);
@@ -491,7 +491,7 @@ void MkTextDocument::identifyUserData()
                 continue;
             }
 
-            parser.identifyFormatData(block, table);
+            parser.parseBlock(block.text(), table, true, false);
             continue;
         }
 
@@ -501,7 +501,7 @@ void MkTextDocument::identifyUserData()
             continue;
         }
 
-        parser.identifyFormatData(block);
+        block.setUserData(parser.parseBlock(block.text()));
     }
 }
 
@@ -1123,11 +1123,11 @@ void MkTextDocument::showMKSymbolsFromCurrentSelectedBlocks(
                 {
                     freshTable->setMaskSize(line.size());
                     block.setUserData(freshTable);
-                    parser.identifyFormatData(block, freshTable);
+                    parser.parseBlock(block.text(), freshTable, true, false);
                 }
                 else
                 {
-                    parser.identifyFormatData(block);
+                    block.setUserData(parser.parseBlock(block.text()));
                 }
 
                 FormatData *newData =

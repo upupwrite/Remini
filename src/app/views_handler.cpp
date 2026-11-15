@@ -1,5 +1,6 @@
 #include "views_handler.h"
 #include "markdownconnections.h"
+#include "settingskeys.h"
 
 #include <QAbstractButton>
 #include <QApplication>
@@ -46,47 +47,32 @@ static QString defaultUiFont()
 
 QString ViewsHandler::getVaultPath()
 {
-    QFile configFile(QStringLiteral("config.ini"));
-    if (configFile.exists())
-    {
-        QSettings settings(QStringLiteral("config.ini"), QSettings::IniFormat);
-        return settings.value(QStringLiteral("vault")).toString();
-    }
-
     QCoreApplication::setApplicationName(QStringLiteral("Remini"));
     QSettings settings(QStringLiteral("Remini"), QStringLiteral("Remini"));
 
-    QString path = settings.value(QStringLiteral("vault")).toString();
-    markdown = settings.value(QStringLiteral("markdown"), true).toBool();
+    QString path = settings.value(
+        QString::fromLatin1(SettingsKeys::WorkspaceRootPath)).toString();
+    markdown = settings.value(
+        QString::fromLatin1(SettingsKeys::MarkdownEnabled), true).toBool();
 
-    QFile configAnotherFile(path);
-    if (configAnotherFile.exists())
+    if (!path.isEmpty() && QDir(path).exists())
         return path;
 
     const QString localVaultPath = QCoreApplication::applicationDirPath() +
                                    QDir::separator() + QStringLiteral("Vault");
-
     QDir dir;
     if (!dir.exists(localVaultPath))
-        dir.mkdir(localVaultPath);
+        dir.mkpath(localVaultPath);
 
-    settings.setValue(QStringLiteral("vault"), localVaultPath);
+    settings.setValue(QString::fromLatin1(SettingsKeys::WorkspaceRootPath),
+                      localVaultPath);
     return localVaultPath;
 }
 
 void ViewsHandler::setVaultPath(const QString &path)
 {
-    QFile configFile(QStringLiteral("config.ini"));
-    if (configFile.exists())
-    {
-        QSettings settings(QStringLiteral("config.ini"), QSettings::IniFormat);
-        settings.setValue(QStringLiteral("vault"), path);
-    }
-    else
-    {
-        QSettings settings(QStringLiteral("Remini"), QStringLiteral("Remini"));
-        settings.setValue(QStringLiteral("vault"), path);
-    }
+    QSettings settings(QStringLiteral("Remini"), QStringLiteral("Remini"));
+    settings.setValue(QString::fromLatin1(SettingsKeys::WorkspaceRootPath), path);
 }
 
 void ViewsHandler::initViews(Ui::MainWindow &ui)
@@ -168,11 +154,11 @@ void ViewsHandler::initFontDefault()
     QSettings settings(QStringLiteral("Remini"), QStringLiteral("Remini"));
     QFont font;
     font.setFamily(
-        settings.value(QStringLiteral("font"), defaultUiFont()).toString());
-    font.setPointSize(settings.value(QStringLiteral("fontsize"), 14).toInt());
-    font.setStretch(settings.value(QStringLiteral("stretch"), 0).toInt());
+        settings.value(QStringLiteral(QString::fromLatin1(SettingsKeys::FontFamily)), defaultUiFont()).toString());
+    font.setPointSize(settings.value(QStringLiteral(QString::fromLatin1(SettingsKeys::FontSize)), 14).toInt());
+    font.setStretch(settings.value(QStringLiteral(QString::fromLatin1(SettingsKeys::FontStretch)), 0).toInt());
     font.setWeight(static_cast<QFont::Weight>(
-        settings.value(QStringLiteral("weight"), 1).toInt()));
+        settings.value(QStringLiteral(QString::fromLatin1(SettingsKeys::FontWeight)), 1).toInt()));
 
     updateUiSettingsHandler(font);
 }
@@ -340,15 +326,15 @@ ViewsHandler::DOCUMENT_STATUS ViewsHandler::setCurrentDocument(
 
     QSettings settings(QStringLiteral("Remini"), QStringLiteral("Remini"));
     const QString fontFamily =
-        settings.value(QStringLiteral("font"), defaultMonospaceFont())
+        settings.value(QStringLiteral(QString::fromLatin1(SettingsKeys::FontFamily)), defaultMonospaceFont())
             .toString();
-    const int fontSize = settings.value(QStringLiteral("fontsize"), 11).toInt();
+    const int fontSize = settings.value(QStringLiteral(QString::fromLatin1(SettingsKeys::FontSize)), 11).toInt();
     const bool markdown =
         settings.value(QStringLiteral("markdown"), true).toBool();
     const int stretch =
-        settings.value(QStringLiteral("stretch"), QFont::Unstretched).toInt();
+        settings.value(QStringLiteral(QString::fromLatin1(SettingsKeys::FontStretch)), QFont::Unstretched).toInt();
     const int weight =
-        settings.value(QStringLiteral("weight"), QFont::Normal).toInt();
+        settings.value(QStringLiteral(QString::fromLatin1(SettingsKeys::FontWeight)), QFont::Normal).toInt();
 
     QFont font(fontFamily, fontSize, weight, false);
     font.setStretch(stretch);

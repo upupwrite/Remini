@@ -12,13 +12,13 @@ Layout and ownership rules: [../../docs/architecture.md](../../docs/architecture
 | --- | --- |
 | `mkedit.{h,cpp}` | `QTextEdit` subclass: key handling, block painting, context menu, mouse hit-testing, undo snapshot capture. |
 | `mktextdocument.{h,cpp}` | `QTextDocument` subclass: owns the rendered document, the raw source document, the undo stack, and the hide/show orchestration. |
-| `markdownparser.{h,cpp}` | Stateless parsing of one block into `FormatData` (headings, emphasis, code spans, links, checkboxes, blockquotes, images). |
+| `markdownparser.{h,cpp}` | Plain-text Markdown parsing into caller-owned `FormatData`; it has no dependency on `QTextBlock`, `QTextDocument`, or document user data. |
 | `markdownrenderer.{h,cpp}` | Stateless rendering primitives: character/block formats, symbol hiding/revealing, code-block chrome, hit-test registration. |
 | `blockrenderer.h` | `BlockRenderSupport` range validation and inclusive→exclusive conversion. The only place that does that conversion. |
 | `formatdata.{h,cpp}` | Per-block parse result: fragments, hidden-character mask, link/image metadata, blockquote depth. |
 | `blockdata.{h,cpp}` | User data for fenced code blocks (`start` / `content` / `end`). |
 | `tabledata.{h,cpp}` | Per-row user data for GFM pipe tables: row kind, column count, alignments, shared tab stops, table block range. Derives from `FormatData`. |
-| `blockstructure.{h,cpp}` | One pass that finds every multi-block construct (code fences, tables) plus `isBlockRendered()`. |
+| `blockstructure.{h,cpp}` | Document-aware scan for multi-block constructs (code fences and tables), plus `isBlockRendered()`. |
 | `linedata.{h,cpp}` | User data for horizontal rules. |
 | `blocksupport.h` | Common `getStart()` / `getEnd()` contract. |
 | `editcommand.{h,cpp}` | Undo/redo commands plus `EditSnapshot` / `EditRestore` value types. |
@@ -41,7 +41,7 @@ Layout and ownership rules: [../../docs/architecture.md](../../docs/architecture
 
 ## Rules for changes
 
-1. The parser only *marks* characters; it never edits text.
+1. The parser accepts plain block text and only *marks* characters; it never edits text or accesses a document. The caller owns and attaches the returned `FormatData`.
 2. Never convert inclusive spans to `QTextCursor` positions outside
    `BlockRenderer`.
 3. Keep `mask.size()` equal to the *source* block length.
