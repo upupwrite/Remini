@@ -92,6 +92,10 @@ private:
     // nesting depth (number of '>' markers).
     static int blockQuoteMarkerEnd(const QString &text, int &depth);
 
+    // Shared image scanner entry point lets parseBlock reuse its escape map.
+    static QVector<MarkdownImageExpression> parseImages(
+        const QString &text, const QVector<uchar> &escaped);
+
     // Plain-parenthesis links `[title](url)`. The angle-bracket form
     // `[title](<url>)` is handled by the marker scan in
     // parseBlock(); these are collected separately and protected from
