@@ -312,7 +312,7 @@ void SettingsDialog::saveSettingsHandler()
     // cost when the user only changed the font size.
     // ------------------------------------------------------------------
     const QString previousTheme =
-        settings.value(QStringLiteral(QString::fromLatin1(SettingsKeys::Theme)), themes::dark().name).toString();
+        settings.value(QString::fromLatin1(SettingsKeys::Theme), themes::dark().name).toString();
     const QString newTheme = ui->cmb_theme->currentText();
     settings.setValue(QString::fromLatin1(SettingsKeys::Theme), newTheme);
 
@@ -396,7 +396,7 @@ void SettingsDialog::show()
     // the theme. Signal blocking is already active for this widget.
     // ------------------------------------------------------------------
     const QString savedTheme =
-        settings.value(QStringLiteral(QString::fromLatin1(SettingsKeys::Theme)), themes::dark().name).toString();
+        settings.value(QString::fromLatin1(SettingsKeys::Theme), themes::dark().name).toString();
     const int themeIndex = ui->cmb_theme->findText(savedTheme);
     if (themeIndex >= 0)
     {
