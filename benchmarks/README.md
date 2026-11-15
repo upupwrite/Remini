@@ -66,6 +66,7 @@ Examples:
 
 - Plain prose: ordinary paragraphs without Markdown syntax.
 - Inline formatting: emphasis, strong text, strikethrough, code spans, and escapes.
+- Escape-heavy: repeated odd/even backslash runs around Markdown delimiters, targeting escape-map construction and lookup costs.
 - Headings and lists: ATX headings, task checkboxes, and nested blockquotes.
 - Links and images: inline links, autolinks, image destinations, and titles.
 - GFM tables: header, delimiter, and body rows with pipe replacement.
