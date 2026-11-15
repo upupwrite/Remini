@@ -67,6 +67,7 @@ add_executable(${PROJECT_NAME}
     editcommand_tests.cpp
     NavigationView_Tests.cpp
     RecentFilesDialog_Tests.cpp
+    markdownparser_tests.cpp
 
     ${MARKDOWN_DIR}/blockdata.cpp
     ${MARKDOWN_DIR}/blocksupport.h
