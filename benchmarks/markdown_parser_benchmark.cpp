@@ -4,6 +4,10 @@
 
 #include <QGuiApplication>
 #include <QElapsedTimer>
+#include <QByteArray>
+#ifdef REMINI_BENCHMARK_HAS_MD4C
+#include <md4c.h>
+#endif
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -25,6 +29,7 @@ struct Workload
     QString name;
     QVector<Line> lines;
     QString source;
+    QByteArray sourceUtf8;
     qint64 characters = 0;
     qint64 bytes = 0;
 
@@ -33,12 +38,11 @@ struct Workload
         QStringList rows;
         rows.reserve(lines.size());
         for (const Line &line : lines)
-        {
             rows.append(line.text);
-            characters += line.text.size();
-            bytes += line.text.toUtf8().size();
-        }
         source = rows.join(QLatin1Char('\n'));
+        sourceUtf8 = source.toUtf8();
+        characters = source.size();
+        bytes = sourceUtf8.size();
     }
 };
 
@@ -199,6 +203,7 @@ void applyWorkloadScale(QVector<Workload> &workloads, int scale)
         workload.characters = 0;
         workload.bytes = 0;
         workload.source.clear();
+        workload.sourceUtf8.clear();
         workload.finalize();
     }
 }
@@ -241,6 +246,69 @@ bool optionsFromArgs(const QStringList &args, Options &o)
     }
     return true;
 }
+
+
+#ifdef REMINI_BENCHMARK_HAS_MD4C
+int md4cEnterBlock(MD_BLOCKTYPE, void *, void *userdata)
+{
+    ++*static_cast<quint64 *>(userdata);
+    return 0;
+}
+
+int md4cLeaveBlock(MD_BLOCKTYPE, void *, void *userdata)
+{
+    ++*static_cast<quint64 *>(userdata);
+    return 0;
+}
+
+int md4cEnterSpan(MD_SPANTYPE, void *, void *userdata)
+{
+    ++*static_cast<quint64 *>(userdata);
+    return 0;
+}
+
+int md4cLeaveSpan(MD_SPANTYPE, void *, void *userdata)
+{
+    ++*static_cast<quint64 *>(userdata);
+    return 0;
+}
+
+int md4cText(MD_TEXTTYPE, const MD_CHAR *, MD_SIZE, void *userdata)
+{
+    ++*static_cast<quint64 *>(userdata);
+    return 0;
+}
+
+quint64 md4cFullDocument(const Workload &workload, int passes)
+{
+    if (static_cast<quint64>(workload.sourceUtf8.size()) >
+        static_cast<quint64>(std::numeric_limits<MD_SIZE>::max()))
+        return 0;
+
+    MD_PARSER parser{};
+    // Match the extensions exercised by the shared corpus. This deliberately
+    // avoids enabling MD4C-only extensions that Remini does not benchmark.
+    parser.flags = MD_FLAG_TABLES | MD_FLAG_STRIKETHROUGH |
+                   MD_FLAG_TASKLISTS | MD_FLAG_PERMISSIVEAUTOLINKS;
+    parser.enter_block = md4cEnterBlock;
+    parser.leave_block = md4cLeaveBlock;
+    parser.enter_span = md4cEnterSpan;
+    parser.leave_span = md4cLeaveSpan;
+    parser.text = md4cText;
+
+    quint64 events = 0;
+    for (int pass = 0; pass < passes; ++pass)
+    {
+        const int status = md_parse(
+            workload.sourceUtf8.constData(),
+            static_cast<MD_SIZE>(workload.sourceUtf8.size()),
+            &parser, &events);
+        if (status != 0)
+            return 0;
+    }
+    return events;
+}
+#endif
 
 quint64 parseOnly(const Workload &w, int passes)
 {
@@ -301,6 +369,9 @@ Result runBenchmark(const Workload &w, const QString &stage,
     r.characters = w.characters; r.bytes = w.bytes;
     auto run = [&]() -> quint64 {
         if (stage == "parse-only") return parseOnly(w, o.passes);
+#ifdef REMINI_BENCHMARK_HAS_MD4C
+        if (stage == "md4c-full-document") return md4cFullDocument(w, o.passes);
+#endif
         if (stage == "structure-scan") return scanOnly(document, o.passes);
         return documentPipeline(document, o.passes);
     };
@@ -369,7 +440,11 @@ void output(const QVector<Result> &results, const Options &o)
     if (o.format == "json")
     {
         QJsonObject root;
-        root.insert("benchmark", "Remini Markdown parser");
+        root.insert("benchmark", "Remini Markdown parser and MD4C comparison");
+#ifdef REMINI_BENCHMARK_HAS_MD4C
+        root.insert("md4c_version", "0.6.0");
+        root.insert("md4c_dialect", "tables,strikethrough,tasklists,permissive-autolinks");
+#endif
         root.insert("qt_version", QT_VERSION_STR);
 #ifdef REMINI_BENCHMARK_BUILD_CONFIG
         root.insert("build_config", REMINI_BENCHMARK_BUILD_CONFIG);
@@ -405,7 +480,7 @@ void output(const QVector<Result> &results, const Options &o)
         return;
     }
 
-    out << "Remini Markdown parser | Qt " << QT_VERSION_STR
+    out << "Remini Markdown parser comparison | Qt " << QT_VERSION_STR
         << " | profile=" << o.profile << " (" << o.workloadScale << "x)"
         << " | samples=" << o.samples << " warmup=" << o.warmup
         << " passes/sample=" << o.passes << "\n\n";
@@ -448,6 +523,9 @@ int main(int argc, char *argv[])
         results.append(runBenchmark(w, "parse-only", options, document));
         results.append(runBenchmark(w, "structure-scan", options, document));
         results.append(runBenchmark(w, "document-pipeline", options, document));
+#ifdef REMINI_BENCHMARK_HAS_MD4C
+        results.append(runBenchmark(w, "md4c-full-document", options, document));
+#endif
     }
     if (results.isEmpty())
     {
