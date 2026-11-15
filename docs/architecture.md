@@ -56,7 +56,7 @@ Related documents:
 
 ### Markdown rendering
 
-- `MarkdownParser::identifyFormatData` decides which Markdown formatting
+- `MarkdownParser::parseBlock` decides which Markdown formatting
   applies to a block and produces the `FormatData` fragments.
 - `MarkdownRenderer::applyMkFormat` applies one fragment's character/block
   format after its range has passed validation. It does not parse Markdown or
