@@ -18,3 +18,7 @@ target_link_libraries(MarkdownParserBenchmark PRIVATE
 )
 
 target_compile_features(MarkdownParserBenchmark PRIVATE cxx_std_17)
+
+target_compile_definitions(MarkdownParserBenchmark PRIVATE
+    REMINI_BENCHMARK_BUILD_CONFIG="$<CONFIG>"
+)
