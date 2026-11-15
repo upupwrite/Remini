@@ -401,7 +401,12 @@ void MarkdownParser::parseAutoLinks(const QString &text,
 // ---------------------------------------------------------------------------
 QVector<MarkdownImageExpression> MarkdownParser::parseImages(const QString &text)
 {
-    const EscapeMap escaped = buildEscapeMap(text);
+    return parseImages(text, buildEscapeMap(text));
+}
+
+QVector<MarkdownImageExpression> MarkdownParser::parseImages(
+    const QString &text, const QVector<uchar> &escaped)
+{
     QVector<MarkdownImageExpression> images;
     int i = 0;
     while (i + 3 < text.size())
@@ -882,7 +887,7 @@ FormatData *MarkdownParser::parseBlock(const QString &sourceText,
     // Images participate in the same per-block fragment collection as
     // emphasis, links, and inline code. Protect image-like text inside code
     // spans while supporting valid destinations with spaces and parentheses.
-    const auto imageMatches = parseImages(text);
+    const auto imageMatches = parseImages(text, escaped);
     for (const auto &match : imageMatches)
     {
         // Code-span ranges are ordered and disjoint, so reuse the same
