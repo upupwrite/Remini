@@ -47,7 +47,7 @@ MainWindow::MainWindow(QWidget *parent)
     // ------------------------------------------------------------------
     QSettings settings(QStringLiteral("Remini"), QStringLiteral("Remini"));
     const QString savedTheme =
-        settings.value(QStringLiteral(QString::fromLatin1(SettingsKeys::Theme)), themes::dark().name).toString();
+        settings.value(QString::fromLatin1(SettingsKeys::Theme), themes::dark().name).toString();
     applyThemeByName(savedTheme);
 
     rightShiftTimer = new QTimer(this);
