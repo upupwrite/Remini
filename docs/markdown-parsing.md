@@ -6,7 +6,8 @@ how the original source is preserved for saving.
 
 It is the reference for anyone changing syntax support. For the module layout
 see [architecture.md](architecture.md); for build and test setup see
-[build-and-packaging.md](build-and-packaging.md).
+[build-and-packaging.md](build-and-packaging.md). For reproducible parser
+performance measurements, see [the benchmark guide](../benchmarks/README.md).
 
 ---
 
