@@ -76,7 +76,8 @@ jobs:
       run: |
         cmake -S . -B Build -DCMAKE_BUILD_TYPE=Release `
           -DQt6_DIR="$env:QT_DIR" `
-          -DCMAKE_PREFIX_PATH="$env:CATCH2_PREFIX"
+          -DCMAKE_PREFIX_PATH="$env:CATCH2_PREFIX" `
+          -DREMINI_BUILD_BENCHMARKS=ON
 
     - name: Build the Qt project with CMake
       run: cmake --build Build --config Release
@@ -87,6 +88,7 @@ jobs:
         & "$env:QT_DIR\bin\windeployqt.exe" `
           --no-translations `
           "Build\Release\Remini.exe"
+        & "$env:QT_DIR\bin\windeployqt.exe" --no-translations "Build\benchmarks\Release\MarkdownParserBenchmark.exe"
 
     # ---------------------------------------------------------------------
     # Test target name is `CatchTests` (defined in CatchTests/CMakeLists.txt
@@ -105,3 +107,8 @@ jobs:
         Get-ChildItem
         & "$env:QT_DIR\bin\windeployqt.exe" --no-translations CatchTests.exe
         .\CatchTests.exe
+
+    - name: Smoke-test Markdown parser benchmark
+      shell: pwsh
+      run: |
+        & "Build\benchmarks\Release\MarkdownParserBenchmark.exe" --filter plain-prose --iterations 2 --warmup 1 --passes 1 --format json
