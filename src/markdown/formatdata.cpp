@@ -327,6 +327,19 @@ int FormatData::collapsedCharsBefore(const int sourcePos) const
 
 int FormatData::totalCollapsedChars() const
 {
+    // The benchmark and renderer commonly ask for the total only once. Avoid
+    // building a source-length prefix table unless hidden-format mapping
+    // actually needs repeated prefix queries.
+    if (positionIndexesDirty)
+    {
+        int collapsed = 0;
+        for (const FragmentData *fragment : formats)
+        {
+            if (fragment->getStatus() == FragmentData::IMAGE)
+                collapsed += qMax(0, fragment->getEnd() - fragment->getStart());
+        }
+        return collapsed;
+    }
     return collapsedCharsBefore(mask.size());
 }
 
