@@ -23,7 +23,7 @@ find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets Gui Test)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Gui Test)
 
 # Catch2 is supplied by the repository's vcpkg manifest.
-find_package(Catch2 3 CONFIG REQUIRED)
+find_package(Catch2 3.7.1 CONFIG REQUIRED)
 
 add_executable(${PROJECT_NAME}
     main.cpp
