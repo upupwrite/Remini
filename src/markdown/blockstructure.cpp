@@ -5,6 +5,8 @@
 #include "linedata.h"
 #include "markdownparser.h"
 
+#include <QtGlobal>
+
 namespace {
 
 bool detectTable(const QTextDocument &document, int blockNumber,

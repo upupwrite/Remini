@@ -330,7 +330,7 @@ ViewsHandler::DOCUMENT_STATUS ViewsHandler::setCurrentDocument(
             .toString();
     const int fontSize = settings.value(QStringLiteral(QString::fromLatin1(SettingsKeys::FontSize)), 11).toInt();
     const bool markdown =
-        settings.value(QStringLiteral("markdown"), true).toBool();
+        settings.value(QString::fromLatin1(SettingsKeys::MarkdownEnabled), true).toBool();
     const int stretch =
         settings.value(QStringLiteral(QString::fromLatin1(SettingsKeys::FontStretch)), QFont::Unstretched).toInt();
     const int weight =
@@ -436,7 +436,7 @@ void ViewsHandler::updateUiSettingsHandler(const QFont &font)
 {
     QSettings settings(QStringLiteral("Remini"), QStringLiteral("Remini"));
     QString vaultPath = settings.value(QStringLiteral("vaultPath")).toString();
-    bool markdown = settings.value(QStringLiteral("markdown"), true).toBool();
+    bool markdown = settings.value(QString::fromLatin1(SettingsKeys::MarkdownEnabled), true).toBool();
     bool linewrap= settings.value(QStringLiteral("linewrap"),true).toBool();
     fontBase = font;
     viewText->setFont(fontBase);
