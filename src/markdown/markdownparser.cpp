@@ -912,10 +912,18 @@ FormatData *MarkdownParser::parseBlock(const QString &sourceText,
         if (tableDelimiter && !text.isEmpty())
             formatData->addMaskRange(0, text.size() - 1);
 
+        int codeSpanRangeIndex = 0;
         for (int i = 0; i < text.size(); ++i)
         {
-            if (text.at(i) != QLatin1Char('|') || isMarkdownEscaped(escaped, i) ||
-                isProtectedPosition(i, codeSpanRanges))
+            while (codeSpanRangeIndex < codeSpanRanges.size() &&
+                   codeSpanRanges.at(codeSpanRangeIndex).second < i)
+                ++codeSpanRangeIndex;
+
+            const bool insideCodeSpan =
+                codeSpanRangeIndex < codeSpanRanges.size() &&
+                codeSpanRanges.at(codeSpanRangeIndex).first <= i;
+            if (text.at(i) != QLatin1Char('|') ||
+                isMarkdownEscaped(escaped, i) || insideCodeSpan)
                 continue;
 
             formatData->addCharacterReplacement(i, QLatin1Char('\t'));
