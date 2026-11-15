@@ -112,3 +112,5 @@ jobs:
       shell: pwsh
       run: |
         & "Build\benchmarks\Release\MarkdownParserBenchmark.exe" --filter plain-prose --iterations 2 --warmup 1 --passes 1 --format json
+        & "Build\benchmarks\Release\MarkdownParserBenchmark.exe" --profile stress --filter plain-prose --iterations 1 --warmup 0 --passes 1 --format json
+        & "Build\benchmarks\Release\MarkdownParserBenchmark.exe" --profile high-pressure --filter plain-prose --iterations 1 --warmup 0 --passes 1 --format json
