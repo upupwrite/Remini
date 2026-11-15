@@ -68,7 +68,8 @@ jobs:
           cmake -S . -B build \
             -G Ninja \
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
-            -DCMAKE_PREFIX_PATH="$CATCH2_PREFIX"
+            -DCMAKE_PREFIX_PATH="$CATCH2_PREFIX" \
+            -DREMINI_BUILD_BENCHMARKS=ON
 
       # Ninja is a single-config generator; do NOT pass --config here.
       # CMAKE_BUILD_TYPE was already provided at configure time.
@@ -77,3 +78,6 @@ jobs:
 
       - name: Run tests
         run: ctest --test-dir build --output-on-failure
+
+      - name: Smoke-test Markdown parser benchmark
+        run: ./build/benchmarks/MarkdownParserBenchmark --filter plain-prose --iterations 2 --warmup 1 --passes 1 --format json
