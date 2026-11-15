@@ -30,6 +30,7 @@ void FormatData::addFormat(const int start, const int end,
                            const QString &symbol, const QString *linkUrl,
                            const QString *linkTitle)
 {
+    invalidatePositionIndexes();
     FragmentData::FormatSymbol status = FragmentData::BOLD;
 
     if (symbol == HEADING1_SYMBOL || symbol == HEADING2_SYMBOL ||
@@ -171,7 +172,11 @@ void FormatData::insertLinkText(int key, QString *linkText)
     linkMap.insert(key, linkText);
 }
 
-void FormatData::setMaskSize(const int size) { mask.resize(size); }
+void FormatData::setMaskSize(const int size)
+{
+    mask.resize(size);
+    invalidatePositionIndexes();
+}
 
 const QBitArray &FormatData::getMask() const { return mask; }
 
@@ -183,6 +188,8 @@ void FormatData::addMaskRange(const int start, const int end)
 
     const int lo = qMax(0, start);
     const int hi = qMin(end, mask.size() - 1);
+    if (lo <= hi)
+        invalidatePositionIndexes();
     for (int x = lo; x <= hi; ++x)
         mask.setBit(x, true);
 }
@@ -193,6 +200,7 @@ void FormatData::addCharacterReplacement(const int pos,
     if (pos < 0 || pos >= mask.size())
         return;
     mask.setBit(pos, true);
+    invalidatePositionIndexes();
     characterReplacements.insert(pos, replacement);
 }
 
@@ -271,17 +279,50 @@ QVector<QPair<int, int>> FormatData::imageSpans() const
     return spans;
 }
 
-int FormatData::collapsedCharsBefore(const int sourcePos) const
+void FormatData::invalidatePositionIndexes()
 {
-    int collapsed = 0;
-    for (auto *fragment : formats)
+    positionIndexesDirty = true;
+}
+
+void FormatData::rebuildPositionIndexes() const
+{
+    if (!positionIndexesDirty)
+        return;
+
+    const int sourceLength = mask.size();
+    maskedCharacterPrefix.resize(sourceLength + 1);
+    maskedCharacterPrefix[0] = 0;
+    for (int index = 0; index < sourceLength; ++index)
+        maskedCharacterPrefix[index + 1] =
+            maskedCharacterPrefix.at(index) + (mask.testBit(index) ? 1 : 0);
+
+    QVector<int> imageCollapseDelta(sourceLength + 1, 0);
+    for (const FragmentData *fragment : formats)
     {
         if (fragment->getStatus() != FragmentData::IMAGE)
             continue;
-        if (fragment->getEnd() < sourcePos)
-            collapsed += qMax(0, fragment->getEnd() - fragment->getStart());
+
+        const int end = fragment->getEnd();
+        const int collapseStart = end + 1;
+        if (collapseStart >= 0 && collapseStart <= sourceLength)
+            imageCollapseDelta[collapseStart] +=
+                qMax(0, end - fragment->getStart());
     }
-    return collapsed;
+
+    collapsedImagePrefix.resize(sourceLength + 1);
+    collapsedImagePrefix[0] = imageCollapseDelta[0];
+    for (int index = 1; index <= sourceLength; ++index)
+        collapsedImagePrefix[index] =
+            collapsedImagePrefix.at(index - 1) + imageCollapseDelta.at(index);
+
+    positionIndexesDirty = false;
+}
+
+int FormatData::collapsedCharsBefore(const int sourcePos) const
+{
+    rebuildPositionIndexes();
+    const int index = qBound(0, sourcePos, mask.size());
+    return collapsedImagePrefix.at(index);
 }
 
 int FormatData::totalCollapsedChars() const
@@ -306,6 +347,7 @@ int FormatData::getBlockQuoteDepth() const { return blockQuoteDepth; }
 void FormatData::addImageFormat(const int start, const int end,
                                 const QString &url, const QString &altText)
 {
+    invalidatePositionIndexes();
     formats.append(new FragmentData(start, end, FragmentData::IMAGE));
     imageUrlMap.insert(start, url);
     imageAltTextMap.insert(start, altText);
@@ -319,6 +361,7 @@ void FormatData::addAutoLinkFormat(const int start, const int end,
     if (end <= start + 1)
         return;
 
+    invalidatePositionIndexes();
     formats.append(new FragmentData(start + 1, end - 1,
                                     FragmentData::LINK_TITLE));
     linkUrlMap.insert(start + 1, new QString(url));
@@ -342,14 +385,10 @@ void FormatData::addHiddenFormat(const int start, const int end,
                                  const QString &linkUrl,
                                  const QString &linkTitle)
 {
-    int hiddenBits = 0;
-
-    const int scanEnd = qMin(start, mask.count() - 1);
-    for (int x = 0; x <= scanEnd; ++x)
-    {
-        if (mask[x])
-            ++hiddenBits;
-    }
+    rebuildPositionIndexes();
+    const int scanEnd = qMin(start, mask.size() - 1);
+    const int prefixEnd = qBound(0, scanEnd + 1, mask.size());
+    const int hiddenBits = maskedCharacterPrefix.at(prefixEnd);
 
     // Inline images shorten the rendered line too, so every offset after one
     // shifts left by (image length - 1).
