@@ -34,6 +34,7 @@ Options:
 | `--warmup N` | 3 | Warm-up samples excluded from statistics |
 | `--passes N` | 5 | Complete workload passes in each sample |
 | `--filter TEXT` | — | Run workload names containing TEXT |
+| `--profile normal|stress|high-pressure` | normal | Scale each workload by 1x, 8x, or 32x source lines |
 | `--format text|csv|json` | text | Select human-readable, CSV, or JSON output |
 | `--help` | — | Show usage |
 
@@ -43,8 +44,14 @@ Examples:
 # Quick smoke run
 ./build/benchmarks/MarkdownParserBenchmark --iterations 3 --warmup 1 --passes 1
 
-# Stress the long-line parser
-./build/benchmarks/MarkdownParserBenchmark --filter long-lines
+# Stress the long-line parser with an 8x corpus
+./build/benchmarks/MarkdownParserBenchmark --profile stress --filter long-lines
+
+# High-pressure run: 32x input volume across every workload
+./build/benchmarks/MarkdownParserBenchmark --profile high-pressure --iterations 5 --warmup 1 --passes 1
+
+# Focus the high-pressure run on the full document pipeline
+./build/benchmarks/MarkdownParserBenchmark --profile high-pressure --filter mixed-document --format json
 
 # Save machine-readable output
 ./build/benchmarks/MarkdownParserBenchmark --format json > benchmark.json
@@ -61,6 +68,23 @@ Examples:
 - Fenced code blocks: code-fence classification and non-Markdown code contents.
 - Long lines: repeated inline constructs on long source lines.
 - Mixed document: a representative combination of block and inline syntax.
+
+## Pressure profiles
+
+Profiles enlarge each built-in corpus before timing; they do not change parser
+semantics or add artificial sleeps/concurrency:
+
+- `normal` (1x): baseline workloads.
+- `stress` (8x): repeats each workload eight times to exercise larger documents
+  and sustained parser/scanner work.
+- `high-pressure` (32x): repeats each workload 32 times to expose scaling,
+  allocation, and large-document throughput costs.
+
+The profile is included in JSON and text output. High-pressure runs can take
+substantially longer and consume more memory, especially for `long-lines`.
+Use smaller `--iterations` and `--passes` values for an initial run. These are
+single-process throughput stress tests, not concurrent-user/load tests and not
+hard pass/fail performance tests.
 
 ## Measurement stages
 
