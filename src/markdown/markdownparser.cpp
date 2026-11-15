@@ -40,6 +40,13 @@ EscapeMap buildEscapeMap(const QString &text)
         while (i < n && text.at(i) == QLatin1Char('\\'))
             ++i;
 
+        // Match the original parity rule for every position, including
+        // positions inside a backslash run (not only its following character).
+        for (int position = runStart + 1; position < i; ++position)
+        {
+            if (((position - runStart) & 1) != 0)
+                escaped[position] = 1;
+        }
         if (((i - runStart) & 1) != 0 && i < n)
             escaped[i] = 1;
     }
