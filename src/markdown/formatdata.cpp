@@ -450,6 +450,7 @@ void FormatData::addMaskBit(const int start, const QString &startSymbol,
 void FormatData::addMaskBitForLinkContent(const int start, const int end,
                                           const QString &endSymbol)
 {
+    invalidatePositionIndexes();
     const int endLen = endSymbol.length();
 
     for (int i = start; i < (endLen + end); ++i)
