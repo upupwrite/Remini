@@ -36,14 +36,6 @@ jobs:
     - name: Checkout Repo
       uses: actions/checkout@v4
 
-    - name: Set up vcpkg
-      shell: pwsh
-      run: |
-        $vcpkgRoot = "$env:RUNNER_TEMP\vcpkg"
-        git clone --depth 1 https://github.com/microsoft/vcpkg.git $vcpkgRoot
-        & "$vcpkgRoot\bootstrap-vcpkg.bat" -disableMetrics
-        echo "VCPKG_ROOT=$vcpkgRoot" >> $env:GITHUB_ENV
-
     - name: Install Qt
       uses: jurplel/install-qt-action@v3
       with:
@@ -63,7 +55,6 @@ jobs:
       run: |
         cmake -S . -B Build -DCMAKE_BUILD_TYPE=Release `
           -DQt6_DIR="$env:QT_DIR" `
-          -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake" `
           -DREMINI_BUILD_BENCHMARKS=ON
 
     - name: Build the Qt project with CMake
