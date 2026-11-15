@@ -80,4 +80,7 @@ jobs:
         run: ctest --test-dir build --output-on-failure
 
       - name: Smoke-test Markdown parser benchmark
-        run: ./build/benchmarks/MarkdownParserBenchmark --filter plain-prose --iterations 2 --warmup 1 --passes 1 --format json
+        run: |
+          ./build/benchmarks/MarkdownParserBenchmark --filter plain-prose --iterations 2 --warmup 1 --passes 1 --format json
+          ./build/benchmarks/MarkdownParserBenchmark --profile stress --filter plain-prose --iterations 1 --warmup 0 --passes 1 --format json
+          ./build/benchmarks/MarkdownParserBenchmark --profile high-pressure --filter plain-prose --iterations 1 --warmup 0 --passes 1 --format json
