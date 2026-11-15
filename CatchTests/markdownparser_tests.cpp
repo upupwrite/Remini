@@ -58,6 +58,22 @@ TEST_CASE("MarkdownParser leaves escaped and code-span markers literal",
     REQUIRE(hasFormat(parsed, FragmentData::CODE_SPAN));
 }
 
+TEST_CASE("MarkdownParser handles many protected inline ranges", "[MarkdownParser]")
+{
+    const QString source =
+        QStringLiteral("`*literal*` **bold** \\*escaped\\* ~~removed~~ "
+                       "`_also literal_` and *emphasis*");
+    FormatData parsed;
+    MarkdownParser parser;
+    parser.parseBlock(source, &parsed);
+
+    REQUIRE(parsed.getMask().size() == source.size());
+    REQUIRE(hasFormat(parsed, FragmentData::BOLD));
+    REQUIRE(hasFormat(parsed, FragmentData::STRIKETHROUGH));
+    REQUIRE(hasFormat(parsed, FragmentData::ITALIC));
+    REQUIRE(hasFormat(parsed, FragmentData::CODE_SPAN));
+}
+
 TEST_CASE("MarkdownParser applies table transformations only when requested",
           "[MarkdownParser]")
 {
