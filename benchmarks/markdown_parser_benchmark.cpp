@@ -2,7 +2,7 @@
 #include "formatdata.h"
 #include "markdownparser.h"
 
-#include <QCoreApplication>
+#include <QGuiApplication>
 #include <QElapsedTimer>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -336,6 +336,9 @@ void output(const QVector<Result> &results, const Options &o)
         QJsonObject root;
         root.insert("benchmark", "Remini Markdown parser");
         root.insert("qt_version", QT_VERSION_STR);
+#ifdef REMINI_BENCHMARK_BUILD_CONFIG
+        root.insert("build_config", REMINI_BENCHMARK_BUILD_CONFIG);
+#endif
         root.insert("iterations", o.samples); root.insert("warmup", o.warmup);
         root.insert("passes_per_sample", o.passes);
 #if defined(__clang__)
@@ -381,7 +384,7 @@ void output(const QVector<Result> &results, const Options &o)
 
 int main(int argc, char *argv[])
 {
-    QCoreApplication app(argc, argv);
+    QGuiApplication app(argc, argv);
     Options options;
     if (!optionsFromArgs(app.arguments(), options))
     {
