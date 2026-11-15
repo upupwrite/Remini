@@ -284,7 +284,9 @@ Result runBenchmark(const Workload &w, const QString &stage,
     }
     std::sort(times.begin(), times.end());
     r.minMs = times.first(); r.maxMs = times.last();
-    r.medianMs = times.at(times.size() / 2);
+    r.medianMs = times.size() % 2 == 0
+        ? (times.at(times.size() / 2 - 1) + times.at(times.size() / 2)) / 2.0
+        : times.at(times.size() / 2);
     r.p95Ms = times.at(qMax(0, qMin(times.size() - 1,
         static_cast<int>(std::ceil(times.size() * 0.95)) - 1)));
     for (double t : times) r.meanMs += t;
