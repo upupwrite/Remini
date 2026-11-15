@@ -74,6 +74,22 @@ TEST_CASE("MarkdownParser handles many protected inline ranges", "[MarkdownParse
     REQUIRE(hasFormat(parsed, FragmentData::CODE_SPAN));
 }
 
+TEST_CASE("MarkdownParser handles odd and even backslash runs", "[MarkdownParser]")
+{
+    MarkdownParser parser;
+
+    // One backslash escapes the opening delimiter; two do not.
+    const QString escaped = QStringLiteral("\\") + QStringLiteral("**literal**");
+    FormatData escapedData;
+    parser.parseBlock(escaped, &escapedData);
+    REQUIRE_FALSE(hasFormat(escapedData, FragmentData::BOLD));
+
+    const QString unescaped = QStringLiteral("\\\\") + QStringLiteral("**bold**");
+    FormatData unescapedData;
+    parser.parseBlock(unescaped, &unescapedData);
+    REQUIRE(hasFormat(unescapedData, FragmentData::BOLD));
+}
+
 TEST_CASE("MarkdownParser applies table transformations only when requested",
           "[MarkdownParser]")
 {
