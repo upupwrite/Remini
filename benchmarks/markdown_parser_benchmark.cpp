@@ -481,7 +481,11 @@ void output(const QVector<Result> &results, const Options &o)
         return;
     }
 
-    out << "Remini Markdown parser comparison | Qt " << QT_VERSION_STR
+    out << "Remini Markdown parser comparison"
+#ifdef REMINI_BENCHMARK_HAS_MD4C
+        << " | MD4C 0.6.0"
+#endif
+        << " | Qt " << QT_VERSION_STR
         << " | profile=" << o.profile << " (" << o.workloadScale << "x)"
         << " | samples=" << o.samples << " warmup=" << o.warmup
         << " passes/sample=" << o.passes << "\n\n";
