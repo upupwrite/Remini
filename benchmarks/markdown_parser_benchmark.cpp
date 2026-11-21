@@ -18,8 +18,10 @@
 #include <QVector>
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <limits>
+#include <vector>
 
 namespace
 {
@@ -76,6 +78,60 @@ void consume(const FormatData *data, quint64 &sum)
     sum += static_cast<quint64>(data->getFormatCounts());
     sum += static_cast<quint64>(data->getMask().count(true));
     sum += static_cast<quint64>(data->totalCollapsedChars());
+}
+
+// ---------------------------------------------------------------------------
+// Benchmark hygiene helpers. These standardize how measurements are taken while
+// leaving the reported columns untouched: they defeat dead-code elimination,
+// evict the data cache between samples, and stop the optimizer from hoisting
+// work across the clock. None of them add or rename any output field.
+// ---------------------------------------------------------------------------
+
+// Portable compiler barrier. Keeps the measured region and the timer on the
+// order written, so the optimizer cannot sink warm-up work into a timed window
+// or hoist measured work out of it. asm is used where available, otherwise the
+// equivalent, zero-runtime-cost signal fence from <atomic>.
+void compilerBarrier()
+{
+#if defined(__GNUC__) || defined(__clang__)
+    asm volatile("" ::: "memory");
+#else
+    std::atomic_signal_fence(std::memory_order_seq_cst);
+#endif
+}
+
+// Evict the data cache before each timed sample so every sample starts from a
+// comparable cache state, mirroring the explicit cache-flush step used by mature
+// benchmarking harnesses (Google Benchmark, nanobench). The accumulator is
+// volatile so the touching loop is never elided as dead code. The buffer is sized
+// to exceed L2 and typical small L3s; raise it on machines with a very large LLC.
+void flushCaches()
+{
+    static const std::vector<unsigned char> scratch(8u * 1024u * 1024u, 0xA5u);
+    volatile unsigned long long acc = 0;
+    for (unsigned char cell : scratch)
+        acc += cell;
+    resultSink = resultSink + static_cast<quint64>(acc);
+}
+
+// Measure the floor cost of an empty timed region once per stage so that the
+// clock's own overhead can be subtracted from every sample. Returns the median
+// overhead in milliseconds (nearest-rank), staying stable against outliers.
+double calibrateTimer(int samples)
+{
+    QVector<double> overhead;
+    overhead.reserve(qMax(1, samples));
+    const int n = qMax(1, samples);
+    for (int i = 0; i < n; ++i)
+    {
+        flushCaches();
+        compilerBarrier();
+        QElapsedTimer timer; timer.start();
+        compilerBarrier();
+        overhead.append(static_cast<double>(timer.nsecsElapsed()) / 1.0e6);
+    }
+    std::sort(overhead.begin(), overhead.end());
+    return overhead.at(overhead.size() / 2);
 }
 
 QVector<Workload> makeWorkloads()
@@ -392,14 +448,28 @@ Result runBenchmark(const Workload &w, const QString &stage,
         if (stage == "structure-scan") return scanOnly(document, o.passes);
         return documentPipeline(document, o.passes);
     };
-    for (int i = 0; i < o.warmup; ++i) resultSink = resultSink + run();
+    // Standard warm-up: iterate the unit of work until branch predictors, caches
+    // and any lazy initialization reach steady state, then discard these results.
+    for (int i = 0; i < o.warmup; ++i)
+        resultSink = resultSink + run();
+
+    // Remove the timer's own overhead so short samples are not biased upward.
+    const double timerOverheadMs = calibrateTimer(o.samples);
 
     QVector<double> times;
+    times.reserve(o.samples);
     for (int i = 0; i < o.samples; ++i)
     {
+        flushCaches();        // cold-cache start, like a reference harness
+        compilerBarrier();    // keep the flush outside the timed region
         QElapsedTimer timer; timer.start();
-        resultSink = resultSink + run();
-        times.append(static_cast<double>(timer.nsecsElapsed()) / 1.0e6);
+        const quint64 checksum = run();
+        compilerBarrier();    // keep the work inside the timed region
+        double elapsedMs = static_cast<double>(timer.nsecsElapsed()) / 1.0e6;
+        elapsedMs -= timerOverheadMs;            // subtract the measured floor
+        if (elapsedMs < 0.0) elapsedMs = 0.0;    // never report a negative span
+        times.append(elapsedMs);
+        resultSink = resultSink + checksum;      // single anti-DCE write-back
     }
     std::sort(times.begin(), times.end());
     r.minMs = times.first(); r.maxMs = times.last();
