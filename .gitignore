@@ -3,3 +3,4 @@ build-tests-Desktop_Qt_6_5_0_MinGW_64_bit-Debug
 build/
 remini.sublime-project
 remini.sublime-workspace
+compile_commands.json
